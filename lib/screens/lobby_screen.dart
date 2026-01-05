@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/friend_model.dart';
 import '../providers/chat_provider.dart';
+import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
@@ -52,72 +53,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final l10n = AppLocalizations.of(context)!;
     
     return Scaffold(
-      body: Consumer<ChatProvider>(
-        builder: (context, chatProvider, child) {
+      body: Consumer2<ChatProvider, ArchiveSettingsProvider>(
+        builder: (context, chatProvider, archiveSettings, child) {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
           
           return Column(
             children: [
-              // Archived chats section (if any exist)
-              if (archivedChats.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ArchivedChatsScreen(),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.archive,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l10n.archived,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  '${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'}',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              // Top archive button (if configured)
+              if (archivedChats.isNotEmpty && 
+                  archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats)
+                _buildArchiveContactCard(context, archivedChats, l10n),
               
               // Active chats
               Expanded(
@@ -141,17 +87,105 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: activeChats.length,
-                        itemBuilder: (context, index) {
-                          final friend = activeChats[index];
-                          return _buildFriendTile(friend, chatProvider, l10n);
-                        },
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: activeChats.length + (archivedChats.isNotEmpty && 
+                                  archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                // Show archive button as last item if configured for bottom position
+                                if (archivedChats.isNotEmpty && 
+                                    archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats &&
+                                    index == activeChats.length) {
+                                  return _buildArchiveContactCard(context, archivedChats, l10n);
+                                }
+                                
+                                final friend = activeChats[index];
+                                return _buildFriendTile(friend, chatProvider, l10n);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildArchiveContactCard(BuildContext context, List<Friend> archivedChats, AppLocalizations l10n) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ArchivedChatsScreen(),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor.withOpacity(0.3), 
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Archive icon as avatar
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              child: Icon(
+                Icons.archive,
+                color: Theme.of(context).colorScheme.primary,
+                size: 24,
+              ),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            // Archive info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${l10n.archived} (${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'})',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'View archived conversations',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -167,7 +201,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         );
       },
       onLongPress: () {
-        _showArchiveDialog(friend, chatProvider, l10n);
+        _showChatOptionsBottomSheet(friend, chatProvider, l10n);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -205,9 +239,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ),
                         ),
                 ),
+                // Online indicator - moved to top
                 if (friend.isOnline)
                   Positioned(
-                    bottom: 2,
+                    top: 2,
                     right: 2,
                     child: Container(
                       width: 14,
@@ -235,10 +270,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        friend.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              friend.name,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            // Unread eye indicator after name
+                            if (friend.unreadCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.visibility_off,
+                                size: 16,
+                                color: chatProvider.isChatMuted(friend.id) 
+                                    ? Colors.orange 
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       Text(
@@ -259,20 +311,37 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(
-                          friend.lastMessage,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            // Mute indicator
+                            if (chatProvider.isChatMuted(friend.id)) ...[
+                              Icon(
+                                Icons.volume_off,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                friend.lastMessage,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (friend.unreadCount > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
+                            color: chatProvider.isChatMuted(friend.id)
+                                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                                : Theme.of(context).colorScheme.primary,
                             shape: BoxShape.circle,
                           ),
                           child: Text(
@@ -295,12 +364,213 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  void _showArchiveDialog(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  void _showChatOptionsBottomSheet(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Header with friend info
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  child: friend.avatar != null
+                      ? ClipOval(
+                          child: Image.network(
+                            friend.avatar!,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Text(
+                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            friend.name,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          // Unread eye indicator after name
+                          if (friend.unreadCount > 0) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.visibility_off,
+                              size: 16,
+                              color: chatProvider.isChatMuted(friend.id) 
+                                  ? Colors.orange 
+                                  : Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        friend.virtualNumber,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Chat options
+            _buildChatOption(
+              context,
+              icon: Icons.archive,
+              title: chatProvider.isChatArchived(friend.id) ? l10n.unarchiveChat : l10n.archiveChat,
+              onTap: () async {
+                Navigator.pop(context);
+                if (chatProvider.isChatArchived(friend.id)) {
+                  await chatProvider.unarchiveChat(friend.id);
+                  _showSnackBar(l10n.chatUnarchived, Colors.green);
+                } else {
+                  await chatProvider.archiveChat(friend.id);
+                  _showSnackBar(l10n.chatArchived, Colors.green);
+                }
+              },
+            ),
+            
+            _buildChatOption(
+              context,
+              icon: chatProvider.isChatMuted(friend.id) ? Icons.volume_up : Icons.volume_off,
+              title: chatProvider.isChatMuted(friend.id) ? l10n.unmuteChat : l10n.muteChat,
+              onTap: () async {
+                Navigator.pop(context);
+                if (chatProvider.isChatMuted(friend.id)) {
+                  await chatProvider.unmuteChat(friend.id);
+                  _showSnackBar(l10n.chatUnmuted, Colors.green);
+                } else {
+                  await chatProvider.muteChat(friend.id);
+                  _showSnackBar(l10n.chatMuted, Colors.orange);
+                }
+              },
+            ),
+            
+            _buildChatOption(
+              context,
+              icon: friend.unreadCount > 0 ? Icons.mark_email_read : Icons.mark_email_unread,
+              title: friend.unreadCount > 0 ? l10n.markAsRead : l10n.markAsUnread,
+              onTap: () async {
+                Navigator.pop(context);
+                if (friend.unreadCount > 0) {
+                  final success = await chatProvider.markAsRead(friend.id);
+                  if (success) {
+                    _showSnackBar('Marked as read', Colors.green);
+                  } else {
+                    _showSnackBar('Failed to mark as read', Colors.red);
+                  }
+                } else {
+                  final success = await chatProvider.markAsUnread(friend.id);
+                  if (success) {
+                    _showSnackBar('Marked as unread', Colors.blue);
+                  } else {
+                    _showSnackBar('Failed to mark as unread', Colors.red);
+                  }
+                }
+              },
+            ),
+            
+            _buildChatOption(
+              context,
+              icon: Icons.block,
+              title: chatProvider.isUserBlocked(friend.id) ? l10n.unblockUser : l10n.blockUser,
+              isDestructive: !chatProvider.isUserBlocked(friend.id),
+              onTap: () {
+                Navigator.pop(context);
+                if (chatProvider.isUserBlocked(friend.id)) {
+                  _unblockUser(friend, chatProvider, l10n);
+                } else {
+                  _showBlockConfirmation(friend, chatProvider, l10n);
+                }
+              },
+            ),
+            
+            _buildChatOption(
+              context,
+              icon: Icons.delete,
+              title: l10n.deleteChat,
+              isDestructive: true,
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(friend, chatProvider, l10n);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isDestructive 
+            ? Colors.red.shade600 
+            : Theme.of(context).colorScheme.onSurface,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDestructive 
+              ? Colors.red.shade600 
+              : Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  void _showBlockConfirmation(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.archiveChat),
-        content: Text('Archive chat with ${friend.name}?'),
+        title: Text(l10n.blockUser),
+        content: Text(l10n.confirmBlockUser(friend.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -308,20 +578,109 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await chatProvider.archiveChat(friend.id);
+              await chatProvider.blockUser(friend.id);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.chatArchived),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              _showSnackBar(l10n.userBlocked, Colors.red);
             },
-            child: Text(l10n.archiveChat),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.blockUser),
           ),
         ],
       ),
     );
+  }
+
+  void _unblockUser(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) async {
+    await chatProvider.unblockUser(friend.id);
+    _showSnackBar(l10n.userUnblocked, Colors.green);
+  }
+
+  void _showDeleteConfirmation(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.deleteChat),
+        content: Text(l10n.confirmDeleteChat(friend.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await chatProvider.deleteChat(friend.id);
+              Navigator.pop(context);
+              _showSnackBar(l10n.chatDeleted, Colors.red);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.deleteChat),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// Quick toggle read/unread status for testing (double-tap)
+  void _quickToggleReadStatus(Friend friend, ChatProvider chatProvider) async {
+    try {
+      if (friend.unreadCount > 0) {
+        final success = await chatProvider.markAsRead(friend.id);
+        if (success) {
+          _showSnackBar('✓ Marked "${friend.name}" as read', Colors.green);
+        } else {
+          _showSnackBar('✗ Failed to mark as read', Colors.red);
+        }
+      } else {
+        final success = await chatProvider.markAsUnread(friend.id);
+        if (success) {
+          _showSnackBar('✓ Marked "${friend.name}" as unread', Colors.blue);
+        } else {
+          _showSnackBar('✗ Failed to mark as unread', Colors.red);
+        }
+      }
+    } catch (e) {
+      _showSnackBar('Error: $e', Colors.red);
+    }
+  }
+
+  /// Test method: Mark all chats as read
+  void _testMarkAllAsRead(ChatProvider chatProvider) async {
+    int count = 0;
+    for (final friend in chatProvider.activeChats) {
+      if (friend.unreadCount > 0) {
+        await chatProvider.markAsRead(friend.id);
+        count++;
+      }
+    }
+    _showSnackBar('✓ Marked $count chats as read', Colors.green);
+  }
+
+  /// Test method: Mark all chats as unread
+  void _testMarkAllAsUnread(ChatProvider chatProvider) async {
+    int count = 0;
+    for (final friend in chatProvider.activeChats) {
+      await chatProvider.markAsUnread(friend.id);
+      count++;
+    }
+    _showSnackBar('✓ Marked $count chats as unread', Colors.orange);
   }
 
   void _showProfileDialog() {

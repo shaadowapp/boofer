@@ -8,6 +8,8 @@ class Friend {
   final int unreadCount;
   final bool isOnline;
   final bool isArchived;
+  final bool isBlocked;
+  final bool isMuted;
 
   Friend({
     required this.id,
@@ -19,6 +21,8 @@ class Friend {
     this.unreadCount = 0,
     this.isOnline = false,
     this.isArchived = false,
+    this.isBlocked = false,
+    this.isMuted = false,
   });
 
   Friend copyWith({
@@ -31,6 +35,8 @@ class Friend {
     int? unreadCount,
     bool? isOnline,
     bool? isArchived,
+    bool? isBlocked,
+    bool? isMuted,
   }) {
     return Friend(
       id: id ?? this.id,
@@ -42,6 +48,41 @@ class Friend {
       unreadCount: unreadCount ?? this.unreadCount,
       isOnline: isOnline ?? this.isOnline,
       isArchived: isArchived ?? this.isArchived,
+      isBlocked: isBlocked ?? this.isBlocked,
+      isMuted: isMuted ?? this.isMuted,
+    );
+  }
+
+  // JSON serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'virtualNumber': virtualNumber,
+      'avatar': avatar,
+      'lastMessage': lastMessage,
+      'lastMessageTime': lastMessageTime.toIso8601String(),
+      'unreadCount': unreadCount,
+      'isOnline': isOnline,
+      'isArchived': isArchived,
+      'isBlocked': isBlocked,
+      'isMuted': isMuted,
+    };
+  }
+
+  factory Friend.fromJson(Map<String, dynamic> json) {
+    return Friend(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      virtualNumber: json['virtualNumber'] as String,
+      avatar: json['avatar'] as String?,
+      lastMessage: json['lastMessage'] as String,
+      lastMessageTime: DateTime.parse(json['lastMessageTime'] as String),
+      unreadCount: json['unreadCount'] as int? ?? 0,
+      isOnline: json['isOnline'] as bool? ?? false,
+      isArchived: json['isArchived'] as bool? ?? false,
+      isBlocked: json['isBlocked'] as bool? ?? false,
+      isMuted: json['isMuted'] as bool? ?? false,
     );
   }
 

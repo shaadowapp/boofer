@@ -64,5 +64,20 @@
   "chatUnarchived": "Discussion désarchivée",
   "darkMode": "Mode Sombre",
   "lightMode": "Mode Clair",
-  "themeToggle": "Basculer le Thème"
+  "themeToggle": "Basculer le Thème",
+  "blockUser": "Bloquer l'Utilisateur",
+  "unblockUser": "Débloquer l'Utilisateur",
+  "muteChat": "Couper le Son du Chat",
+  "unmuteChat": "Activer le Son du Chat",
+  "deleteChat": "Supprimer le Chat",
+  "markAsRead": "Marquer comme Lu",
+  "markAsUnread": "Marquer comme Non Lu",
+  "chatOptions": "Options du Chat",
+  "userBlocked": "Utilisateur bloqué",
+  "userUnblocked": "Utilisateur débloqué",
+  "chatMuted": "Chat mis en sourdine",
+  "chatUnmuted": "Son du chat activé",
+  "chatDeleted": "Chat supprimé",
+  "confirmBlockUser": "Êtes-vous sûr de vouloir bloquer {name}? Vous ne recevrez plus de messages de cette personne.",
+  "confirmDeleteChat": "Êtes-vous sûr de vouloir supprimer ce chat avec {name}? Cette action ne peut pas être annulée."
 }

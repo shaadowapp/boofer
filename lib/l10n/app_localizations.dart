@@ -493,6 +493,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Theme Toggle'**
   String get themeToggle;
+
+  /// Block user option
+  ///
+  /// In en, this message translates to:
+  /// **'Block User'**
+  String get blockUser;
+
+  /// Unblock user option
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock User'**
+  String get unblockUser;
+
+  /// Mute chat option
+  ///
+  /// In en, this message translates to:
+  /// **'Mute Chat'**
+  String get muteChat;
+
+  /// Unmute chat option
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute Chat'**
+  String get unmuteChat;
+
+  /// Delete chat option
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Chat'**
+  String get deleteChat;
+
+  /// Mark chat as read option
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Read'**
+  String get markAsRead;
+
+  /// Mark chat as unread option
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as Unread'**
+  String get markAsUnread;
+
+  /// Chat options dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Options'**
+  String get chatOptions;
+
+  /// Success message when user is blocked
+  ///
+  /// In en, this message translates to:
+  /// **'User blocked'**
+  String get userBlocked;
+
+  /// Success message when user is unblocked
+  ///
+  /// In en, this message translates to:
+  /// **'User unblocked'**
+  String get userUnblocked;
+
+  /// Success message when chat is muted
+  ///
+  /// In en, this message translates to:
+  /// **'Chat muted'**
+  String get chatMuted;
+
+  /// Success message when chat is unmuted
+  ///
+  /// In en, this message translates to:
+  /// **'Chat unmuted'**
+  String get chatUnmuted;
+
+  /// Success message when chat is deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Chat deleted'**
+  String get chatDeleted;
+
+  /// Confirmation message for blocking a user
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to block {name}? You won\'t receive messages from them.'**
+  String confirmBlockUser(String name);
+
+  /// Confirmation message for deleting a chat
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete this chat with {name}? This action cannot be undone.'**
+  String confirmDeleteChat(String name);
 }
 
 class _AppLocalizationsDelegate

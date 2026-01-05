@@ -5,13 +5,14 @@ import 'screens/friend_chat_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
 import 'services/stub_services.dart';
 import 'services/app_state_service.dart';
 import 'providers/theme_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/username_provider.dart';
 import 'providers/chat_provider.dart';
-import 'providers/onboarding_controller.dart';
+import 'providers/archive_settings_provider.dart';
 import 'models/friend_model.dart';
 import 'l10n/app_localizations.dart';
 
@@ -89,13 +90,16 @@ void main() async {
   await DatabaseService.instance.initialize();
   await serviceLocator.get<INetworkService>().initialize();
 
+  // Create providers
+  final usernameProvider = UsernameProvider();
+
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (context) => ThemeProvider()),
       ChangeNotifierProvider(create: (context) => LocaleProvider()),
-      ChangeNotifierProvider(create: (context) => UsernameProvider()),
+      ChangeNotifierProvider.value(value: usernameProvider),
       ChangeNotifierProvider(create: (context) => ChatProvider()),
-      ChangeNotifierProvider(create: (context) => OnboardingController()),
+      ChangeNotifierProvider(create: (context) => ArchiveSettingsProvider()),
     ],
     child: const BooferApp(
       isDegradedMode: false,
@@ -412,6 +416,11 @@ class BooferApp extends StatelessWidget {
       case '/profile':
         return MaterialPageRoute(
           builder: (context) => const ProfileScreen(),
+          settings: settings,
+        );
+      case '/settings':
+        return MaterialPageRoute(
+          builder: (context) => const SettingsScreen(),
           settings: settings,
         );
       case '/chat':

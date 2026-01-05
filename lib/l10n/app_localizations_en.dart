@@ -210,4 +210,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get themeToggle => 'Theme Toggle';
+
+  @override
+  String get blockUser => 'Block User';
+
+  @override
+  String get unblockUser => 'Unblock User';
+
+  @override
+  String get muteChat => 'Mute Chat';
+
+  @override
+  String get unmuteChat => 'Unmute Chat';
+
+  @override
+  String get deleteChat => 'Delete Chat';
+
+  @override
+  String get markAsRead => 'Mark as Read';
+
+  @override
+  String get markAsUnread => 'Mark as Unread';
+
+  @override
+  String get chatOptions => 'Chat Options';
+
+  @override
+  String get userBlocked => 'User blocked';
+
+  @override
+  String get userUnblocked => 'User unblocked';
+
+  @override
+  String get chatMuted => 'Chat muted';
+
+  @override
+  String get chatUnmuted => 'Chat unmuted';
+
+  @override
+  String get chatDeleted => 'Chat deleted';
+
+  @override
+  String confirmBlockUser(String name) {
+    return 'Are you sure you want to block $name? You won\'t receive messages from them.';
+  }
+
+  @override
+  String confirmDeleteChat(String name) {
+    return 'Are you sure you want to delete this chat with $name? This action cannot be undone.';
+  }
 }

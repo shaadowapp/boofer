@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
+import '../providers/archive_settings_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/friend_model.dart';
+import 'archive_settings_screen.dart';
 
 class ArchivedChatsScreen extends StatelessWidget {
   const ArchivedChatsScreen({super.key});
@@ -18,6 +20,20 @@ class ArchivedChatsScreen extends StatelessWidget {
         elevation: 0,
         title: Text(l10n.archivedChats),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_horiz),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ArchiveSettingsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Archive Settings',
+          ),
+        ],
       ),
       body: Consumer<ChatProvider>(
         builder: (context, chatProvider, child) {
@@ -107,7 +123,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                 ),
                 if (friend.isOnline)
                   Positioned(
-                    bottom: 2,
+                    top: 2,
                     right: 2,
                     child: Container(
                       width: 14,

@@ -36,6 +36,13 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _onSearchChanged() {
+    // Don't perform search automatically - wait for user to press Enter
+    setState(() {
+      _isSearching = _searchController.text.trim().isNotEmpty;
+    });
+  }
+
+  void _performSearch() {
     final query = _searchController.text.toLowerCase().trim();
     
     setState(() {
@@ -217,10 +224,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     icon: SvgIcons.sized(SvgIcons.clear, 24, color: Colors.white),
                     onPressed: () {
                       _searchController.clear();
+                      _performSearch();
                     },
                   )
                 : null,
           ),
+          onSubmitted: (value) {
+            _performSearch();
+          },
         ),
       ),
       body: _filteredFriends.isEmpty
@@ -235,7 +246,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _isSearching ? 'No friends found' : 'Start typing to search friends',
+                    _isSearching ? 'No friends found' : 'Type and press Enter to search friends',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                     ),

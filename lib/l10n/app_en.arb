@@ -271,5 +271,77 @@
   "themeToggle": "Theme Toggle",
   "@themeToggle": {
     "description": "Theme toggle switch label"
+  },
+  "blockUser": "Block User",
+  "@blockUser": {
+    "description": "Block user option"
+  },
+  "unblockUser": "Unblock User",
+  "@unblockUser": {
+    "description": "Unblock user option"
+  },
+  "muteChat": "Mute Chat",
+  "@muteChat": {
+    "description": "Mute chat option"
+  },
+  "unmuteChat": "Unmute Chat",
+  "@unmuteChat": {
+    "description": "Unmute chat option"
+  },
+  "deleteChat": "Delete Chat",
+  "@deleteChat": {
+    "description": "Delete chat option"
+  },
+  "markAsRead": "Mark as Read",
+  "@markAsRead": {
+    "description": "Mark chat as read option"
+  },
+  "markAsUnread": "Mark as Unread",
+  "@markAsUnread": {
+    "description": "Mark chat as unread option"
+  },
+  "chatOptions": "Chat Options",
+  "@chatOptions": {
+    "description": "Chat options dialog title"
+  },
+  "userBlocked": "User blocked",
+  "@userBlocked": {
+    "description": "Success message when user is blocked"
+  },
+  "userUnblocked": "User unblocked",
+  "@userUnblocked": {
+    "description": "Success message when user is unblocked"
+  },
+  "chatMuted": "Chat muted",
+  "@chatMuted": {
+    "description": "Success message when chat is muted"
+  },
+  "chatUnmuted": "Chat unmuted",
+  "@chatUnmuted": {
+    "description": "Success message when chat is unmuted"
+  },
+  "chatDeleted": "Chat deleted",
+  "@chatDeleted": {
+    "description": "Success message when chat is deleted"
+  },
+  "confirmBlockUser": "Are you sure you want to block {name}? You won't receive messages from them.",
+  "@confirmBlockUser": {
+    "description": "Confirmation message for blocking a user",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "John"
+      }
+    }
+  },
+  "confirmDeleteChat": "Are you sure you want to delete this chat with {name}? This action cannot be undone.",
+  "@confirmDeleteChat": {
+    "description": "Confirmation message for deleting a chat",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "John"
+      }
+    }
   }
 }

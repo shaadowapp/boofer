@@ -64,5 +64,20 @@
   "chatUnarchived": "Chat desarchivado",
   "darkMode": "Modo Oscuro",
   "lightMode": "Modo Claro",
-  "themeToggle": "Alternar Tema"
+  "themeToggle": "Alternar Tema",
+  "blockUser": "Bloquear Usuario",
+  "unblockUser": "Desbloquear Usuario",
+  "muteChat": "Silenciar Chat",
+  "unmuteChat": "Activar Sonido del Chat",
+  "deleteChat": "Eliminar Chat",
+  "markAsRead": "Marcar como Leído",
+  "markAsUnread": "Marcar como No Leído",
+  "chatOptions": "Opciones del Chat",
+  "userBlocked": "Usuario bloqueado",
+  "userUnblocked": "Usuario desbloqueado",
+  "chatMuted": "Chat silenciado",
+  "chatUnmuted": "Sonido del chat activado",
+  "chatDeleted": "Chat eliminado",
+  "confirmBlockUser": "¿Estás seguro de que quieres bloquear a {name}? No recibirás mensajes de esta persona.",
+  "confirmDeleteChat": "¿Estás seguro de que quieres eliminar este chat con {name}? Esta acción no se puede deshacer."
 }

@@ -214,4 +214,53 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get themeToggle => 'Alternar Tema';
+
+  @override
+  String get blockUser => 'Bloquear Usuario';
+
+  @override
+  String get unblockUser => 'Desbloquear Usuario';
+
+  @override
+  String get muteChat => 'Silenciar Chat';
+
+  @override
+  String get unmuteChat => 'Activar Sonido del Chat';
+
+  @override
+  String get deleteChat => 'Eliminar Chat';
+
+  @override
+  String get markAsRead => 'Marcar como Leído';
+
+  @override
+  String get markAsUnread => 'Marcar como No Leído';
+
+  @override
+  String get chatOptions => 'Opciones del Chat';
+
+  @override
+  String get userBlocked => 'Usuario bloqueado';
+
+  @override
+  String get userUnblocked => 'Usuario desbloqueado';
+
+  @override
+  String get chatMuted => 'Chat silenciado';
+
+  @override
+  String get chatUnmuted => 'Sonido del chat activado';
+
+  @override
+  String get chatDeleted => 'Chat eliminado';
+
+  @override
+  String confirmBlockUser(String name) {
+    return '¿Estás seguro de que quieres bloquear a $name? No recibirás mensajes de esta persona.';
+  }
+
+  @override
+  String confirmDeleteChat(String name) {
+    return '¿Estás seguro de que quieres eliminar este chat con $name? Esta acción no se puede deshacer.';
+  }
 }

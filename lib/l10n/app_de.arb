@@ -64,5 +64,20 @@
   "chatUnarchived": "Chat entarchiviert",
   "darkMode": "Dunkler Modus",
   "lightMode": "Heller Modus",
-  "themeToggle": "Design Umschalten"
+  "themeToggle": "Design Umschalten",
+  "blockUser": "Benutzer Blockieren",
+  "unblockUser": "Benutzer Entsperren",
+  "muteChat": "Chat Stumm Schalten",
+  "unmuteChat": "Chat Ton Aktivieren",
+  "deleteChat": "Chat Löschen",
+  "markAsRead": "Als Gelesen Markieren",
+  "markAsUnread": "Als Ungelesen Markieren",
+  "chatOptions": "Chat-Optionen",
+  "userBlocked": "Benutzer blockiert",
+  "userUnblocked": "Benutzer entsperrt",
+  "chatMuted": "Chat stumm geschaltet",
+  "chatUnmuted": "Chat-Ton aktiviert",
+  "chatDeleted": "Chat gelöscht",
+  "confirmBlockUser": "Sind Sie sicher, dass Sie {name} blockieren möchten? Sie erhalten keine Nachrichten mehr von dieser Person.",
+  "confirmDeleteChat": "Sind Sie sicher, dass Sie diesen Chat mit {name} löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden."
 }
