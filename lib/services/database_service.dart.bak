@@ -1,0 +1,198 @@
+import 'dart:async';
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import '../models/message_model.dart';
+
+class DatabaseService {
+  static DatabaseService? _instance;
+  static Isar? _isar;
+
+  DatabaseService._();
+
+  static DatabaseService get instance {
+    _instance ??= DatabaseService._();
+    return _instance!;
+  }
+
+  Isar get isar {
+    if (_isar == null) {
+      throw Exception('Database not initialized. Call initialize() first.');
+    }
+    return _isar!;
+  }
+
+  /// Initialize the Isar database
+  Future<void> initialize() async {
+    if (_isar != null) return; // Already initialized
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      
+      _isar = await Isar.open(
+        [MessageSchema],
+        directory: dir.path,
+        name: 'boofer_db',
+      );
+      
+      print('Database initialized successfully at: ${dir.path}');
+    } catch (e) {
+      print('Failed to initialize database: $e');
+      rethrow;
+    }
+  }
+
+  /// Close the database connection
+  Future<void> close() async {
+    if (_isar != null) {
+      await _isar!.close();
+      _isar = null;
+      _instance = null;
+    }
+  }
+
+  /// Get a stream of all messages ordered by timestamp
+  Stream<List<Message>> get messagesStream {
+    return isar.messages
+        .where()
+        .sortByTimestamp()
+        .watch(fireImmediately: true);
+  }
+
+  /// Get messages with pagination
+  Future<List<Message>> getMessages({
+    int offset = 0,
+    int limit = 50,
+    bool ascending = false,
+  }) async {
+    final query = isar.messages
+        .where()
+        .offset(offset)
+        .limit(limit);
+    
+    return ascending 
+        ? await query.sortByTimestamp().findAll()
+        : await query.sortByTimestampDesc().findAll();
+  }
+
+  /// Get messages by conversation ID
+  Future<List<Message>> getMessagesByConversation(String conversationId) async {
+    return await isar.messages
+        .filter()
+        .conversationIdEqualTo(conversationId)
+        .sortByTimestamp()
+        .findAll();
+  }
+
+  /// Get messages by status
+  Future<List<Message>> getMessagesByStatus(MessageStatus status) async {
+    return await isar.messages
+        .filter()
+        .statusEqualTo(status)
+        .sortByTimestamp()
+        .findAll();
+  }
+
+  /// Get offline messages (for synchronization)
+  Future<List<Message>> getOfflineMessages() async {
+    return await isar.messages
+        .filter()
+        .isOfflineEqualTo(true)
+        .sortByTimestamp()
+        .findAll();
+  }
+
+  /// Save a single message
+  Future<int> saveMessage(Message message) async {
+    return await isar.writeTxn(() async {
+      return await isar.messages.put(message);
+    });
+  }
+
+  /// Save multiple messages
+  Future<List<int>> saveMessages(List<Message> messages) async {
+    return await isar.writeTxn(() async {
+      return await isar.messages.putAll(messages);
+    });
+  }
+
+  /// Update message status
+  Future<void> updateMessageStatus(int messageId, MessageStatus status) async {
+    await isar.writeTxn(() async {
+      final message = await isar.messages.get(messageId);
+      if (message != null) {
+        message.status = status;
+        await isar.messages.put(message);
+      }
+    });
+  }
+
+  /// Update multiple message statuses
+  Future<void> updateMessageStatuses(List<int> messageIds, MessageStatus status) async {
+    await isar.writeTxn(() async {
+      for (final id in messageIds) {
+        final message = await isar.messages.get(id);
+        if (message != null) {
+          message.status = status;
+          await isar.messages.put(message);
+        }
+      }
+    });
+  }
+
+  /// Delete a message
+  Future<bool> deleteMessage(int messageId) async {
+    return await isar.writeTxn(() async {
+      return await isar.messages.delete(messageId);
+    });
+  }
+
+  /// Delete messages older than specified date
+  Future<int> deleteOldMessages(DateTime cutoffDate) async {
+    return await isar.writeTxn(() async {
+      final oldMessages = await isar.messages
+          .filter()
+          .timestampLessThan(cutoffDate)
+          .findAll();
+      
+      final ids = oldMessages.map((m) => m.id).toList();
+      return await isar.messages.deleteAll(ids);
+    });
+  }
+
+  /// Get message count
+  Future<int> getMessageCount() async {
+    return await isar.messages.count();
+  }
+
+  /// Get message count by status
+  Future<int> getMessageCountByStatus(MessageStatus status) async {
+    return await isar.messages
+        .filter()
+        .statusEqualTo(status)
+        .count();
+  }
+
+  /// Check if message exists by hash (for deduplication)
+  Future<bool> messageExists(String messageHash) async {
+    final count = await isar.messages
+        .filter()
+        .messageHashEqualTo(messageHash)
+        .count();
+    return count > 0;
+  }
+
+  /// Find message by hash
+  Future<Message?> findMessageByHash(String messageHash) async {
+    return await isar.messages
+        .filter()
+        .messageHashEqualTo(messageHash)
+        .findFirst();
+  }
+
+  /// Clear all messages (for testing/reset)
+  Future<void> clearAllMessages() async {
+    await isar.writeTxn(() async {
+      await isar.messages.clear();
+    });
+  }
+}

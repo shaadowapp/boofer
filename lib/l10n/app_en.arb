@@ -1,0 +1,275 @@
+{
+  "@@locale": "en",
+  "appTitle": "Boofer Chat",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings screen title"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Appearance section title"
+  },
+  "theme": "Theme",
+  "@theme": {
+    "description": "Theme setting title"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language setting title"
+  },
+  "light": "Light",
+  "@light": {
+    "description": "Light theme option"
+  },
+  "dark": "Dark",
+  "@dark": {
+    "description": "Dark theme option"
+  },
+  "systemDefault": "System Default",
+  "@systemDefault": {
+    "description": "System default theme option"
+  },
+  "followSystemTheme": "Follow system theme",
+  "@followSystemTheme": {
+    "description": "System theme subtitle"
+  },
+  "chooseTheme": "Choose Theme",
+  "@chooseTheme": {
+    "description": "Theme dialog title"
+  },
+  "chooseLanguage": "Choose Language",
+  "@chooseLanguage": {
+    "description": "Language dialog title"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button text"
+  },
+  "privacyAndSecurity": "Privacy & Security",
+  "@privacyAndSecurity": {
+    "description": "Privacy section title"
+  },
+  "privacySettings": "Privacy Settings",
+  "@privacySettings": {
+    "description": "Privacy settings title"
+  },
+  "managePrivacyPreferences": "Manage your privacy preferences",
+  "@managePrivacyPreferences": {
+    "description": "Privacy settings subtitle"
+  },
+  "blockedUsers": "Blocked Users",
+  "@blockedUsers": {
+    "description": "Blocked users title"
+  },
+  "manageBlockedContacts": "Manage blocked contacts",
+  "@manageBlockedContacts": {
+    "description": "Blocked users subtitle"
+  },
+  "twoFactorAuthentication": "Two-Factor Authentication",
+  "@twoFactorAuthentication": {
+    "description": "2FA title"
+  },
+  "addExtraSecurityToAccount": "Add extra security to your account",
+  "@addExtraSecurityToAccount": {
+    "description": "2FA subtitle"
+  },
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Notifications section title"
+  },
+  "messageNotifications": "Message Notifications",
+  "@messageNotifications": {
+    "description": "Message notifications title"
+  },
+  "receiveNotificationsForNewMessages": "Receive notifications for new messages",
+  "@receiveNotificationsForNewMessages": {
+    "description": "Message notifications subtitle"
+  },
+  "soundAndVibration": "Sound & Vibration",
+  "@soundAndVibration": {
+    "description": "Sound settings title"
+  },
+  "customizeNotificationSounds": "Customize notification sounds",
+  "@customizeNotificationSounds": {
+    "description": "Sound settings subtitle"
+  },
+  "storage": "Storage",
+  "@storage": {
+    "description": "Storage section title"
+  },
+  "storageUsage": "Storage Usage",
+  "@storageUsage": {
+    "description": "Storage usage title"
+  },
+  "manageAppStorage": "Manage app storage",
+  "@manageAppStorage": {
+    "description": "Storage usage subtitle"
+  },
+  "autoDownloadMedia": "Auto-Download Media",
+  "@autoDownloadMedia": {
+    "description": "Auto download title"
+  },
+  "configureMediaDownloadSettings": "Configure media download settings",
+  "@configureMediaDownloadSettings": {
+    "description": "Auto download subtitle"
+  },
+  "support": "Support",
+  "@support": {
+    "description": "Support section title"
+  },
+  "helpCenter": "Help Center",
+  "@helpCenter": {
+    "description": "Help center title"
+  },
+  "getHelpAndSupport": "Get help and support",
+  "@getHelpAndSupport": {
+    "description": "Help center subtitle"
+  },
+  "contactUs": "Contact Us",
+  "@contactUs": {
+    "description": "Contact us title"
+  },
+  "sendFeedbackOrReportIssues": "Send feedback or report issues",
+  "@sendFeedbackOrReportIssues": {
+    "description": "Contact us subtitle"
+  },
+  "aboutBoofer": "About Boofer",
+  "@aboutBoofer": {
+    "description": "About title"
+  },
+  "appVersionAndInformation": "App version and information",
+  "@appVersionAndInformation": {
+    "description": "About subtitle"
+  },
+  "languageChangedTo": "Language changed to {language}",
+  "@languageChangedTo": {
+    "description": "Language change confirmation message",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "English"
+      }
+    }
+  },
+  "english": "English",
+  "@english": {
+    "description": "English language name"
+  },
+  "spanish": "Spanish",
+  "@spanish": {
+    "description": "Spanish language name"
+  },
+  "french": "French",
+  "@french": {
+    "description": "French language name"
+  },
+  "german": "German",
+  "@german": {
+    "description": "German language name"
+  },
+  "italian": "Italian",
+  "@italian": {
+    "description": "Italian language name"
+  },
+  "portuguese": "Portuguese",
+  "@portuguese": {
+    "description": "Portuguese language name"
+  },
+  "russian": "Russian",
+  "@russian": {
+    "description": "Russian language name"
+  },
+  "chinese": "Chinese",
+  "@chinese": {
+    "description": "Chinese language name"
+  },
+  "japanese": "Japanese",
+  "@japanese": {
+    "description": "Japanese language name"
+  },
+  "korean": "Korean",
+  "@korean": {
+    "description": "Korean language name"
+  },
+  "username": "Username",
+  "@username": {
+    "description": "Username setting title"
+  },
+  "changeUsername": "Change Username",
+  "@changeUsername": {
+    "description": "Change username button text"
+  },
+  "usernameCannotBeChanged": "Username can be changed in {days} days",
+  "@usernameCannotBeChanged": {
+    "description": "Message when username cannot be changed yet",
+    "placeholders": {
+      "days": {
+        "type": "int",
+        "example": "45"
+      }
+    }
+  },
+  "enterNewUsername": "Enter new username",
+  "@enterNewUsername": {
+    "description": "Username input field label"
+  },
+  "usernameRules": "Username rules:\n• 3-20 characters\n• Letters, numbers, underscores only\n• Must start with a letter\n• Cannot end with underscore",
+  "@usernameRules": {
+    "description": "Username validation rules"
+  },
+  "usernameChangedSuccessfully": "Username changed successfully!",
+  "@usernameChangedSuccessfully": {
+    "description": "Success message when username is changed"
+  },
+  "usernameChangeError": "Failed to change username. Please try again.",
+  "@usernameChangeError": {
+    "description": "Error message when username change fails"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button text"
+  },
+  "archived": "Archived",
+  "@archived": {
+    "description": "Archived chats section title"
+  },
+  "archiveChat": "Archive Chat",
+  "@archiveChat": {
+    "description": "Archive chat option"
+  },
+  "unarchiveChat": "Unarchive Chat",
+  "@unarchiveChat": {
+    "description": "Unarchive chat option"
+  },
+  "archivedChats": "Archived Chats",
+  "@archivedChats": {
+    "description": "Archived chats screen title"
+  },
+  "noArchivedChats": "No archived chats",
+  "@noArchivedChats": {
+    "description": "Message when no archived chats exist"
+  },
+  "chatArchived": "Chat archived",
+  "@chatArchived": {
+    "description": "Success message when chat is archived"
+  },
+  "chatUnarchived": "Chat unarchived",
+  "@chatUnarchived": {
+    "description": "Success message when chat is unarchived"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode theme option"
+  },
+  "lightMode": "Light Mode",
+  "@lightMode": {
+    "description": "Light mode theme option"
+  },
+  "themeToggle": "Theme Toggle",
+  "@themeToggle": {
+    "description": "Theme toggle switch label"
+  }
+}
