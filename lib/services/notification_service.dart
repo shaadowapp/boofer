@@ -1,284 +1,160 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import '../core/error/error_handler.dart';
+import '../core/models/app_error.dart';
 
-/// Service to handle notification permissions and management
+/// Privacy-focused notification service
 class NotificationService {
   static NotificationService? _instance;
   static NotificationService get instance => _instance ??= NotificationService._internal();
   NotificationService._internal();
 
-  bool _isInitialized = false;
-  PermissionStatus? _currentStatus;
+  final ErrorHandler _errorHandler = ErrorHandler();
+  final StreamController<Map<String, dynamic>> _notificationController = 
+      StreamController<Map<String, dynamic>>.broadcast();
 
-  /// Check if service is initialized
+  Stream<Map<String, dynamic>> get notificationStream => _notificationController.stream;
+
+  bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
-  /// Get current notification permission status
-  PermissionStatus? get currentStatus => _currentStatus;
-
-  /// Check if notifications are enabled
-  bool get areNotificationsEnabled => 
-      _currentStatus == PermissionStatus.granted;
-
-  /// Initialize the notification service
+  /// Initialize notification service
   Future<void> initialize() async {
     try {
-      _currentStatus = await Permission.notification.status;
+      if (_isInitialized) return;
+
+      // Initialize local notifications only - no external services for privacy
       _isInitialized = true;
-    } catch (e) {
-      debugPrint('Error initializing notification service: $e');
-      _isInitialized = true; // Mark as initialized even on error
+      
+      if (kDebugMode) {
+        print('NotificationService initialized successfully');
+      }
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(AppError.service(
+        message: 'Failed to initialize notification service: $e',
+        stackTrace: stackTrace,
+        originalException: e is Exception ? e : Exception(e.toString()),
+      ));
     }
   }
 
-  /// Check current notification permission status
-  Future<PermissionStatus> checkPermissionStatus() async {
+  /// Show local notification
+  Future<void> showNotification({
+    required String title,
+    required String body,
+    String? payload,
+    Map<String, dynamic>? data,
+  }) async {
     try {
-      _currentStatus = await Permission.notification.status;
-      return _currentStatus!;
-    } catch (e) {
-      debugPrint('Error checking notification permission: $e');
-      return PermissionStatus.denied;
+      if (!_isInitialized) {
+        await initialize();
+      }
+
+      // For privacy, we only show local notifications
+      // No external notification services that could track users
+      final notification = {
+        'title': title,
+        'body': body,
+        'payload': payload,
+        'data': data,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      _notificationController.add(notification);
+
+      if (kDebugMode) {
+        print('Local notification: $title - $body');
+      }
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(AppError.service(
+        message: 'Failed to show notification: $e',
+        stackTrace: stackTrace,
+        originalException: e is Exception ? e : Exception(e.toString()),
+      ));
     }
   }
 
-  /// Request notification permission
-  Future<PermissionStatus> requestPermission() async {
+  /// Show message notification
+  Future<void> showMessageNotification({
+    required String senderName,
+    required String message,
+    required String conversationId,
+  }) async {
+    await showNotification(
+      title: senderName,
+      body: message,
+      payload: conversationId,
+      data: {
+        'type': 'message',
+        'conversationId': conversationId,
+        'senderName': senderName,
+      },
+    );
+  }
+
+  /// Show connection request notification
+  Future<void> showConnectionRequestNotification({
+    required String senderName,
+    required String requestId,
+  }) async {
+    await showNotification(
+      title: 'New Connection Request',
+      body: '$senderName wants to connect with you',
+      payload: requestId,
+      data: {
+        'type': 'connection_request',
+        'requestId': requestId,
+        'senderName': senderName,
+      },
+    );
+  }
+
+  /// Clear all notifications
+  Future<void> clearAllNotifications() async {
     try {
-      final status = await Permission.notification.request();
-      _currentStatus = status;
-      return status;
-    } catch (e) {
-      debugPrint('Error requesting notification permission: $e');
-      return PermissionStatus.denied;
+      // Clear local notifications only
+      if (kDebugMode) {
+        print('All notifications cleared');
+      }
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(AppError.service(
+        message: 'Failed to clear notifications: $e',
+        stackTrace: stackTrace,
+        originalException: e is Exception ? e : Exception(e.toString()),
+      ));
     }
   }
 
-  /// Check if permission should be requested (not permanently denied)
+  /// Dispose resources
+  void dispose() {
+    _notificationController.close();
+  }
+
+  /// Check if should request permission
   Future<bool> shouldRequestPermission() async {
-    final status = await checkPermissionStatus();
-    return status == PermissionStatus.denied || 
-           status == PermissionStatus.restricted;
+    // Placeholder - implement permission checking logic
+    return true;
+  }
+
+  /// Show permission dialog
+  Future<void> showPermissionDialog(BuildContext context) async {
+    // Placeholder - implement permission dialog
   }
 
   /// Check if permission is permanently denied
   Future<bool> isPermanentlyDenied() async {
-    final status = await checkPermissionStatus();
-    return status == PermissionStatus.permanentlyDenied;
+    // Placeholder - implement permission status checking
+    return false;
   }
 
-  /// Open app settings for permission management
-  Future<bool> openAppSettings() async {
-    try {
-      return await openAppSettings();
-    } catch (e) {
-      debugPrint('Error opening app settings: $e');
-      return false;
-    }
+  /// Open app settings
+  void openAppSettings() {
+    // Placeholder - implement opening app settings
   }
 
-  /// Show notification permission dialog
-  Future<PermissionStatus?> showPermissionDialog(BuildContext context) async {
-    final status = await checkPermissionStatus();
-    
-    if (status == PermissionStatus.granted) {
-      return status; // Already granted
-    }
-
-    if (status == PermissionStatus.permanentlyDenied) {
-      return await _showPermanentlyDeniedDialog(context);
-    }
-
-    return await _showRequestDialog(context);
-  }
-
-  /// Show dialog for requesting permission
-  Future<PermissionStatus?> _showRequestDialog(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.notifications, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Enable Notifications'),
-            ],
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Stay connected with your conversations!',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Notifications help you:',
-                style: TextStyle(fontSize: 14),
-              ),
-              SizedBox(height: 8),
-              Text('• Receive new messages instantly'),
-              Text('• Stay updated on important conversations'),
-              Text('• Never miss a message from friends'),
-              SizedBox(height: 12),
-              Text(
-                'You can change this setting anytime in your device settings.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Not Now'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Enable'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == true) {
-      return await requestPermission();
-    }
-
-    return PermissionStatus.denied;
-  }
-
-  /// Show dialog for permanently denied permission
-  Future<PermissionStatus?> _showPermanentlyDeniedDialog(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.settings, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Notification Settings'),
-            ],
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Notifications are currently disabled.',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'To receive notifications, you need to enable them in your device settings.',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Steps:',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text('1. Tap "Open Settings" below'),
-              Text('2. Find "Notifications" or "Boofer"'),
-              Text('3. Enable notifications'),
-              Text('4. Return to the app'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Skip'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Open Settings'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == true) {
-      await openAppSettings();
-      // Check status after returning from settings
-      return await checkPermissionStatus();
-    }
-
-    return PermissionStatus.permanentlyDenied;
-  }
-
-  /// Show simple notification permission request (for post-onboarding)
-  Future<PermissionStatus> requestPermissionSimple(BuildContext context) async {
-    final status = await checkPermissionStatus();
-    
-    if (status == PermissionStatus.granted) {
-      return status;
-    }
-
-    if (status == PermissionStatus.permanentlyDenied) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.info, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('Notifications are disabled. Enable them in Settings for the best experience.'),
-              ),
-            ],
-          ),
-          action: SnackBarAction(
-            label: 'Settings',
-            textColor: Colors.white,
-            onPressed: () => openAppSettings(),
-          ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      return status;
-    }
-
-    // Request permission directly for simple case
-    return await requestPermission();
-  }
-
-  /// Get permission status description
-  String getStatusDescription(PermissionStatus status) {
-    switch (status) {
-      case PermissionStatus.granted:
-        return 'Notifications are enabled';
-      case PermissionStatus.denied:
-        return 'Notifications are disabled';
-      case PermissionStatus.restricted:
-        return 'Notifications are restricted';
-      case PermissionStatus.permanentlyDenied:
-        return 'Notifications are permanently disabled';
-      case PermissionStatus.provisional:
-        return 'Notifications are provisionally enabled';
-      default:
-        return 'Unknown notification status';
-    }
-  }
-
-  /// Get service summary for debugging
-  Map<String, dynamic> getServiceSummary() {
-    return {
-      'isInitialized': _isInitialized,
-      'currentStatus': _currentStatus?.toString(),
-      'areNotificationsEnabled': areNotificationsEnabled,
-    };
+  /// Request permission
+  Future<void> requestPermission() async {
+    // Placeholder - implement permission request
   }
 }

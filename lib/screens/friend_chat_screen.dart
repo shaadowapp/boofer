@@ -1,17 +1,25 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import '../models/friend_model.dart';
 import '../models/message_model.dart';
-import '../providers/theme_provider.dart';
-import '../utils/svg_icons.dart';
+import '../models/user_model.dart';
+import '../services/chat_service.dart';
+import '../services/friendship_service.dart';
+import '../services/user_service.dart';
+import '../widgets/message_bubble.dart';
+import '../widgets/chat_input.dart';
+import '../widgets/friend_only_message_widget.dart';
+import '../core/database/database_manager.dart';
+import '../core/error/error_handler.dart';
 
+/// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
-  final Friend friend;
+  final String recipientId;
+  final String recipientName;
 
   const FriendChatScreen({
     super.key,
-    required this.friend,
+    required this.recipientId,
+    required this.recipientName,
   });
 
   @override
@@ -19,94 +27,216 @@ class FriendChatScreen extends StatefulWidget {
 }
 
 class _FriendChatScreenState extends State<FriendChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
+  late final ChatService _chatService;
+  final FriendshipService _friendshipService = FriendshipService.instance;
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
+  final TextEditingController _messageController = TextEditingController();
+  
+  String? _currentUserId;
+  String? _conversationId;
+  List<Message> _messages = [];
+  bool _loading = true;
+  bool _canChat = false;
+  User? _recipientUser;
+  late StreamSubscription<List<Message>> _messagesSubscription;
+  late StreamSubscription<Message> _newMessageSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Load demo messages immediately without any delay
-    _loadDemoMessages();
+    _initializeChat();
   }
 
   @override
   void dispose() {
-    _messageController.dispose();
     _scrollController.dispose();
+    _messageController.dispose();
+    _messagesSubscription.cancel();
+    _newMessageSubscription.cancel();
     super.dispose();
   }
 
-  void _loadDemoMessages() {
-    // Load some demo messages for the conversation immediately
-    final demoMessages = [
-      ChatMessage(
-        id: '1',
-        text: 'Hey there! How are you doing?',
-        senderId: widget.friend.id,
-        senderName: widget.friend.name,
-        timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-        isFromCurrentUser: false,
-      ),
-      ChatMessage(
-        id: '2',
-        text: 'I\'m doing great! Thanks for asking. How about you?',
-        senderId: 'current_user',
-        senderName: 'You',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2, minutes: -5)),
-        isFromCurrentUser: true,
-      ),
-      ChatMessage(
-        id: '3',
-        text: 'Pretty good! Just working on some projects. Want to catch up later?',
-        senderId: widget.friend.id,
-        senderName: widget.friend.name,
-        timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 30)),
-        isFromCurrentUser: false,
-      ),
-      ChatMessage(
-        id: '4',
-        text: 'Absolutely! Let me know when you\'re free 😊',
-        senderId: 'current_user',
-        senderName: 'You',
-        timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 25)),
-        isFromCurrentUser: true,
-      ),
-    ];
-
-    // Add messages immediately without setState to avoid rebuild
-    _messages.addAll(demoMessages);
-
-    // Schedule scroll to bottom for next frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  Future<void> _initializeChat() async {
+    try {
+      // Get current user
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser == null) {
+        throw Exception('No current user found');
       }
-    });
+
+      // Initialize chat service
+      _chatService = ChatService(
+        database: DatabaseManager.instance,
+        errorHandler: ErrorHandler(),
+      );
+
+      // Create conversation ID
+      final conversationId = _chatService.getConversationId(
+        currentUser.id,
+        widget.recipientId,
+      );
+
+      // Check if users can chat (are friends)
+      final canChat = await _friendshipService.canSendMessage(
+        currentUser.id,
+        widget.recipientId,
+      );
+
+      // Create recipient user object
+      final recipientUser = User(
+        id: widget.recipientId,
+        virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
+        handle: widget.recipientName.toLowerCase().replaceAll(' ', '_'),
+        fullName: widget.recipientName,
+        bio: 'User profile',
+        isDiscoverable: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      setState(() {
+        _currentUserId = currentUser.id;
+        _conversationId = conversationId;
+        _canChat = canChat;
+        _recipientUser = recipientUser;
+        _loading = false;
+      });
+
+      if (canChat) {
+        // Load demo messages for UI design
+        _loadDemoMessages(conversationId, currentUser.id);
+        
+        // Set up message stream listeners (for real implementation)
+        _messagesSubscription = _chatService.messagesStream.listen((messages) {
+          if (mounted) {
+            setState(() {
+              // Combine real messages with demo messages for now
+              _messages = [..._messages, ...messages];
+            });
+            _scrollToBottom();
+          }
+        });
+
+        _newMessageSubscription = _chatService.newMessageStream.listen((message) {
+          if (mounted && message.conversationId == conversationId) {
+            setState(() {
+              _messages.add(message);
+            });
+            _scrollToBottom();
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to initialize chat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    final message = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: text,
-      senderId: 'current_user',
-      senderName: 'You',
-      timestamp: DateTime.now(),
-      isFromCurrentUser: true,
-    );
-
+  void _loadDemoMessages(String conversationId, String currentUserId) {
+    // Generate demo messages for UI design
+    final demoMessages = _generateDemoMessages(conversationId, currentUserId, widget.recipientId);
     setState(() {
-      _messages.add(message);
-      _messageController.clear();
+      _messages = demoMessages;
     });
+    _scrollToBottom();
+  }
 
-    // Haptic feedback
-    HapticFeedback.lightImpact();
+  List<Message> _generateDemoMessages(String conversationId, String currentUserId, String recipientId) {
+    final now = DateTime.now();
+    return [
+      Message(
+        id: 'demo_1',
+        conversationId: conversationId,
+        senderId: recipientId,
+        text: 'Hey! How are you doing?',
+        timestamp: now.subtract(const Duration(hours: 2)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_2',
+        conversationId: conversationId,
+        senderId: currentUserId,
+        text: 'I\'m doing great! Just finished a big project at work 🎉',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 55)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_3',
+        conversationId: conversationId,
+        senderId: recipientId,
+        text: 'That\'s awesome! Congratulations 👏',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 50)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_4',
+        conversationId: conversationId,
+        senderId: currentUserId,
+        text: 'Thanks! Want to grab coffee this weekend to celebrate?',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 45)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_5',
+        conversationId: conversationId,
+        senderId: recipientId,
+        text: 'Absolutely! I know a great new place downtown ☕',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 40)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_6',
+        conversationId: conversationId,
+        senderId: currentUserId,
+        text: 'Perfect! Saturday around 2 PM?',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 35)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_7',
+        conversationId: conversationId,
+        senderId: recipientId,
+        text: 'Sounds great! See you then 😊',
+        timestamp: now.subtract(const Duration(hours: 1, minutes: 30)),
+        type: MessageType.text,
+        status: MessageStatus.delivered,
+        isOffline: false,
+      ),
+      Message(
+        id: 'demo_8',
+        conversationId: conversationId,
+        senderId: currentUserId,
+        text: 'Looking forward to it! 🙌',
+        timestamp: now.subtract(const Duration(minutes: 5)),
+        type: MessageType.text,
+        status: MessageStatus.sent,
+        isOffline: false,
+      ),
+    ];
+  }
 
-    // Auto-scroll to bottom
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -116,390 +246,90 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         );
       }
     });
-
-    // Simulate a response after a delay
-    _simulateResponse();
-  }
-
-  void _simulateResponse() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        final responses = [
-          'That sounds great!',
-          'I agree with you on that.',
-          'Thanks for sharing!',
-          'Interesting point of view.',
-          'Let me think about that.',
-          'Sure thing! 👍',
-          'Absolutely!',
-          'I see what you mean.',
-        ];
-
-        final randomResponse = responses[DateTime.now().millisecond % responses.length];
-
-        final responseMessage = ChatMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          text: randomResponse,
-          senderId: widget.friend.id,
-          senderName: widget.friend.name,
-          timestamp: DateTime.now(),
-          isFromCurrentUser: false,
-        );
-
-        setState(() {
-          _messages.add(responseMessage);
-        });
-
-        // Auto-scroll to bottom
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-    });
-  }
-
-  void _showFriendInfo() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Friend avatar and info
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              child: widget.friend.avatar != null
-                  ? ClipOval(
-                      child: Image.network(
-                        widget.friend.avatar!,
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : Text(
-                      widget.friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.friend.name,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.friend.virtualNumber,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  widget.friend.isOnline ? Icons.circle : Icons.circle_outlined,
-                  color: widget.friend.isOnline ? Colors.green : Colors.grey,
-                  size: 12,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.friend.isOnline ? 'Online' : 'Offline',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: widget.friend.isOnline ? Colors.green : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Voice call feature coming soon!')),
-                      );
-                    },
-                    icon: SvgIcons.sized(
-                      SvgIcons.voiceCall, 
-                      20, 
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    label: const Text('Call'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Video call feature coming soon!')),
-                      );
-                    },
-                    icon: SvgIcons.sized(
-                      SvgIcons.videoCall, 
-                      20, 
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    label: const Text('Video'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile feature coming soon!')),
-                  );
-                },
-                icon: SvgIcons.sized(
-                  SvgIcons.profile, 
-                  20, 
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                label: const Text('View Profile'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${time.day}/${time.month}/${time.year}';
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: InkWell(
-          onTap: _showFriendInfo,
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    child: widget.friend.avatar != null
-                        ? ClipOval(
-                            child: Image.network(
-                              widget.friend.avatar!,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : Text(
-                            widget.friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                  ),
-                  if (widget.friend.isOnline)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.friend.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      widget.friend.isOnline ? 'Online' : 'Last seen recently',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        title: Text(widget.recipientName),
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: SvgIcons.sized(
-              SvgIcons.voiceCall, 
-              24,
-              color: Theme.of(context).colorScheme.onSurface,
+          if (_canChat) ...[
+            IconButton(
+              onPressed: _startCall,
+              icon: const Icon(Icons.call),
+              tooltip: 'Call ${widget.recipientName}',
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Voice call feature coming soon!')),
-              );
-            },
-            tooltip: 'Voice call',
-          ),
-          IconButton(
-            icon: SvgIcons.sized(
-              SvgIcons.videoCall, 
-              24,
-              color: Theme.of(context).colorScheme.onSurface,
+            IconButton(
+              onPressed: _showUserProfile,
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'User info',
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Video call feature coming soon!')),
-              );
-            },
-            tooltip: 'Video call',
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'info':
-                  _showFriendInfo();
-                  break;
-                case 'mute':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Mute feature coming soon!')),
-                  );
-                  break;
-                case 'block':
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Block feature coming soon!')),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'info',
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline),
-                    SizedBox(width: 12),
-                    Text('Contact info'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'mute',
-                child: Row(
-                  children: [
-                    Icon(Icons.notifications_off_outlined),
-                    SizedBox(width: 12),
-                    Text('Mute notifications'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'block',
-                child: Row(
-                  children: [
-                    Icon(Icons.block_outlined),
-                    SizedBox(width: 12),
-                    Text('Block contact'),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          ],
         ],
       ),
-      body: Column(
-        children: [
-          // Messages list
-          Expanded(
-            child: _messages.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return _buildMessageBubble(message);
-                    },
-                  ),
-          ),
-          // Message input
-          _buildMessageInput(),
-        ],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (!_canChat) {
+      return _buildFriendOnlyScreen();
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: _buildMessagesList(),
+        ),
+        _buildChatInput(),
+      ],
+    );
+  }
+
+  Widget _buildFriendOnlyScreen() {
+    if (_recipientUser == null) {
+      return const Center(
+        child: Text('User not found'),
+      );
+    }
+
+    return Center(
+      child: FriendOnlyMessageWidget(
+        user: _recipientUser!,
+        onFriendRequestSent: () {
+          // Refresh the chat state after friend request is sent
+          _initializeChat();
+        },
       ),
+    );
+  }
+
+  Widget _buildMessagesList() {
+    if (_messages.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final message = _messages[index];
+        return MessageBubble(
+          message: message,
+          currentUserId: _currentUserId!,
+          onTap: () => _handleMessageTap(message),
+          onLongPress: () => _handleMessageLongPress(message),
+        );
+      },
     );
   }
 
@@ -508,39 +338,24 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-            child: widget.friend.avatar != null
-                ? ClipOval(
-                    child: Image.network(
-                      widget.friend.avatar!,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Text(
-                    widget.friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 64,
+            color: Theme.of(context).colorScheme.outline,
           ),
           const SizedBox(height: 16),
           Text(
-            'Start chatting with ${widget.friend.name}',
+            'No messages yet',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.outline,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Send a message to begin the conversation',
+            'Start a conversation with ${widget.recipientName}',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.outline,
             ),
           ),
         ],
@@ -548,200 +363,354 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
-    final isFromCurrentUser = message.isFromCurrentUser;
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: isFromCurrentUser 
-            ? MainAxisAlignment.end 
-            : MainAxisAlignment.start,
-        children: [
-          if (!isFromCurrentUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              child: Text(
-                widget.friend.name.split(' ').map((e) => e[0]).take(1).join(),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isFromCurrentUser
-                    ? theme.colorScheme.primary
-                    : isDarkMode 
-                        ? theme.colorScheme.surfaceVariant.withOpacity(0.8)
-                        : theme.colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(18).copyWith(
-                  bottomLeft: isFromCurrentUser 
-                      ? const Radius.circular(18) 
-                      : const Radius.circular(4),
-                  bottomRight: isFromCurrentUser 
-                      ? const Radius.circular(4) 
-                      : const Radius.circular(18),
-                ),
-                // Add subtle shadow for better depth
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.shadowColor.withOpacity(0.1),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isFromCurrentUser
-                          ? Colors.white
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTime(message.timestamp),
-                    style: TextStyle(
-                      color: isFromCurrentUser
-                          ? Colors.white.withOpacity(0.7)
-                          : theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isFromCurrentUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              child: Text(
-                'Y',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageInput() {
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-    
+  Widget _buildChatInput() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: theme.dividerColor.withOpacity(0.3),
-            width: 0.5,
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
           ),
         ),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDarkMode 
-                    ? theme.colorScheme.surfaceVariant.withOpacity(0.3)
-                    : theme.colorScheme.surfaceVariant.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withOpacity(0.2),
-                  width: 1,
+            child: TextField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                hintText: 'Type a message...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
               ),
-              child: TextField(
-                controller: _messageController,
-                decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  hintStyle: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
-                  ),
-                ),
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface,
-                ),
-                maxLines: null,
-                textCapitalization: TextCapitalization.sentences,
-                onSubmitted: (_) => _sendMessage(),
-              ),
+              onSubmitted: (text) {
+                _handleSendMessage(text);
+                _messageController.clear();
+              },
+              textInputAction: TextInputAction.send,
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+          IconButton(
+            onPressed: () {
+              final text = _messageController.text;
+              if (text.trim().isNotEmpty) {
+                _handleSendMessage(text);
+                _messageController.clear();
+              }
+            },
+            icon: const Icon(Icons.send),
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
             ),
-            child: IconButton(
-              onPressed: _sendMessage,
-              icon: const Icon(
-                Icons.send,
-                color: Colors.white,
-                size: 20,
-              ),
-              tooltip: 'Send message',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () {
+              // Handle attachment
+              _showAttachmentOptions();
+            },
+            icon: const Icon(Icons.attach_file),
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// Simple chat message model for this screen
-class ChatMessage {
-  final String id;
-  final String text;
-  final String senderId;
-  final String senderName;
-  final DateTime timestamp;
-  final bool isFromCurrentUser;
+  Future<void> _handleSendMessage(String text) async {
+    if (text.trim().isEmpty || _currentUserId == null || _conversationId == null) {
+      return;
+    }
 
-  ChatMessage({
-    required this.id,
-    required this.text,
-    required this.senderId,
-    required this.senderName,
-    required this.timestamp,
-    required this.isFromCurrentUser,
-  });
+    // Add message to demo list immediately for UI feedback
+    final newMessage = Message(
+      id: 'demo_${DateTime.now().millisecondsSinceEpoch}',
+      conversationId: _conversationId!,
+      senderId: _currentUserId!,
+      text: text.trim(),
+      timestamp: DateTime.now(),
+      type: MessageType.text,
+      status: MessageStatus.pending,
+      isOffline: false,
+    );
+
+    setState(() {
+      _messages.add(newMessage);
+    });
+    _scrollToBottom();
+
+    try {
+      // In a real app, this would send the message through the chat service
+      await _chatService.sendMessage(
+        conversationId: _conversationId!,
+        senderId: _currentUserId!,
+        content: text.trim(),
+        receiverId: widget.recipientId,
+      );
+
+      // Update message status to sent
+      setState(() {
+        final index = _messages.indexWhere((m) => m.id == newMessage.id);
+        if (index != -1) {
+          _messages[index] = newMessage.copyWith(status: MessageStatus.sent);
+        }
+      });
+    } catch (e) {
+      // Update message status to failed
+      setState(() {
+        final index = _messages.indexWhere((m) => m.id == newMessage.id);
+        if (index != -1) {
+          _messages[index] = newMessage.copyWith(status: MessageStatus.failed);
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleMessageTap(Message message) {
+    // Handle message tap
+  }
+
+  void _handleMessageLongPress(Message message) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => _buildMessageContextMenu(message),
+    );
+  }
+
+  Widget _buildMessageContextMenu(Message message) {
+    final isOwnMessage = message.senderId == _currentUserId;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy text'),
+            onTap: () {
+              Navigator.pop(context);
+              // Copy to clipboard
+            },
+          ),
+          if (isOwnMessage)
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete message'),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteMessage(message);
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Message info'),
+            onTap: () {
+              Navigator.pop(context);
+              _showMessageInfo(message);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteMessage(Message message) async {
+    try {
+      await _chatService.deleteMessage(message.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showMessageInfo(Message message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Message Info'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoRow('Sender', message.senderId),
+            _buildInfoRow('Status', message.status.name),
+            _buildInfoRow('Time', message.timestamp.toString()),
+            _buildInfoRow('ID', message.id),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startCall() async {
+    if (_currentUserId == null) return;
+
+    final canCall = await _friendshipService.canCall(_currentUserId!, widget.recipientId);
+    
+    if (!canCall) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only call friends'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Implement call functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Calling ${widget.recipientName}...'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showUserProfile() {
+    // Show user profile dialog or navigate to profile screen
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(widget.recipientName),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: Text(
+                widget.recipientName.substring(0, 1).toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 32,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              widget.recipientName,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'ID: ${widget.recipientId}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                // Handle photo attachment
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam),
+              title: const Text('Video'),
+              onTap: () {
+                Navigator.pop(context);
+                // Handle video attachment
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file),
+              title: const Text('File'),
+              onTap: () {
+                Navigator.pop(context);
+                // Handle file attachment
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

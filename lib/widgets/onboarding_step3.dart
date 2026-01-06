@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/onboarding_controller.dart';
+import '../constants/app_colors.dart';
 
 class OnboardingStep3 extends StatefulWidget {
   final VoidCallback? onComplete;
@@ -119,7 +120,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
             Text('Virtual number copied: $number'),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.brandAccent,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -142,7 +143,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
             Text('Invite feature will be available soon!'),
           ],
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: AppColors.info,
         duration: Duration(seconds: 2),
       ),
     );
@@ -174,7 +175,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
             Text('Contact access feature will be available soon!'),
           ],
         ),
-        backgroundColor: Colors.purple,
+        backgroundColor: AppColors.electricOrchid,
         duration: Duration(seconds: 2),
       ),
     );
@@ -197,7 +198,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Virtual number is not ready. Please wait...'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -207,7 +208,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('User name is missing. Please go back and complete registration.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.danger,
         ),
       );
       return;
@@ -217,7 +218,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Terms must be accepted to complete setup.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.danger,
         ),
       );
       return;
@@ -234,7 +235,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to complete setup: $e'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppColors.danger,
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
@@ -257,7 +258,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(controller.errorMessage!),
-                  backgroundColor: Colors.redAccent,
+                  backgroundColor: AppColors.danger,
                   action: SnackBarAction(
                     label: 'Dismiss',
                     textColor: Colors.white,
@@ -367,241 +368,245 @@ class _OnboardingStep3State extends State<OnboardingStep3>
   }
 
   Widget _buildVirtualNumberSection(OnboardingController controller) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Virtual Number Display
-        FadeTransition(
-          opacity: _numberFadeAnimation,
-          child: ScaleTransition(
-            scale: _numberScaleAnimation,
-            child: GestureDetector(
-              onTap: controller.virtualNumber.isNotEmpty 
-                  ? () => _copyNumberToClipboard(controller.virtualNumber)
-                  : null,
-              child: TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 300),
-                tween: Tween(begin: 1.0, end: controller.virtualNumber.isNotEmpty ? 1.0 : 0.95),
-                builder: (context, scale, child) {
-                  return Transform.scale(
-                    scale: scale,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Virtual Number Display
+          FadeTransition(
+            opacity: _numberFadeAnimation,
+            child: ScaleTransition(
+              scale: _numberScaleAnimation,
+              child: GestureDetector(
+                onTap: controller.virtualNumber.isNotEmpty 
+                    ? () => _copyNumberToClipboard(controller.virtualNumber)
+                    : null,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 300),
+                  tween: Tween(begin: 1.0, end: controller.virtualNumber.isNotEmpty ? 1.0 : 0.95),
+                  builder: (context, scale, child) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
                           ),
-                          if (controller.virtualNumber.isNotEmpty)
+                          boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 0),
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          TweenAnimationBuilder<double>(
-                            duration: const Duration(milliseconds: 500),
-                            tween: Tween(begin: 0.0, end: 1.0),
-                            builder: (context, iconValue, child) {
-                              return Transform.rotate(
-                                angle: iconValue * 0.1,
-                                child: Icon(
-                                  Icons.phone_android,
-                                  color: Colors.white.withOpacity(0.9 + (iconValue * 0.1)),
-                                  size: 32,
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 500),
-                            child: Text(
-                              controller.virtualNumber.isNotEmpty 
-                                  ? controller.virtualNumber 
-                                  : 'Generating...',
-                              key: ValueKey(controller.virtualNumber),
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: controller.virtualNumber.isNotEmpty ? 2 : 1,
+                            if (controller.virtualNumber.isNotEmpty)
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, 0),
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (controller.virtualNumber.isNotEmpty)
+                          ],
+                        ),
+                        child: Column(
+                          children: [
                             TweenAnimationBuilder<double>(
-                              duration: const Duration(milliseconds: 400),
+                              duration: const Duration(milliseconds: 500),
                               tween: Tween(begin: 0.0, end: 1.0),
-                              builder: (context, copyValue, child) {
-                                return Transform.scale(
-                                  scale: copyValue,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.copy,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Tap to copy',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(0.9),
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                              builder: (context, iconValue, child) {
+                                return Transform.rotate(
+                                  angle: iconValue * 0.1,
+                                  child: Icon(
+                                    Icons.phone_android,
+                                    color: Colors.white.withOpacity(0.9 + (iconValue * 0.1)),
+                                    size: 28,
                                   ),
                                 );
                               },
                             ),
-                        ],
+                            const SizedBox(height: 12),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 500),
+                              child: Text(
+                                controller.virtualNumber.isNotEmpty 
+                                    ? controller.virtualNumber 
+                                    : 'Generating...',
+                                key: ValueKey(controller.virtualNumber),
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: controller.virtualNumber.isNotEmpty ? 2 : 1,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (controller.virtualNumber.isNotEmpty)
+                              TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 400),
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                builder: (context, copyValue, child) {
+                                  return Transform.scale(
+                                    scale: copyValue,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.copy,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Tap to copy',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.9),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Identity Explanation
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'This number serves as your identity',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Use this virtual number to connect with others while keeping your real number private. It\'s unique to you and works across all app features.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.8),
-                  height: 1.4,
+                    );
+                  },
                 ),
-                textAlign: TextAlign.left,
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+
+          const SizedBox(height: 16),
+
+          // Identity Explanation
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This number serves as your identity',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Use this virtual number to connect with others while keeping your real number private.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.8),
+                    height: 1.3,
+                  ),
+                  textAlign: TextAlign.left,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildOptionalActionsSection() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'Optional Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.white.withOpacity(0.9),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        Row(
-          children: [
-            // Invite Friends Button
-            Expanded(
-              child: _buildOptionalActionButton(
-                icon: _inviteSent ? Icons.check : Icons.share,
-                label: _inviteSent ? 'Invited!' : 'Invite Friends',
-                onTap: _inviteSent ? null : _handleInviteFriends,
-                color: Colors.blue,
-                isActive: _inviteSent,
-              ),
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Optional Actions',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.9),
             ),
-            
-            const SizedBox(width: 16),
-            
-            // Contact Access Button
-            Expanded(
-              child: _buildOptionalActionButton(
-                icon: _contactsRequested ? Icons.check : Icons.contacts,
-                label: _contactsRequested ? 'Requested!' : 'Contact Access',
-                onTap: _contactsRequested ? null : _handleContactAccess,
-                color: Colors.purple,
-                isActive: _contactsRequested,
-              ),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 12),
-        
-        Text(
-          'These features can be enabled later in settings',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withOpacity(0.6),
-            fontStyle: FontStyle.italic,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+          const SizedBox(height: 12),
+          
+          Row(
+            children: [
+              // Invite Friends Button
+              Expanded(
+                child: _buildOptionalActionButton(
+                  icon: _inviteSent ? Icons.check : Icons.share,
+                  label: _inviteSent ? 'Invited!' : 'Invite Friends',
+                  onTap: _inviteSent ? null : _handleInviteFriends,
+                  color: AppColors.info,
+                  isActive: _inviteSent,
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Contact Access Button
+              Expanded(
+                child: _buildOptionalActionButton(
+                  icon: _contactsRequested ? Icons.check : Icons.contacts,
+                  label: _contactsRequested ? 'Requested!' : 'Contact Access',
+                  onTap: _contactsRequested ? null : _handleContactAccess,
+                  color: AppColors.electricOrchid,
+                  isActive: _contactsRequested,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          Text(
+            'These features can be enabled later in settings',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.6),
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -625,7 +630,7 @@ class _OnboardingStep3State extends State<OnboardingStep3>
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
               decoration: BoxDecoration(
                 color: isActive 
                     ? color.withOpacity(0.3) 
@@ -665,14 +670,14 @@ class _OnboardingStep3State extends State<OnboardingStep3>
                       icon,
                       key: ValueKey(icon),
                       color: isActive ? color : Colors.white,
-                      size: 28,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 300),
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isActive ? color : Colors.white,
                     ),

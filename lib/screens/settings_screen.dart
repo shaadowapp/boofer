@@ -7,6 +7,7 @@ import '../providers/locale_provider.dart';
 import '../providers/username_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
+import '../services/unified_storage_service.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 
@@ -32,23 +33,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final messageNotifications = await UnifiedStorageService.getBool(UnifiedStorageService.messageNotifications, defaultValue: true);
+    final soundEnabled = await UnifiedStorageService.getBool(UnifiedStorageService.soundEnabled, defaultValue: true);
+    final vibrationEnabled = await UnifiedStorageService.getBool(UnifiedStorageService.vibrationEnabled, defaultValue: true);
+    final autoDownloadImages = await UnifiedStorageService.getBool(UnifiedStorageService.autoDownloadImages, defaultValue: true);
+    final autoDownloadVideos = await UnifiedStorageService.getBool(UnifiedStorageService.autoDownloadVideos, defaultValue: false);
+    final autoDownloadDocuments = await UnifiedStorageService.getBool(UnifiedStorageService.autoDownloadDocuments, defaultValue: false);
+    
     setState(() {
-      _messageNotifications = prefs.getBool('message_notifications') ?? true;
-      _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-      _vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
-      _autoDownloadImages = prefs.getBool('auto_download_images') ?? true;
-      _autoDownloadVideos = prefs.getBool('auto_download_videos') ?? false;
-      _autoDownloadDocuments = prefs.getBool('auto_download_documents') ?? false;
+      _messageNotifications = messageNotifications;
+      _soundEnabled = soundEnabled;
+      _vibrationEnabled = vibrationEnabled;
+      _autoDownloadImages = autoDownloadImages;
+      _autoDownloadVideos = autoDownloadVideos;
+      _autoDownloadDocuments = autoDownloadDocuments;
     });
   }
 
   Future<void> _saveSetting(String key, dynamic value) async {
-    final prefs = await SharedPreferences.getInstance();
     if (value is bool) {
-      await prefs.setBool(key, value);
+      await UnifiedStorageService.setBool(key, value);
     } else if (value is String) {
-      await prefs.setString(key, value);
+      await UnifiedStorageService.setString(key, value);
     }
   }
 
@@ -149,7 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: _messageNotifications,
                   onChanged: (value) async {
                     setState(() => _messageNotifications = value);
-                    await _saveSetting('message_notifications', value);
+                    await _saveSetting(UnifiedStorageService.messageNotifications, value);
                     if (value) {
                       await NotificationService.instance.requestPermission();
                     }
@@ -820,7 +826,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _soundEnabled,
                 onChanged: (value) {
                   setState(() => _soundEnabled = value);
-                  _saveSetting('sound_enabled', value);
+                  _saveSetting(UnifiedStorageService.soundEnabled, value);
                 },
               ),
               SwitchListTile(
@@ -829,7 +835,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _vibrationEnabled,
                 onChanged: (value) {
                   setState(() => _vibrationEnabled = value);
-                  _saveSetting('vibration_enabled', value);
+                  _saveSetting(UnifiedStorageService.vibrationEnabled, value);
                 },
               ),
               ListTile(
@@ -966,7 +972,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _autoDownloadImages,
                 onChanged: (value) {
                   setState(() => _autoDownloadImages = value);
-                  _saveSetting('auto_download_images', value);
+                  _saveSetting(UnifiedStorageService.autoDownloadImages, value);
                 },
               ),
               SwitchListTile(
@@ -975,7 +981,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _autoDownloadVideos,
                 onChanged: (value) {
                   setState(() => _autoDownloadVideos = value);
-                  _saveSetting('auto_download_videos', value);
+                  _saveSetting(UnifiedStorageService.autoDownloadVideos, value);
                 },
               ),
               SwitchListTile(
@@ -984,7 +990,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _autoDownloadDocuments,
                 onChanged: (value) {
                   setState(() => _autoDownloadDocuments = value);
-                  _saveSetting('auto_download_documents', value);
+                  _saveSetting(UnifiedStorageService.autoDownloadDocuments, value);
                 },
               ),
             ],

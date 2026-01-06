@@ -7,10 +7,17 @@ import 'dialpad_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
+import 'connection_requests_screen.dart';
+import 'friends_screen.dart';
+import 'friend_requests_screen.dart';
+import 'user_search_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
+import '../providers/username_provider.dart';
 import '../models/friend_model.dart';
+import '../services/connection_service.dart';
+import '../services/friendship_service.dart';
 import '../utils/svg_icons.dart';
 import '../services/notification_service.dart';
 import '../l10n/app_localizations.dart';
@@ -29,6 +36,9 @@ class _MainScreenState extends State<MainScreen> {
   bool _isSearching = false;
   List<Friend> _filteredFriends = [];
   List<Friend> _allFriends = [];
+  final ConnectionService _connectionService = ConnectionService.instance;
+  final FriendshipService _friendshipService = FriendshipService.instance;
+  int _pendingRequestsCount = 0;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -42,6 +52,23 @@ class _MainScreenState extends State<MainScreen> {
     _allFriends = Friend.getDemoFriends();
     _filteredFriends = _allFriends;
     _initializeMainScreen();
+    _loadPendingRequests();
+    _initializeProviders();
+    
+    // Listen to connection request updates
+    _connectionService.connectionRequestsStream.listen((requests) {
+      if (mounted) {
+        setState(() {
+          _pendingRequestsCount = _connectionService.getPendingRequests().length;
+        });
+      }
+    });
+  }
+
+  void _loadPendingRequests() {
+    setState(() {
+      _pendingRequestsCount = _connectionService.getPendingRequests().length;
+    });
   }
 
   @override
@@ -101,6 +128,16 @@ class _MainScreenState extends State<MainScreen> {
     } catch (e) {
       debugPrint('Error checking notification permissions: $e');
       // Continue silently - don't disrupt user experience
+    }
+  }
+
+  Future<void> _initializeProviders() async {
+    try {
+      // Force reload the username provider to ensure it has the latest data
+      final usernameProvider = Provider.of<UsernameProvider>(context, listen: false);
+      await usernameProvider.reloadHandle();
+    } catch (e) {
+      debugPrint('Error initializing providers: $e');
     }
   }
 
@@ -630,22 +667,73 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false, // Remove default back button
-        title: const Align(
+        title: Align(
           alignment: Alignment.centerLeft,
           child: Text(
             'Boofer',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
+              color: Theme.of(context).brightness == Brightness.light 
+                  ? Theme.of(context).colorScheme.primary 
+                  : Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         titleSpacing: 16, // Add some padding from the left edge
         actions: [
+          // Friends button - combines all friend-related functionality
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            child: Stack(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.people,
+                    color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserSearchScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: 'Find friends',
+                ),
+                if (_pendingRequestsCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$_pendingRequestsCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           // More options button
           Container(
             width: 48,
@@ -654,7 +742,7 @@ class _MainScreenState extends State<MainScreen> {
             child: IconButton(
               icon: SvgIcons.more(
                 horizontal: false,
-                color: Colors.white,
+                color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
               ),
               onPressed: _showMoreOptions,
               tooltip: 'More options',
@@ -668,28 +756,28 @@ class _MainScreenState extends State<MainScreen> {
           // Search bar below navbar
           Container(
             padding: const EdgeInsets.all(16),
-            color: Theme.of(context).colorScheme.primary,
+            color: Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.primary,
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: _getSearchPlaceholder(),
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-                prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.7)),
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear, color: Colors.white.withValues(alpha: 0.7)),
+                        icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                         onPressed: _clearSearch,
                       )
                     : null,
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.1),
+                fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (value) {
                 setState(() {});
                 // Don't perform search automatically - only show/hide clear button

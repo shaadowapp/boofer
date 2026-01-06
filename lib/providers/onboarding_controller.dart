@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/onboarding_data.dart';
 import '../services/local_storage_service.dart';
+import '../services/unified_storage_service.dart';
 import '../utils/virtual_number_generator.dart';
 
 class OnboardingController extends ChangeNotifier {
@@ -218,6 +219,9 @@ class OnboardingController extends ChangeNotifier {
       // Save all data to local storage
       await saveToLocalStorage(onboardingData);
       
+      // Also save to unified storage for consistency
+      await _saveToUnifiedStorage(onboardingData);
+      
       // Mark as completed
       _onboardingCompleted = true;
       _clearError();
@@ -251,6 +255,23 @@ class OnboardingController extends ChangeNotifier {
       await LocalStorageService.saveOnboardingData(dataToSave);
     } catch (e) {
       throw Exception('Failed to save to local storage: $e');
+    }
+  }
+
+  /// Save onboarding data to unified storage for consistency
+  Future<void> _saveToUnifiedStorage(OnboardingData data) async {
+    try {
+      // Save user data to unified storage
+      await UnifiedStorageService.setString(UnifiedStorageService.userHandle, data.userName);
+      await UnifiedStorageService.setString(UnifiedStorageService.userVirtualNumber, data.virtualNumber);
+      await UnifiedStorageService.setBool(UnifiedStorageService.onboardingCompleted, data.completed);
+      await UnifiedStorageService.setString(UnifiedStorageService.userCreatedAt, data.completedAt.toIso8601String());
+      await UnifiedStorageService.setString(UnifiedStorageService.userUpdatedAt, DateTime.now().toIso8601String());
+      
+      // Run migration to ensure all data is properly set
+      await UnifiedStorageService.migrateOldKeys();
+    } catch (e) {
+      throw Exception('Failed to save to unified storage: $e');
     }
   }
 

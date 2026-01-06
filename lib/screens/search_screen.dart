@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/friend_model.dart';
 import '../utils/svg_icons.dart';
+import '../widgets/user_profile_card.dart';
 
 class SearchScreen extends StatefulWidget {
   final SearchType searchType;
@@ -95,37 +96,10 @@ class _SearchScreenState extends State<SearchScreen> {
             // Friend info
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: Text(
-                    friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        friend.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        friend.virtualNumber,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                    ],
-                  ),
+                UserProfileCard(
+                  user: friend.toUser(),
+                  isCurrentUser: false,
+                  showVirtualNumber: true,
                 ),
               ],
             ),
@@ -280,47 +254,11 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Row(
           children: [
             // Avatar
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: friend.avatar != null
-                      ? ClipOval(
-                          child: Image.network(
-                            friend.avatar!,
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Text(
-                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                ),
-                if (friend.isOnline)
-                  Positioned(
-                    bottom: 2,
-                    right: 2,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            UserProfileCard(
+              user: friend.toUser(),
+              isCurrentUser: false,
+              showVirtualNumber: false,
+              compact: true,
             ),
             
             const SizedBox(width: 16),
@@ -334,7 +272,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        friend.name,
+                        friend.fullName,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),

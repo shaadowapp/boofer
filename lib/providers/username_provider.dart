@@ -1,31 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/unified_storage_service.dart';
+import '../services/local_storage_service.dart';
 
 class UsernameProvider extends ChangeNotifier {
-  static const String _usernameKey = 'username';
-  static const String _lastUsernameChangeKey = 'last_username_change';
   static const int _changeIntervalMonths = 6;
   
-  String _username = '';
+  String _handle = '';
   DateTime? _lastUsernameChange;
   
-  String get username => _username;
+  String get username => _handle; // For backward compatibility
+  String get handle => _handle;
   DateTime? get lastUsernameChange => _lastUsernameChange;
   
   UsernameProvider() {
-    _loadUsername();
+    _loadHandle();
   }
   
-  Future<void> _loadUsername() async {
-    final prefs = await SharedPreferences.getInstance();
-    _username = prefs.getString(_usernameKey) ?? '';
+  Future<void> _loadHandle() async {
+    // First try to load from unified storage
+    _handle = await UnifiedStorageService.getString(UnifiedStorageService.userHandle) ?? '';
     
-    final lastChangeTimestamp = prefs.getInt(_lastUsernameChangeKey);
+    // If not found, try to load from onboarding data
+    if (_handle.isEmpty) {
+      try {
+        final onboardingData = await LocalStorageService.getOnboardingData();
+        if (onboardingData != null && onboardingData.completed) {
+          _handle = onboardingData.userName;
+          // Save to unified storage for future use
+          await UnifiedStorageService.setString(UnifiedStorageService.userHandle, _handle);
+        }
+      } catch (e) {
+        // Ignore errors and continue with empty handle
+      }
+    }
+    
+    final lastChangeTimestamp = await UnifiedStorageService.getInt(UnifiedStorageService.lastUsernameChange);
     if (lastChangeTimestamp != null) {
       _lastUsernameChange = DateTime.fromMillisecondsSinceEpoch(lastChangeTimestamp);
     }
     
     notifyListeners();
+  }
+
+  // Public method to reload handle data
+  Future<void> reloadHandle() async {
+    await _loadHandle();
   }
   
   bool canChangeUsername() {
@@ -53,78 +73,77 @@ class UsernameProvider extends ChangeNotifier {
   }
   
   String getFormattedUsername() {
-    if (_username.isEmpty) return '';
-    return '@$_username';
+    if (_handle.isEmpty) return '';
+    return '@$_handle';
   }
   
-  Future<bool> setUsername(String newUsername) async {
+  Future<bool> setUsername(String newHandle) async {
     // Remove @ if user included it
-    newUsername = newUsername.replaceAll('@', '').trim();
+    newHandle = newHandle.replaceAll('@', '').trim();
     
-    // Validate username
-    if (!_isValidUsername(newUsername)) {
+    // Validate handle
+    if (!_isValidHandle(newHandle)) {
       return false;
     }
     
-    // Check if user can change username
+    // Check if user can change handle
     if (!canChangeUsername()) {
       return false;
     }
     
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_usernameKey, newUsername);
-    await prefs.setInt(_lastUsernameChangeKey, DateTime.now().millisecondsSinceEpoch);
+    await UnifiedStorageService.setString(UnifiedStorageService.userHandle, newHandle);
+    await UnifiedStorageService.setInt(UnifiedStorageService.lastUsernameChange, DateTime.now().millisecondsSinceEpoch);
     
-    _username = newUsername;
+    _handle = newHandle;
     _lastUsernameChange = DateTime.now();
     
     notifyListeners();
     return true;
   }
   
-  bool _isValidUsername(String username) {
-    // Username validation rules:
+  bool _isValidHandle(String handle) {
+    // Handle validation rules:
     // - 3-20 characters
     // - Only letters, numbers, and underscores
     // - Must start with a letter
     // - Cannot end with underscore
     
-    if (username.length < 3 || username.length > 20) return false;
+    if (handle.length < 3 || handle.length > 20) return false;
     
     final regex = RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*[a-zA-Z0-9]$');
-    if (username.length == 3) {
-      // For 3-character usernames, allow ending with letter or number
-      return RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*$').hasMatch(username);
+    if (handle.length == 3) {
+      // For 3-character handles, allow ending with letter or number
+      return RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*$').hasMatch(handle);
     }
     
-    return regex.hasMatch(username);
+    return regex.hasMatch(handle);
   }
   
-  String? validateUsername(String username) {
-    username = username.replaceAll('@', '').trim();
+  String? validateUsername(String handle) {
+    handle = handle.replaceAll('@', '').trim();
     
-    if (username.isEmpty) {
-      return 'Username cannot be empty';
+    if (handle.isEmpty) {
+      return 'Handle cannot be empty';
     }
     
-    if (username.length < 3) {
-      return 'Username must be at least 3 characters';
+    if (handle.length < 3) {
+      return 'Handle must be at least 3 characters';
     }
     
-    if (username.length > 20) {
-      return 'Username must be 20 characters or less';
+    if (handle.length > 20) {
+      return 'Handle must be 20 characters or less';
     }
     
-    if (!RegExp(r'^[a-zA-Z]').hasMatch(username)) {
-      return 'Username must start with a letter';
+    if (!RegExp(r'^[a-zA-Z]').hasMatch(handle)) {
+      return 'Handle must start with a letter';
     }
     
-    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
-      return 'Username can only contain letters, numbers, and underscores';
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(handle)) {
+      return 'Handle can only contain letters, numbers, and underscores';
     }
     
-    if (username.length > 3 && username.endsWith('_')) {
-      return 'Username cannot end with underscore';
+    if (handle.length > 3 && handle.endsWith('_')) {
+      return 'Handle cannot end with underscore';
     }
     
     return null;

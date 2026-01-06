@@ -179,6 +179,10 @@ class MessageBubble extends StatelessWidget {
         icon = Icons.done_all;
         color = Colors.blue;
         break;
+      case MessageStatus.read:
+        icon = Icons.done_all;
+        color = Colors.green;
+        break;
       case MessageStatus.failed:
         icon = Icons.error_outline;
         color = Colors.red;
@@ -284,6 +288,8 @@ class MessageStatusWidget extends StatelessWidget {
         return Icons.check;
       case MessageStatus.delivered:
         return Icons.done_all;
+      case MessageStatus.read:
+        return Icons.done_all;
       case MessageStatus.failed:
         return Icons.error_outline;
     }
@@ -297,6 +303,8 @@ class MessageStatusWidget extends StatelessWidget {
         return Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
       case MessageStatus.delivered:
         return Colors.blue;
+      case MessageStatus.read:
+        return Colors.green;
       case MessageStatus.failed:
         return Colors.red;
     }

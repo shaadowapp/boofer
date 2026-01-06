@@ -4,6 +4,7 @@ import 'dart:async';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/user_service.dart';
+import 'constants/app_colors.dart';
 
 void main() {
   runApp(const BooferApp());
@@ -20,16 +21,16 @@ class BooferApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: AppColors.electricOrchid,
           brightness: Brightness.light,
-          primary: const Color(0xFF075E54),
-          secondary: const Color(0xFF128C7E),
+          primary: AppColors.electricOrchid,
+          secondary: AppColors.neonMint,
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,
-          backgroundColor: Color(0xFF075E54),
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.electricOrchid,
         ),
       ),
       home: const SplashScreen(),
@@ -79,9 +80,9 @@ class _SplashScreenState extends State<SplashScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF3B82F6),
-              Color(0xFF60A5FA),
+              AppColors.electricOrchid,
+              Color(0xFF9D4EDD),
+              Color(0xFF7209B7),
             ],
           ),
         ),

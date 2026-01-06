@@ -1,385 +1,416 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import '../core/error/error_handler.dart';
+import '../core/models/app_error.dart';
+import '../services/chat_service.dart';
+import '../services/user_service.dart';
+import '../models/message_model.dart';
 import '../models/friend_model.dart';
-import 'archive_settings_provider.dart';
 
-class ChatProvider extends ChangeNotifier {
-  static const String _archivedChatsKey = 'archived_chats';
-  static const String _blockedUsersKey = 'blocked_users';
-  static const String _mutedChatsKey = 'muted_chats';
-  static const String _friendsDataKey = 'friends_data';
+class ChatProvider with ChangeNotifier {
+  final ChatService _chatService;
+  final ErrorHandler _errorHandler;
   
-  List<Friend> _friends = [];
-  Set<String> _archivedChatIds = {};
-  Set<String> _blockedUserIds = {};
-  Set<String> _mutedChatIds = {};
+  List<Message> _messages = [];
   bool _isLoading = false;
+  String? _error;
+  String? _currentConversationId;
   
-  List<Friend> get friends => _friends;
+  List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
+  String? get error => _error;
+  String? get currentConversationId => _currentConversationId;
   
-  // Active chats: not archived, not blocked, sorted by last message time
-  List<Friend> get activeChats {
-    return _friends
-        .where((f) => !_archivedChatIds.contains(f.id) && !_blockedUserIds.contains(f.id))
-        .toList()
-      ..sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+  StreamSubscription<List<Message>>? _messagesSubscription;
+  StreamSubscription<Message>? _newMessageSubscription;
+  
+  ChatProvider({
+    required ChatService chatService,
+    required ErrorHandler errorHandler,
+  }) : _chatService = chatService, _errorHandler = errorHandler {
+    _initializeSubscriptions();
+    _initializeDemoData();
   }
   
-  // Archived chats: archived but not blocked, sorted by last message time
-  List<Friend> get archivedChats {
-    return _friends
-        .where((f) => _archivedChatIds.contains(f.id) && !_blockedUserIds.contains(f.id))
-        .toList()
-      ..sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+  void _initializeSubscriptions() {
+    _messagesSubscription = _chatService.messagesStream.listen(
+      (messages) {
+        _messages = messages;
+        _isLoading = false;
+        _error = null;
+        notifyListeners();
+      },
+      onError: (error) {
+        _handleError(error);
+      },
+    );
+    
+    _newMessageSubscription = _chatService.newMessageStream.listen(
+      (message) {
+        if (message.conversationId == _currentConversationId) {
+          _messages.add(message);
+          notifyListeners();
+        }
+      },
+    );
   }
   
-  // Blocked users: all blocked users regardless of archive status
-  List<Friend> get blockedUsers {
-    return _friends
-        .where((f) => _blockedUserIds.contains(f.id))
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-  }
-  
-  // Unread messages count (excluding muted chats)
-  int get totalUnreadCount {
-    return activeChats
-        .where((f) => !_mutedChatIds.contains(f.id))
-        .fold(0, (sum, friend) => sum + friend.unreadCount);
-  }
-  
-  ChatProvider() {
-    _initialize();
-  }
-  
-  Future<void> _initialize() async {
+  Future<void> loadMessages(String conversationId) async {
+    if (_currentConversationId == conversationId && _messages.isNotEmpty) return;
+    
+    _currentConversationId = conversationId;
     _isLoading = true;
+    _error = null;
     notifyListeners();
     
     try {
-      await _loadFriendsData();
-      await _loadArchivedChats();
-      await _loadBlockedUsers();
-      await _loadMutedChats();
+      // Get current user ID for validation
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser == null) {
+        throw Exception('No current user found');
+      }
+      
+      await _chatService.loadMessages(conversationId, currentUser.id);
     } catch (e) {
-      debugPrint('Error initializing ChatProvider: $e');
-      _loadDemoFriends();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      _handleError(e);
     }
   }
   
-  void _loadDemoFriends() {
-    _friends = Friend.getDemoFriends();
-    // Don't save demo data to avoid JSON issues
+  Future<void> sendMessage({
+    required String conversationId,
+    required String senderId,
+    required String content,
+    String? receiverId,
+    MessageType type = MessageType.text,
+  }) async {
+    try {
+      await _chatService.sendMessage(
+        conversationId: conversationId,
+        senderId: senderId,
+        content: content,
+        receiverId: receiverId,
+        type: type,
+      );
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+  
+  Future<void> markMessageAsRead(String messageId) async {
+    try {
+      await _chatService.markMessageAsRead(messageId);
+    } catch (e) {
+      _handleError(e);
+    }
+  }
+  
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      await _chatService.deleteMessage(messageId);
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+  
+  Future<List<Message>> searchMessages(String query) async {
+    try {
+      return await _chatService.searchMessages(query, conversationId: _currentConversationId);
+    } catch (e) {
+      _handleError(e);
+      return [];
+    }
+  }
+  
+  void _handleError(dynamic error) {
+    _isLoading = false;
+    _error = error.toString();
+    
+    if (error is AppError) {
+      _errorHandler.handleError(error);
+    } else {
+      _errorHandler.handleError(AppError.service(
+        message: error.toString(),
+        originalException: error is Exception ? error : Exception(error.toString()),
+      ));
+    }
+    
     notifyListeners();
   }
   
-  Future<void> _loadFriendsData() async {
-    // For now, just load demo friends to avoid JSON serialization issues
-    _friends = Friend.getDemoFriends();
+  void clearError() {
+    _error = null;
     notifyListeners();
   }
   
-  Future<void> _saveFriendsData() async {
-    // Simplified - don't save complex JSON for now
-    // In production, this would save to proper database
-    debugPrint('Friends data updated (not persisted in demo)');
+  void clearMessages() {
+    _messages.clear();
+    _currentConversationId = null;
+    notifyListeners();
   }
   
-  Future<void> _loadArchivedChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final archivedIds = prefs.getStringList(_archivedChatsKey) ?? [];
-    _archivedChatIds = archivedIds.toSet();
+  @override
+  void dispose() {
+    _messagesSubscription?.cancel();
+    _newMessageSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Demo friends data for UI design
+  List<Friend> _demoFriends = [];
+  List<Friend> _archivedFriends = [];
+  Set<String> _mutedChats = {};
+  Set<String> _blockedUsers = {};
+
+  // Initialize demo data
+  void _initializeDemoData() {
+    _demoFriends = [
+      Friend(
+        id: '1',
+        name: 'Alex Johnson',
+        handle: 'alex_nyc',
+        virtualNumber: '555-123-4567',
+        lastMessage: 'Hey! How are you doing? 😊',
+        lastMessageTime: DateTime.now().subtract(const Duration(minutes: 5)),
+        unreadCount: 2,
+        isOnline: true,
+      ),
+      Friend(
+        id: '2',
+        name: 'Sarah Wilson',
+        handle: 'sarah_coffee',
+        virtualNumber: '555-234-5678',
+        lastMessage: 'Thanks for the help earlier 👍',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 1)),
+        unreadCount: 0,
+        isOnline: true,
+      ),
+      Friend(
+        id: '3',
+        name: 'Mike Chen',
+        handle: 'mike_tech',
+        virtualNumber: '555-345-6789',
+        lastMessage: 'See you tomorrow at the meeting!',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 3)),
+        unreadCount: 1,
+        isOnline: false,
+      ),
+      Friend(
+        id: '4',
+        name: 'Emma Davis',
+        handle: 'emma_artist',
+        virtualNumber: '555-456-7890',
+        lastMessage: 'The presentation went great 🎉',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 1)),
+        unreadCount: 0,
+        isOnline: false,
+      ),
+      Friend(
+        id: '5',
+        name: 'James Brown',
+        handle: 'james_music',
+        virtualNumber: '555-567-8901',
+        lastMessage: 'Can you send me those files when you get a chance?',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 2)),
+        unreadCount: 3,
+        isOnline: true,
+      ),
+      Friend(
+        id: '6',
+        name: 'Lisa Garcia',
+        handle: 'lisa_travel',
+        virtualNumber: '555-678-9012',
+        lastMessage: 'Happy birthday! Hope you have a great day 🎂',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 3)),
+        unreadCount: 0,
+        isOnline: false,
+      ),
+      Friend(
+        id: '7',
+        name: 'David Kim',
+        handle: 'david_dev',
+        virtualNumber: '555-789-0123',
+        lastMessage: 'The new feature looks amazing! Great work 💪',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 6)),
+        unreadCount: 1,
+        isOnline: true,
+      ),
+      Friend(
+        id: '8',
+        name: 'Rachel Green',
+        handle: 'rachel_design',
+        virtualNumber: '555-890-1234',
+        lastMessage: 'Let\'s grab coffee this weekend ☕',
+        lastMessageTime: DateTime.now().subtract(const Duration(hours: 12)),
+        unreadCount: 0,
+        isOnline: false,
+      ),
+      Friend(
+        id: '9',
+        name: 'Tom Anderson',
+        handle: 'tom_sports',
+        virtualNumber: '555-901-2345',
+        lastMessage: 'Did you watch the game last night? Incredible!',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
+        unreadCount: 2,
+        isOnline: true,
+      ),
+      Friend(
+        id: '10',
+        name: 'Maya Patel',
+        handle: 'maya_photo',
+        virtualNumber: '555-012-3456',
+        lastMessage: 'Check out these photos from the trip! 📸',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 4)),
+        unreadCount: 0,
+        isOnline: false,
+      ),
+      Friend(
+        id: '11',
+        name: 'Chris Martinez',
+        handle: 'chris_chef',
+        virtualNumber: '555-123-4567',
+        lastMessage: 'Dinner was absolutely delicious! Thank you 🍽️',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 5)),
+        unreadCount: 1,
+        isOnline: false,
+      ),
+      Friend(
+        id: '12',
+        name: 'Anna Thompson',
+        handle: 'anna_books',
+        virtualNumber: '555-234-5678',
+        lastMessage: 'Have you read the new book I recommended?',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 6)),
+        unreadCount: 0,
+        isOnline: true,
+      ),
+    ];
+
+    // Add some archived chats for testing
+    _archivedFriends = [
+      Friend(
+        id: 'archived_1',
+        name: 'Old Group Chat',
+        handle: 'old_group',
+        virtualNumber: '555-999-0000',
+        lastMessage: 'Thanks everyone for the great memories!',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 30)),
+        unreadCount: 0,
+        isOnline: false,
+        isArchived: true,
+      ),
+      Friend(
+        id: 'archived_2',
+        name: 'Project Team',
+        handle: 'project_team',
+        virtualNumber: '555-888-0000',
+        lastMessage: 'Project completed successfully! 🎉',
+        lastMessageTime: DateTime.now().subtract(const Duration(days: 45)),
+        unreadCount: 0,
+        isOnline: false,
+        isArchived: true,
+      ),
+    ];
+
+    // Add some muted chats for testing
+    _mutedChats.addAll(['5', '11']); // James and Chris are muted
+  }
+
+  // Chat management methods
+  List<Friend> get activeChats {
+    if (_demoFriends.isEmpty) {
+      _initializeDemoData();
+    }
+    return _demoFriends.where((friend) => !friend.isArchived).toList();
   }
   
-  Future<void> _loadBlockedUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final blockedIds = prefs.getStringList(_blockedUsersKey) ?? [];
-    _blockedUserIds = blockedIds.toSet();
+  List<Friend> get archivedChats {
+    if (_archivedFriends.isEmpty) {
+      _initializeDemoData();
+    }
+    return _archivedFriends;
   }
-  
-  Future<void> _loadMutedChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final mutedIds = prefs.getStringList(_mutedChatsKey) ?? [];
-    _mutedChatIds = mutedIds.toSet();
+
+  bool isChatMuted(String chatId) {
+    return _mutedChats.contains(chatId);
   }
-  
-  Future<void> _saveArchivedChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_archivedChatsKey, _archivedChatIds.toList());
+
+  bool isChatArchived(String chatId) {
+    return _archivedFriends.any((friend) => friend.id == chatId) ||
+           _demoFriends.any((friend) => friend.id == chatId && friend.isArchived);
   }
-  
-  Future<void> _saveBlockedUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_blockedUsersKey, _blockedUserIds.toList());
+
+  Future<void> archiveChat(String chatId) async {
+    final friendIndex = _demoFriends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      final friend = _demoFriends[friendIndex];
+      _demoFriends.removeAt(friendIndex);
+      _archivedFriends.add(friend.copyWith(isArchived: true));
+      notifyListeners();
+    }
   }
-  
-  Future<void> _saveMutedChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_mutedChatsKey, _mutedChatIds.toList());
+
+  Future<void> unarchiveChat(String chatId) async {
+    final friendIndex = _archivedFriends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      final friend = _archivedFriends[friendIndex];
+      _archivedFriends.removeAt(friendIndex);
+      _demoFriends.add(friend.copyWith(isArchived: false));
+      notifyListeners();
+    }
   }
-  
-  // ==================== ARCHIVE FUNCTIONALITY ====================
-  
-  /// Archives a chat - moves it from active to archived section
-  /// Archived chats remain accessible but hidden from main view
-  Future<bool> archiveChat(String friendId) async {
-    try {
-      if (_blockedUserIds.contains(friendId)) {
-        debugPrint('Cannot archive blocked user');
-        return false;
-      }
-      
-      _archivedChatIds.add(friendId);
-      await _saveArchivedChats();
+
+  Future<void> muteChat(String chatId) async {
+    _mutedChats.add(chatId);
+    notifyListeners();
+  }
+
+  Future<void> unmuteChat(String chatId) async {
+    _mutedChats.remove(chatId);
+    notifyListeners();
+  }
+
+  Future<bool> markAsRead(String chatId) async {
+    final friendIndex = _demoFriends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      _demoFriends[friendIndex] = _demoFriends[friendIndex].copyWith(unreadCount: 0);
       notifyListeners();
       return true;
-    } catch (e) {
-      debugPrint('Error archiving chat: $e');
-      return false;
     }
+    return false;
   }
-  
-  /// Unarchives a chat - moves it back to active section
-  Future<bool> unarchiveChat(String friendId) async {
-    try {
-      _archivedChatIds.remove(friendId);
-      await _saveArchivedChats();
+
+  Future<bool> markAsUnread(String chatId) async {
+    final friendIndex = _demoFriends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      _demoFriends[friendIndex] = _demoFriends[friendIndex].copyWith(unreadCount: 1);
       notifyListeners();
       return true;
-    } catch (e) {
-      debugPrint('Error unarchiving chat: $e');
-      return false;
     }
+    return false;
   }
-  
-  // ==================== BLOCK FUNCTIONALITY ====================
-  
-  /// Blocks a user completely - removes from all chat lists
-  /// Blocked users have separate section and no notifications
-  Future<bool> blockUser(String friendId) async {
-    try {
-      final friend = getFriendById(friendId);
-      if (friend == null) return false;
-      
-      _blockedUserIds.add(friendId);
-      _archivedChatIds.remove(friendId); // Remove from archived
-      _mutedChatIds.remove(friendId); // Remove from muted
-      
-      await Future.wait([
-        _saveBlockedUsers(),
-        _saveArchivedChats(),
-        _saveMutedChats(),
-      ]);
-      
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error blocking user: $e');
-      return false;
-    }
+
+  bool isUserBlocked(String userId) {
+    return _blockedUsers.contains(userId);
   }
-  
-  /// Unblocks a user - returns to active chats
-  Future<bool> unblockUser(String friendId) async {
-    try {
-      _blockedUserIds.remove(friendId);
-      await _saveBlockedUsers();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error unblocking user: $e');
-      return false;
-    }
+
+  Future<void> blockUser(String userId) async {
+    _blockedUsers.add(userId);
+    notifyListeners();
   }
-  
-  // ==================== MUTE FUNCTIONALITY ====================
-  
-  /// Mutes a chat - no notifications but messages still received
-  /// Chat remains visible with dimmed unread badge
-  Future<bool> muteChat(String friendId) async {
-    try {
-      if (_blockedUserIds.contains(friendId)) {
-        debugPrint('Cannot mute blocked user');
-        return false;
-      }
-      
-      _mutedChatIds.add(friendId);
-      await _saveMutedChats();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error muting chat: $e');
-      return false;
-    }
+
+  Future<void> unblockUser(String userId) async {
+    _blockedUsers.remove(userId);
+    notifyListeners();
   }
-  
-  /// Unmutes a chat - restores normal notifications
-  Future<bool> unmuteChat(String friendId) async {
-    try {
-      _mutedChatIds.remove(friendId);
-      await _saveMutedChats();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error unmuting chat: $e');
-      return false;
-    }
-  }
-  
-  // ==================== READ/UNREAD FUNCTIONALITY ====================
-  
-  /// Marks a chat as read - clears unread count
-  Future<bool> markAsRead(String friendId) async {
-    try {
-      final friendIndex = _friends.indexWhere((f) => f.id == friendId);
-      if (friendIndex == -1) {
-        debugPrint('Friend not found: $friendId');
-        return false;
-      }
-      
-      debugPrint('Marking friend ${_friends[friendIndex].name} as read (was ${_friends[friendIndex].unreadCount} unread)');
-      
-      final updatedFriend = _friends[friendIndex].copyWith(unreadCount: 0);
-      
-      if (updatedFriend != null) {
-        _friends[friendIndex] = updatedFriend;
-      } else {
-        debugPrint('Error: copyWith returned null');
-        return false;
-      }
-      
-      // Save to simple storage instead of JSON
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('read_chats', 
-          _friends.where((f) => f.unreadCount == 0).map((f) => f.id).toList());
-      
-      notifyListeners();
-      debugPrint('Successfully marked as read');
-      return true;
-    } catch (e) {
-      debugPrint('Error marking as read: $e');
-      return false;
-    }
-  }
-  
-  /// Marks a chat as unread - adds unread indicator
-  Future<bool> markAsUnread(String friendId) async {
-    try {
-      final friendIndex = _friends.indexWhere((f) => f.id == friendId);
-      if (friendIndex == -1) {
-        debugPrint('Friend not found: $friendId');
-        return false;
-      }
-      
-      debugPrint('Marking friend ${_friends[friendIndex].name} as unread (was ${_friends[friendIndex].unreadCount} unread)');
-      
-      final currentCount = _friends[friendIndex].unreadCount;
-      final updatedFriend = _friends[friendIndex].copyWith(
-        unreadCount: currentCount > 0 ? currentCount : 1,
-      );
-      
-      if (updatedFriend != null) {
-        _friends[friendIndex] = updatedFriend;
-      } else {
-        debugPrint('Error: copyWith returned null');
-        return false;
-      }
-      
-      // Save to simple storage instead of JSON
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('unread_chats', 
-          _friends.where((f) => f.unreadCount > 0).map((f) => f.id).toList());
-      
-      notifyListeners();
-      debugPrint('Successfully marked as unread');
-      return true;
-    } catch (e) {
-      debugPrint('Error marking as unread: $e');
-      return false;
-    }
-  }
-  
-  // ==================== DELETE FUNCTIONALITY ====================
-  
-  /// Permanently deletes a chat - removes friend and all data
-  /// This action cannot be undone
-  Future<bool> deleteChat(String friendId) async {
-    try {
-      debugPrint('Deleting chat for friend: $friendId');
-      
-      _friends.removeWhere((friend) => friend.id == friendId);
-      _archivedChatIds.remove(friendId);
-      _mutedChatIds.remove(friendId);
-      _blockedUserIds.remove(friendId);
-      
-      await Future.wait([
-        _saveArchivedChats(),
-        _saveMutedChats(),
-        _saveBlockedUsers(),
-      ]);
-      
-      notifyListeners();
-      debugPrint('Successfully deleted chat');
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting chat: $e');
-      return false;
-    }
-  }
-  
-  // ==================== UTILITY METHODS ====================
-  
-  bool isChatArchived(String friendId) {
-    return _archivedChatIds.contains(friendId);
-  }
-  
-  bool isUserBlocked(String friendId) {
-    return _blockedUserIds.contains(friendId);
-  }
-  
-  bool isChatMuted(String friendId) {
-    return _mutedChatIds.contains(friendId);
-  }
-  
-  Friend? getFriendById(String id) {
-    try {
-      return _friends.firstWhere((friend) => friend.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
-  
-  /// Simulates receiving a new message (for testing)
-  Future<void> simulateNewMessage(String friendId, String message, {bool keepArchived = false}) async {
-    try {
-      final friendIndex = _friends.indexWhere((f) => f.id == friendId);
-      if (friendIndex == -1) return;
-      
-      // Don't update if user is blocked
-      if (_blockedUserIds.contains(friendId)) return;
-      
-      // If keepArchived is false and chat is archived, unarchive it when receiving new message
-      if (!keepArchived && _archivedChatIds.contains(friendId)) {
-        _archivedChatIds.remove(friendId);
-        await _saveArchivedChats();
-        debugPrint('Unarchived chat $friendId due to new message');
-      }
-      
-      _friends[friendIndex] = _friends[friendIndex].copyWith(
-        lastMessage: message,
-        lastMessageTime: DateTime.now(),
-        unreadCount: _friends[friendIndex].unreadCount + 1,
-      );
-      
-      await _saveFriendsData();
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error simulating new message: $e');
-    }
+
+  Future<void> deleteChat(String chatId) async {
+    _demoFriends.removeWhere((friend) => friend.id == chatId);
+    _archivedFriends.removeWhere((friend) => friend.id == chatId);
+    _mutedChats.remove(chatId);
+    _blockedUsers.remove(chatId);
+    notifyListeners();
   }
 }
