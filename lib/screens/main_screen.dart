@@ -667,6 +667,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         automaticallyImplyLeading: false, // Remove default back button
         title: Align(
@@ -756,7 +757,7 @@ class _MainScreenState extends State<MainScreen> {
           // Search bar below navbar
           Container(
             padding: const EdgeInsets.all(16),
-            color: Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.primary,
+            color: Theme.of(context).appBarTheme.backgroundColor,
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(

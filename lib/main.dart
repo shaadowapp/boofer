@@ -12,6 +12,8 @@ import 'core/database/database_manager.dart';
 import 'core/error/error_handler.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/friend_chat_screen.dart';
+import 'models/friend_model.dart';
 import 'l10n/app_localizations.dart';
 
 void main() async {
@@ -60,6 +62,18 @@ class BooferApp extends StatelessWidget {
             routes: {
               '/onboarding': (context) => const OnboardingScreen(),
               '/main': (context) => const MainScreen(),
+              '/chat': (context) {
+                final friend = ModalRoute.of(context)?.settings.arguments as Friend?;
+                if (friend != null) {
+                  return FriendChatScreen(
+                    recipientId: friend.id,
+                    recipientName: friend.name,
+                    recipientHandle: friend.handle,
+                    recipientAvatar: friend.avatar,
+                  );
+                }
+                return const MainScreen(); // Fallback if no friend provided
+              },
             },
             debugShowCheckedModeBanner: false,
           );

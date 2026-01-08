@@ -67,62 +67,89 @@ class _LobbyScreenState extends State<LobbyScreen> {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
           
-          return Column(
-            children: [
-              // Top archive button (if configured)
-              if (archivedChats.isNotEmpty && 
-                  archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats)
-                _buildArchiveContactCard(context, archivedChats, l10n),
-              
-              // Active chats
-              Expanded(
-                child: activeChats.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SvgIcons.sized(
-                              SvgIcons.peopleOutline,
-                              64,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No friends found',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        children: [
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: activeChats.length + (archivedChats.isNotEmpty && 
-                                  archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                // Show archive button as last item if configured for bottom position
-                                if (archivedChats.isNotEmpty && 
-                                    archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats &&
-                                    index == activeChats.length) {
-                                  return _buildArchiveContactCard(context, archivedChats, l10n);
-                                }
-                                
-                                final friend = activeChats[index];
-                                return _buildFriendTile(friend, chatProvider, l10n);
-                              },
-                            ),
-                          ),
-                        ],
+          return activeChats.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SvgIcons.sized(
+                        SvgIcons.peopleOutline,
+                        64,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                       ),
-              ),
-            ],
-          );
+                      const SizedBox(height: 16),
+                      Text(
+                        'No friends found',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _calculateTotalItems(activeChats, archivedChats, archiveSettings),
+                  itemBuilder: (context, index) {
+                    return _buildListItem(context, index, activeChats, archivedChats, archiveSettings, chatProvider, l10n);
+                  },
+                );
         },
       ),
     );
+  }
+
+  int _calculateTotalItems(List<Friend> activeChats, List<Friend> archivedChats, ArchiveSettingsProvider archiveSettings) {
+    int totalItems = activeChats.length;
+    
+    // Add archive button if there are archived chats and it should be shown
+    if (archivedChats.isNotEmpty) {
+      if (archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats ||
+          archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats) {
+        totalItems += 1;
+      }
+    }
+    
+    return totalItems;
+  }
+
+  Widget _buildListItem(
+    BuildContext context,
+    int index,
+    List<Friend> activeChats,
+    List<Friend> archivedChats,
+    ArchiveSettingsProvider archiveSettings,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
+    // Show archive button at the top if configured
+    if (archivedChats.isNotEmpty && 
+        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats &&
+        index == 0) {
+      return _buildArchiveContactCard(context, archivedChats, l10n);
+    }
+    
+    // Show archive button at the bottom if configured
+    if (archivedChats.isNotEmpty && 
+        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats &&
+        index == activeChats.length) {
+      return _buildArchiveContactCard(context, archivedChats, l10n);
+    }
+    
+    // Calculate the actual friend index
+    int friendIndex = index;
+    if (archivedChats.isNotEmpty && 
+        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats) {
+      friendIndex = index - 1;
+    }
+    
+    // Show friend tile
+    if (friendIndex >= 0 && friendIndex < activeChats.length) {
+      final friend = activeChats[friendIndex];
+      return _buildFriendTile(friend, chatProvider, l10n);
+    }
+    
+    // Fallback - should not happen
+    return const SizedBox.shrink();
   }
 
   Widget _buildArchiveContactCard(BuildContext context, List<Friend> archivedChats, AppLocalizations l10n) {

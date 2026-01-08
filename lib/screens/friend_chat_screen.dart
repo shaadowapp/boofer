@@ -15,11 +15,15 @@ import '../core/error/error_handler.dart';
 class FriendChatScreen extends StatefulWidget {
   final String recipientId;
   final String recipientName;
+  final String? recipientHandle;
+  final String? recipientAvatar;
 
   const FriendChatScreen({
     super.key,
     required this.recipientId,
     required this.recipientName,
+    this.recipientHandle,
+    this.recipientAvatar,
   });
 
   @override
@@ -37,6 +41,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   List<Message> _messages = [];
   bool _loading = true;
   bool _canChat = false;
+  bool _isBlocked = false;
+  bool _isFriend = false;
+  bool _friendRequestSent = false;
   User? _recipientUser;
   late StreamSubscription<List<Message>> _messagesSubscription;
   late StreamSubscription<Message> _newMessageSubscription;
@@ -82,6 +89,18 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         widget.recipientId,
       );
 
+      // Check friendship status
+      final isFriend = await _friendshipService.areFriends(
+        currentUser.id,
+        widget.recipientId,
+      );
+
+      // Check if user is blocked (mock implementation for now)
+      final isBlocked = false; // TODO: Implement when FriendshipService has isBlocked method
+
+      // Check if friend request was already sent (mock implementation for now)
+      final friendRequestSent = false; // TODO: Implement when FriendshipService has hasPendingFriendRequest method
+
       // Create recipient user object
       final recipientUser = User(
         id: widget.recipientId,
@@ -98,6 +117,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         _currentUserId = currentUser.id;
         _conversationId = conversationId;
         _canChat = canChat;
+        _isFriend = isFriend;
+        _isBlocked = isBlocked;
+        _friendRequestSent = friendRequestSent;
         _recipientUser = recipientUser;
         _loading = false;
       });
@@ -252,21 +274,59 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.recipientName),
+        title: GestureDetector(
+          onTap: _showUserProfile,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.recipientName,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              if (widget.recipientHandle != null)
+                Text(
+                  '@${widget.recipientHandle}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                ),
+            ],
+          ),
+        ),
         elevation: 0,
         actions: [
-          if (_canChat) ...[
+          // Show voice and video call buttons only if they are friends
+          if (_isFriend) ...[
             IconButton(
-              onPressed: _startCall,
+              onPressed: _startVoiceCall,
               icon: const Icon(Icons.call),
-              tooltip: 'Call ${widget.recipientName}',
+              tooltip: 'Voice call',
             ),
             IconButton(
-              onPressed: _showUserProfile,
-              icon: const Icon(Icons.info_outline),
-              tooltip: 'User info',
+              onPressed: _startVideoCall,
+              icon: const Icon(Icons.videocam),
+              tooltip: 'Video call',
             ),
           ],
+          // Show add friend button if not friends, not blocked, and no pending request
+          if (!_isFriend && !_isBlocked && !_friendRequestSent)
+            IconButton(
+              onPressed: _sendFriendRequest,
+              icon: const Icon(Icons.person_add),
+              tooltip: 'Add friend',
+            ),
+          // Show pending status if friend request was sent
+          if (!_isFriend && !_isBlocked && _friendRequestSent)
+            IconButton(
+              onPressed: null, // Disabled
+              icon: const Icon(Icons.hourglass_empty),
+              tooltip: 'Friend request sent',
+            ),
+          // Always show the 3-dot menu button
+          IconButton(
+            onPressed: _showMoreOptionsBottomSheet,
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More options',
+          ),
         ],
       ),
       body: _buildBody(),
@@ -631,6 +691,458 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     );
   }
 
+  Future<void> _startVoiceCall() async {
+    if (_currentUserId == null) return;
+
+    if (!_isFriend) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only call friends'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Voice calling ${widget.recipientName}...'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: 'Cancel',
+          onPressed: () {},
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startVideoCall() async {
+    if (_currentUserId == null) return;
+
+    if (!_isFriend) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only call friends'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Video calling ${widget.recipientName}...'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: 'Cancel',
+          onPressed: () {},
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendFriendRequest() async {
+    if (_currentUserId == null) return;
+
+    try {
+      // Show loading state
+      setState(() {
+        _friendRequestSent = true;
+      });
+
+      // Send friend request
+      await _friendshipService.sendFriendRequest(
+        _currentUserId!,
+        widget.recipientId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Friend request sent to ${widget.recipientName}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Revert state on error
+      setState(() {
+        _friendRequestSent = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send friend request: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleBlockUser() async {
+    if (_currentUserId == null) return;
+
+    try {
+      if (_isBlocked) {
+        // Unblock user (mock implementation for now)
+        // await _friendshipService.unblockUser(_currentUserId!, widget.recipientId);
+        setState(() {
+          _isBlocked = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.recipientName} has been unblocked'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // Block user (mock implementation for now)
+        // await _friendshipService.blockUser(_currentUserId!, widget.recipientId);
+        setState(() {
+          _isBlocked = true;
+          _isFriend = false;
+          _friendRequestSent = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.recipientName} has been blocked'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to ${_isBlocked ? 'unblock' : 'block'} user: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showMoreOptionsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header with user info
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    child: widget.recipientAvatar != null
+                        ? ClipOval(
+                            child: Image.network(
+                              widget.recipientAvatar!,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Text(
+                                widget.recipientName[0].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Text(
+                            widget.recipientName[0].toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.recipientName,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (widget.recipientHandle != null)
+                          Text(
+                            '@${widget.recipientHandle}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                          )
+                        else
+                          Text(
+                            'Tap to view profile',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Options list
+            _buildBottomSheetOption(
+              icon: Icons.person,
+              title: 'View profile',
+              onTap: () {
+                Navigator.pop(context);
+                _showUserProfile();
+              },
+            ),
+            // Show add friend option if not friends, not blocked, and no pending request
+            if (!_isFriend && !_isBlocked && !_friendRequestSent)
+              _buildBottomSheetOption(
+                icon: Icons.person_add,
+                title: 'Add friend',
+                onTap: () {
+                  Navigator.pop(context);
+                  _sendFriendRequest();
+                },
+              ),
+            // Show pending status if friend request was sent
+            if (!_isFriend && !_isBlocked && _friendRequestSent)
+              _buildBottomSheetOption(
+                icon: Icons.hourglass_empty,
+                title: 'Friend request sent',
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Friend request is pending')),
+                  );
+                },
+              ),
+            // Show media & files only for friends
+            if (_isFriend)
+              _buildBottomSheetOption(
+                icon: Icons.photo_library,
+                title: 'Media & files',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMediaAndFiles();
+                },
+              ),
+            // Show block/unblock option
+            _buildBottomSheetOption(
+              icon: _isBlocked ? Icons.person_add : Icons.block,
+              title: _isBlocked ? 'Unblock user' : 'Block user',
+              onTap: () {
+                Navigator.pop(context);
+                _toggleBlockUser();
+              },
+              isDestructive: !_isBlocked,
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSheetOption({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isDestructive 
+              ? Colors.red.withOpacity(0.1)
+              : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: isDestructive 
+              ? Colors.red
+              : Theme.of(context).colorScheme.primary,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDestructive 
+              ? Colors.red
+              : Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+    );
+  }
+
+  void _showMediaAndFiles() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header with back button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // Show the main options bottom sheet again
+                      _showMoreOptionsBottomSheet();
+                    },
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Media & Files',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Media options list
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  _buildMediaOption(
+                    icon: Icons.photo,
+                    title: 'Photos',
+                    subtitle: '42 items',
+                    onTap: () => _showMediaCategory('photos'),
+                  ),
+                  _buildMediaOption(
+                    icon: Icons.videocam,
+                    title: 'Videos',
+                    subtitle: '8 items',
+                    onTap: () => _showMediaCategory('videos'),
+                  ),
+                  _buildMediaOption(
+                    icon: Icons.insert_drive_file,
+                    title: 'Documents',
+                    subtitle: '15 items',
+                    onTap: () => _showMediaCategory('documents'),
+                  ),
+                  _buildMediaOption(
+                    icon: Icons.music_note,
+                    title: 'Audio',
+                    subtitle: '3 items',
+                    onTap: () => _showMediaCategory('audio'),
+                  ),
+                  _buildMediaOption(
+                    icon: Icons.link,
+                    title: 'Links',
+                    subtitle: '12 items',
+                    onTap: () => _showMediaCategory('links'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+
+  void _showMediaCategory(String category) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Opening $category...')),
+    );
+  }
+
   void _showUserProfile() {
     // Show user profile dialog or navigate to profile screen
     showDialog(
@@ -643,20 +1155,46 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             CircleAvatar(
               radius: 40,
               backgroundColor: Theme.of(context).colorScheme.primary,
-              child: Text(
-                widget.recipientName.substring(0, 1).toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 32,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: widget.recipientAvatar != null
+                  ? ClipOval(
+                      child: Image.network(
+                        widget.recipientAvatar!,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Text(
+                          widget.recipientName.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 32,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      widget.recipientName.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 32,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
             const SizedBox(height: 16),
             Text(
               widget.recipientName,
               style: Theme.of(context).textTheme.titleLarge,
             ),
+            if (widget.recipientHandle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                '@${widget.recipientHandle}',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               'ID: ${widget.recipientId}',
