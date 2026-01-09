@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/user_service.dart';
@@ -8,7 +9,31 @@ import '../providers/username_provider.dart';
 import '../widgets/user_profile_card.dart';
 import '../widgets/contextual_user_profile_card.dart';
 import '../widgets/enhanced_user_profile_card.dart';
-import 'global_search_screen.dart';
+import 'user_search_screen.dart';
+import 'write_post_screen.dart';
+
+// Post model for demo posts
+class Post {
+  final String id;
+  final User author;
+  final String? caption;
+  final String? imageUrl;
+  final DateTime createdAt;
+  final int likes;
+  final int comments;
+  final bool isLiked;
+
+  Post({
+    required this.id,
+    required this.author,
+    this.caption,
+    this.imageUrl,
+    required this.createdAt,
+    this.likes = 0,
+    this.comments = 0,
+    this.isLiked = false,
+  });
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,76 +47,70 @@ class _HomeScreenState extends State<HomeScreen> {
   User? _currentUser;
   List<User> _nearbyUsers = [];
   List<User> _suggestedUsers = [];
-  List<User> _globalUsers = [];
+  List<Post> _feedPosts = [];
+  bool _isLoading = true;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _initializeWithDemoUser();
-    _loadUserData();
-    _loadDiscoveryData();
+    _initializeWithDemoData();
+    _loadCurrentUserFromDatabase(); // Try to load real user data
   }
 
-  void _initializeWithDemoUser() {
-    // Initialize with demo user immediately to avoid loading state
-    final demoUser = User(
-      id: 'demo_user',
-      handle: 'demo_user',
-      fullName: 'Demo User',
-      virtualNumber: '555-000-0000',
-      bio: 'Complete your profile setup to get started!',
-      isDiscoverable: false,
-      status: UserStatus.offline,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    
-    setState(() {
-      _userNumber = 'Complete setup';
-      _currentUser = demoUser;
-    });
-  }
-
-  Future<void> _loadUserData() async {
+  Future<void> _loadCurrentUserFromDatabase() async {
     try {
-      // Get current user data from UserService
+      // Try to get current user data from UserService
       final currentUser = await UserService.getCurrentUser();
-      if (currentUser != null) {
+      if (currentUser != null && mounted) {
         setState(() {
-          _userNumber = currentUser.virtualNumber;
           _currentUser = currentUser;
+          _userNumber = currentUser.virtualNumber;
         });
+        print('Loaded current user: ${currentUser.fullName}');
+      } else {
+        print('No current user found in database, using demo user Alex Johnson');
       }
-      // If currentUser is null, keep the demo user that was set in initializeWithDemoUser
     } catch (e) {
-      // On error, create a fallback user
-      final fallbackUser = User(
-        id: 'fallback_user',
-        handle: 'new_user',
-        fullName: 'New User',
-        virtualNumber: '555-000-0000',
-        bio: 'Welcome to Boofer! Complete your setup to get started.',
-        isDiscoverable: false,
-        status: UserStatus.offline,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      
-      setState(() {
-        _userNumber = 'Setup required';
-        _currentUser = fallbackUser;
-      });
+      print('Error loading current user: $e, using demo user Alex Johnson');
+      // Keep the demo Alex Johnson user that was set in _initializeWithDemoData
     }
   }
 
-  Future<void> _loadDiscoveryData() async {
-    // Simulate loading nearby, suggested, and global users
-    await Future.delayed(const Duration(milliseconds: 500));
+  void _initializeWithDemoData() {
+    // Initialize with demo user and data immediately for UI testing
+    final demoUser = User(
+      id: 'demo_user',
+      handle: 'alex_johnson',
+      fullName: 'Alex Johnson',
+      virtualNumber: 'VN-2024-001',
+      bio: '🎨 Digital artist & coffee enthusiast',
+      isDiscoverable: true,
+      status: UserStatus.online,
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      updatedAt: DateTime.now(),
+    );
+    
+    final nearbyUsers = _generateNearbyUsers();
+    final suggestedUsers = _generateSuggestedUsers();
+    final feedPosts = _generateFeedPosts();
+    
+    print('Generated ${feedPosts.length} posts'); // Debug print
+    
     setState(() {
-      _nearbyUsers = _generateNearbyUsers();
-      _suggestedUsers = _generateSuggestedUsers();
-      _globalUsers = _generateGlobalUsers();
+      _userNumber = demoUser.virtualNumber;
+      _currentUser = demoUser;
+      _nearbyUsers = nearbyUsers;
+      _suggestedUsers = suggestedUsers;
+      _feedPosts = feedPosts;
+      _isLoading = false; // Set loading to false immediately
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   List<User> _generateNearbyUsers() {
@@ -101,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-901-2345',
         handle: 'alex_nyc',
         fullName: 'Alex Johnson',
-        bio: 'Online now • 0.2 km away',
+        bio: '🎨 Digital artist & coffee enthusiast',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
         updatedAt: DateTime.now(),
@@ -112,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-902-3456',
         handle: 'sarah_coffee',
         fullName: 'Sarah Wilson',
-        bio: 'Active 2m ago • 0.5 km away',
+        bio: '📚 Book lover | World traveler ✈️',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 15)),
         updatedAt: DateTime.now(),
@@ -123,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-903-4567',
         handle: 'mike_tech',
         fullName: 'Mike Chen',
-        bio: 'Online now • 1.2 km away',
+        bio: '🏃‍♂️ Marathon runner | Fitness coach',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 7)),
         updatedAt: DateTime.now(),
@@ -139,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-801-2345',
         handle: 'emma_artist',
         fullName: 'Emma Davis',
-        bio: 'Artist from London, UK 🎨',
+        bio: '🎨 Artist from London, UK',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 45)),
         updatedAt: DateTime.now(),
@@ -150,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-802-3456',
         handle: 'james_music',
         fullName: 'James Brown',
-        bio: 'Music producer from Tokyo 🎵',
+        bio: '🎵 Music producer from Tokyo',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 20)),
         updatedAt: DateTime.now(),
@@ -161,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
         virtualNumber: '555-803-4567',
         handle: 'lisa_travel',
         fullName: 'Lisa Garcia',
-        bio: 'Travel blogger from Paris ✈️',
+        bio: '✈️ Travel blogger from Paris',
         isDiscoverable: true,
         createdAt: DateTime.now().subtract(const Duration(days: 60)),
         updatedAt: DateTime.now(),
@@ -170,42 +189,77 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  List<User> _generateGlobalUsers() {
-    return [
+  List<Post> _generateFeedPosts() {
+    // Generate demo users for posts
+    final friends = [
+      ..._generateNearbyUsers(),
+      ..._generateSuggestedUsers(),
+      // Add a few more demo users for variety
       User(
-        id: 'global_1',
-        handle: 'carlos_brazil',
-        fullName: 'Carlos Silva',
-        virtualNumber: '555-701-2345',
-        bio: 'São Paulo, Brazil',
+        id: 'friend_1',
+        virtualNumber: '555-111-1111',
+        handle: 'creative_artist',
+        fullName: 'Maya Rodriguez',
+        bio: '🎨 Digital artist & designer',
         isDiscoverable: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
         updatedAt: DateTime.now(),
         status: UserStatus.online,
       ),
       User(
-        id: 'global_2',
-        handle: 'priya_india',
-        fullName: 'Priya Sharma',
-        virtualNumber: '555-702-3456',
-        bio: 'Mumbai, India',
+        id: 'friend_2',
+        virtualNumber: '555-222-2222',
+        handle: 'travel_blogger',
+        fullName: 'Alex Thompson',
+        bio: '✈️ Travel enthusiast & blogger',
         isDiscoverable: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 45)),
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
         updatedAt: DateTime.now(),
         status: UserStatus.offline,
       ),
-      User(
-        id: 'global_3',
-        handle: 'ahmed_egypt',
-        fullName: 'Ahmed Hassan',
-        virtualNumber: '555-703-4567',
-        bio: 'Cairo, Egypt',
-        isDiscoverable: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 20)),
-        updatedAt: DateTime.now(),
-        status: UserStatus.online,
-      ),
     ];
+    
+    final posts = <Post>[];
+    final random = Random();
+    
+    final captions = [
+      'Just finished an amazing coffee painting! ☕🎨',
+      'Beautiful sunset from my travels today 🌅',
+      'New music track dropping soon! 🎵',
+      'Morning run complete! Feeling energized 🏃‍♂️',
+      'Exploring the streets of Tokyo 🏙️',
+      'Book recommendation: just finished this amazing novel 📚',
+      'Coding session with some great music 👨‍💻',
+      'Weekend vibes with friends! 🎉',
+      'New art piece in progress... 🎨',
+      'Travel memories from last week ✈️',
+      'Perfect weather for a bike ride! 🚴‍♀️',
+      'Homemade pasta night 🍝',
+      'Concert was absolutely incredible! 🎤',
+      'Beach day with the squad 🏖️',
+      'New recipe turned out amazing! 👨‍🍳',
+    ];
+
+    for (int i = 0; i < 15; i++) {
+      final author = friends[random.nextInt(friends.length)];
+      posts.add(Post(
+        id: 'post_$i',
+        author: author,
+        caption: captions[random.nextInt(captions.length)],
+        imageUrl: 'demo_image_$i', // Demo image placeholder
+        createdAt: DateTime.now().subtract(Duration(
+          hours: random.nextInt(48),
+          minutes: random.nextInt(60),
+        )),
+        likes: random.nextInt(100) + 5,
+        comments: random.nextInt(20) + 1,
+        isLiked: random.nextBool(),
+      ));
+    }
+
+    // Sort posts by creation time (newest first)
+    posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return posts;
   }
 
   @override
@@ -213,169 +267,69 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer<UsernameProvider>(
       builder: (context, usernameProvider, child) {
         return Scaffold(
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // User Profile Card
-                _currentUser != null 
-                    ? (_currentUser!.id == 'demo_user' || _currentUser!.id == 'fallback_user')
-                        ? _buildSetupProfileCard()
-                        : HeroUserProfileCard(
-                            user: _currentUser!,
-                            onTap: () {
-                              Navigator.pushNamed(context, '/profile');
-                            },
-                            additionalInfo: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.public, color: Colors.white, size: 16),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Discoverable worldwide',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          )
-                    : _buildSetupProfileCard(), // Fallback to setup card if user is null
-                
-                const SizedBox(height: 24),
-
-                // Discovery Actions
-                _buildDiscoveryActions(),
-            
-            const SizedBox(height: 24),
-
-            // Quick Stats
-            _buildQuickStats(),
-            
-            const SizedBox(height: 24),
-
-            // Nearby Users
-            if (_nearbyUsers.isNotEmpty) ...[
-              _buildSectionHeader('People Nearby', Icons.location_on, 
-                subtitle: 'Connect with people around you'),
-              const SizedBox(height: 12),
-              _buildUsersGrid(_nearbyUsers),
-              const SizedBox(height: 24),
+          body: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // Profile Header
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  child: _buildMinimalProfileCard(),
+                ),
+              ),
+              
+              // Feed Posts - Simplified for testing
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    // Just show posts for now to test
+                    if (index < _feedPosts.length) {
+                      return _buildPostCard(_feedPosts[index]);
+                    }
+                    
+                    // Show discovery sections after posts
+                    if (index == _feedPosts.length) {
+                      return _buildDiscoverySection('People Nearby', _nearbyUsers, Icons.location_on);
+                    }
+                    
+                    if (index == _feedPosts.length + 1) {
+                      return _buildDiscoverySection('Suggested for You', _suggestedUsers, Icons.people_outline);
+                    }
+                    
+                    // End of feed message
+                    return _buildEndOfFeedMessage();
+                  },
+                  childCount: _feedPosts.length + 3, // posts + 2 discovery sections + 1 end message
+                ),
+              ),
             ],
-
-            // Suggested Users
-            if (_suggestedUsers.isNotEmpty) ...[
-              _buildSectionHeader('Suggested for You', Icons.people_outline,
-                subtitle: 'People you might want to connect with'),
-              const SizedBox(height: 12),
-              _buildUsersGrid(_suggestedUsers),
-              const SizedBox(height: 24),
-            ],
-
-            // Global Users
-            if (_globalUsers.isNotEmpty) ...[
-              _buildSectionHeader('Around the World', Icons.public,
-                subtitle: 'Connect with people globally'),
-              const SizedBox(height: 12),
-              _buildGlobalUsersList(_globalUsers),
-              const SizedBox(height: 24),
-            ],
-
-            // Features
-            _buildSectionHeader('Why Boofer?', Icons.star_outline),
-            const SizedBox(height: 12),
-            _buildFeatureCard(
-              icon: Icons.public,
-              title: 'Connect Globally',
-              description: 'Find and chat with people from around the world using virtual numbers and usernames.',
-            ),
-            const SizedBox(height: 12),
-            _buildFeatureCard(
-              icon: Icons.security,
-              title: 'Privacy First',
-              description: 'No personal information required. Your real identity stays completely private.',
-            ),
-            const SizedBox(height: 12),
-            _buildFeatureCard(
-              icon: Icons.flash_on,
-              title: 'Instant Connection',
-              description: 'Start chatting immediately with anyone, anywhere in the world.',
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              if (_currentUser != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WritePostScreen(currentUser: _currentUser!),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please wait while we load your profile...'),
+                  ),
+                );
+              }
+            },
+            child: const Icon(Icons.add),
+            tooltip: 'Create Post',
+          ),
+        );
       },
     );
   }
 
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
+  Widget _buildMinimalProfileCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -391,166 +345,157 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon, 
-              color: Theme.of(context).colorScheme.primary, 
-              size: 20,
-            ),
+          // Profile Picture with online status
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                child: Text(
+                  _currentUser?.initials ?? 'AJ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              // Online status indicator
+              if (_currentUser?.status == UserStatus.online)
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).cardColor,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 16),
+          
+          // User Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Full Name
                 Text(
-                  title,
+                  _currentUser?.fullName ?? 'Alex Johnson',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
+                
+                // Handle
                 Text(
-                  description,
+                  _currentUser?.formattedHandle ?? '@alex_johnson',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.3,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
                   ),
+                ),
+                const SizedBox(height: 2),
+                
+                // Virtual Number
+                Row(
+                  children: [
+                    Icon(
+                      Icons.phone_android,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _currentUser?.virtualNumber ?? 'VN-2024-001',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                
+                // Status and Bio
+                Row(
+                  children: [
+                    Icon(
+                      _currentUser?.status == UserStatus.online 
+                          ? Icons.circle 
+                          : Icons.circle_outlined,
+                      size: 12,
+                      color: _currentUser?.status == UserStatus.online 
+                          ? Colors.green 
+                          : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        _currentUser?.status == UserStatus.online 
+                            ? 'Online • ${_currentUser?.bio ?? "🎨 Digital artist & coffee enthusiast"}'
+                            : 'Offline • ${_currentUser?.bio ?? "🎨 Digital artist & coffee enthusiast"}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingProfileCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primary.withOpacity(0.7),
-            Theme.of(context).colorScheme.secondary.withOpacity(0.7),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Column(
-        children: [
-          CircularProgressIndicator(color: Colors.white),
-          SizedBox(height: 16),
-          Text(
-            'Loading profile...',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSetupProfileCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Avatar placeholder
+          
+          const SizedBox(width: 12),
+          
+          // Explore Button
           Container(
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 3,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserSearchScreen(),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
-            ),
-            child: const CircleAvatar(
-              radius: 40,
-              backgroundColor: Colors.white24,
-              child: Icon(
-                Icons.person_add,
-                size: 32,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Welcome text
-          const Text(
-            'Welcome to Boofer!',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Description
-          const Text(
-            'Complete your profile setup to start connecting with people worldwide',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Setup button
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/onboarding');
-            },
-            icon: const Icon(Icons.settings, size: 20),
-            label: const Text('Complete Setup'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Theme.of(context).colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.explore,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Explore',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -559,620 +504,553 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDiscoveryActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionCard(
-            icon: Icons.search,
-            title: 'Find People',
-            subtitle: 'Search globally',
-            color: Theme.of(context).colorScheme.primary,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchScreen(),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionCard(
-            icon: Icons.location_on,
-            title: 'Nearby',
-            subtitle: 'People around you',
-            color: const Color(0xFF34B7F1),
-            onTap: () {
-              _showNearbyUsers();
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickStats() {
+  Widget _buildPostCard(Post post) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Your Boofer Stats',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatItem(
-                  icon: Icons.people,
-                  label: 'Connections',
-                  value: '${_nearbyUsers.length + _suggestedUsers.length}',
-                  color: Theme.of(context).colorScheme.primary,
+          // Post Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: _getAvatarColor(post.author.id),
+                  child: Text(
+                    post.author.initials,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _buildStatItem(
-                  icon: Icons.location_on,
-                  label: 'Nearby',
-                  value: '${_nearbyUsers.length}',
-                  color: const Color(0xFF34B7F1),
-                ),
-              ),
-              Expanded(
-                child: _buildStatItem(
-                  icon: Icons.public,
-                  label: 'Global',
-                  value: '${_globalUsers.length}',
-                  color: const Color(0xFF9C27B0),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon, {String? subtitle}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              icon,
-              color: Theme.of(context).colorScheme.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildUsersGrid(List<User> users) {
-    return SizedBox(
-      height: 240, // Increased height to accommodate all content
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: users.length,
-        itemBuilder: (context, index) {
-          final user = users[index];
-          return Container(
-            width: 160,
-            margin: const EdgeInsets.only(right: 12),
-            child: EnhancedUserProfileCard(
-              user: user,
-              style: ProfileCardStyle.grid,
-              onTap: () => _showUserProfile(user),
-              onStatusChanged: () {
-                // Handle status change
-              },
-              showFollowButton: true,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showUserProfile(User user) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.8,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              
-              // User profile
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Large avatar
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                        child: Text(
-                          user.initials,
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Name and handle
                       Text(
-                        user.displayName,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        post.author.displayName,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                      
-                      const SizedBox(height: 4),
-                      
                       Text(
-                        user.formattedHandle,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Bio
-                      if (user.bio.isNotEmpty) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            user.bio,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      
-                      // Action button
-                      SizedBox(
-                        width: double.infinity,
-                        child: GridUserProfileCard(
-                          user: user,
-                          showBio: false,
+                        _formatPostTime(post.createdAt),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showNearbyUsers() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              
-              // Header
-              Row(
-                children: [
-                  const Icon(Icons.location_on, color: Color(0xFF34B7F1)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'People Nearby',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(
+                    Icons.more_horiz,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Post Image - Instagram/Facebook style
+          if (post.imageUrl != null)
+            Container(
+              width: double.infinity,
+              height: 400,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _buildPostImage(post),
               ),
-              
-              const SizedBox(height: 20),
-              
-              // Nearby users list
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: _nearbyUsers.length,
-                  itemBuilder: (context, index) {
-                    final user = _nearbyUsers[index];
-                    return _buildNearbyUserTile(user);
+            ),
+          
+          // Post Actions - Instagram style with theme-aware colors
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      // Toggle like status (demo functionality)
+                    });
                   },
+                  icon: Icon(
+                    post.isLiked ? Icons.favorite : Icons.favorite_border,
+                    color: post.isLiked 
+                        ? Colors.red 
+                        : Theme.of(context).colorScheme.onSurface,
+                    size: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(
+                    Icons.chat_bubble_outline,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    size: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(
+                    Icons.send_outlined,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    size: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(
+                    Icons.bookmark_border,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    size: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          
+          // Likes count
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '${post.likes} likes',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          
+          // Post Caption
+          if (post.caption != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${post.author.displayName} ',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    TextSpan(
+                      text: post.caption!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          
+          // Comments preview
+          if (post.comments > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'View all ${post.comments} comments',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ),
+          
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostImage(Post post) {
+    // Create different image styles based on post ID for variety
+    final random = Random(post.id.hashCode);
+    final imageType = random.nextInt(4);
+    
+    switch (imageType) {
+      case 0:
+        return _buildGradientImage(post, [Colors.purple, Colors.pink]);
+      case 1:
+        return _buildGradientImage(post, [Colors.blue, Colors.cyan]);
+      case 2:
+        return _buildGradientImage(post, [Colors.orange, Colors.red]);
+      case 3:
+        return _buildPatternImage(post);
+      default:
+        return _buildGradientImage(post, [Colors.green, Colors.teal]);
+    }
+  }
+
+  Widget _buildGradientImage(Post post, List<Color> colors) {
+    final random = Random(post.id.hashCode);
+    final icons = [
+      Icons.camera_alt,
+      Icons.photo,
+      Icons.image,
+      Icons.photo_camera,
+      Icons.collections,
+    ];
+    
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icons[random.nextInt(icons.length)],
+              size: 64,
+              color: Colors.white.withOpacity(0.8),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                post.author.displayName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildGlobalUsersList(List<User> users) {
-    return Column(
-      children: users.map((user) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: _buildGlobalUserTile(user),
-      )).toList(),
-    );
-  }
-
-  Widget _buildGlobalUserTile(User user) {
+  Widget _buildPatternImage(Post post) {
+    final random = Random(post.id.hashCode);
+    final colors = [
+      Colors.indigo,
+      Colors.teal,
+      Colors.amber,
+      Colors.deepPurple,
+    ];
+    
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: colors[random.nextInt(colors.length)],
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  user.initials,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+          // Pattern background
+          ...List.generate(20, (index) {
+            return Positioned(
+              left: random.nextDouble() * 400,
+              top: random.nextDouble() * 400,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
               ),
-              if (user.status == UserStatus.online)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+            );
+          }),
+          // Content
+          Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  user.displayName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_library,
+                    size: 48,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 16),
                 Text(
-                  user.bio.isNotEmpty ? user.bio : user.formattedHandle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  '📸 ${post.author.displayName}\'s Post',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _connectWithGlobalUser(user),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Follow'),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildNearbyUserTile(User user) {
+  Widget _buildDiscoverySection(String title, List<User> users, IconData icon) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  user.initials,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-              if (user.status == UserStatus.online)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
               children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  user.displayName,
+                  title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  user.bio.isNotEmpty ? user.bio : user.formattedHandle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserSearchScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('See All'),
                 ),
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _connectWithNearbyUser(user),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: users.length,
+              itemBuilder: (context, index) {
+                final user = users[index];
+                return Container(
+                  width: 140,
+                  margin: const EdgeInsets.only(right: 12),
+                  child: _buildDiscoveryUserCard(user),
+                );
+              },
             ),
-            child: const Text('Follow'),
           ),
         ],
       ),
     );
   }
 
-  void _connectWithNearbyUser(User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Connect with ${user.displayName}?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildDiscoveryUserCard(User user) {
+    final random = Random(user.id.hashCode);
+    final followerCount = ['1.2K', '5.8K', '12.3K', '890', '25.1K', '3.4K'][random.nextInt(6)];
+    
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
           children: [
-            Text('Username: ${user.formattedHandle}'),
-            Text('Virtual Number: ${user.virtualNumber}'),
-            const SizedBox(height: 16),
-            const Text(
-              'Send a connection request to start chatting?',
-              style: TextStyle(fontSize: 14),
+            // Profile Picture
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: _getAvatarColor(user.id),
+              child: Text(
+                user.displayName.substring(0, 1).toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            
+            // Name
+            Text(
+              user.displayName,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            
+            // Bio
+            Text(
+              user.bio ?? '',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            
+            // Followers
+            Text(
+              '$followerCount followers',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            
+            const Spacer(),
+            
+            // Follow Button
+            SizedBox(
+              width: double.infinity,
+              height: 32,
+              child: ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Following ${user.displayName}'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+                child: const Text(
+                  'Follow',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _sendConnectionRequestToUser(user);
-            },
-            child: const Text('Follow'),
-          ),
-        ],
       ),
     );
   }
 
-  void _sendConnectionRequestToUser(User user) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Follow request sent to ${user.displayName}'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _connectWithGlobalUser(User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Connect with ${user.displayName}?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Username: ${user.formattedHandle}'),
-            Text('Virtual Number: ${user.virtualNumber}'),
-            const SizedBox(height: 16),
-            const Text(
-              'Send a connection request to start chatting?',
-              style: TextStyle(fontSize: 14),
+  Widget _buildEndOfFeedMessage() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'You\'re all caught up!',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          const SizedBox(height: 8),
+          Text(
+            'Follow more friends to see more posts in your feed',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
             onPressed: () {
-              Navigator.pop(context);
-              _sendConnectionRequestToGlobalUser(user);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserSearchScreen(),
+                ),
+              );
             },
-            child: const Text('Follow'),
+            icon: const Icon(Icons.person_add),
+            label: const Text('Find Friends'),
           ),
         ],
       ),
     );
   }
 
-  void _sendConnectionRequestToGlobalUser(User user) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Follow request sent to ${user.displayName}'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Color _getAvatarColor(String userId) {
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+      Colors.teal,
+      Colors.indigo,
+      Colors.pink,
+    ];
+    return colors[userId.hashCode % colors.length];
+  }
+
+  String _formatPostTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d';
+    } else {
+      return '${(difference.inDays / 7).floor()}w';
+    }
   }
 }

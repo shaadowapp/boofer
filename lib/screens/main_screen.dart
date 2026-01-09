@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
 import 'home_screen.dart';
@@ -11,7 +12,10 @@ import 'connection_requests_screen.dart';
 import 'friends_screen.dart';
 import 'friend_requests_screen.dart';
 import 'user_search_screen.dart';
+import 'write_post_screen.dart';
 import '../providers/theme_provider.dart';
+import '../services/user_service.dart';
+import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../providers/username_provider.dart';
@@ -253,14 +257,47 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  void _onAddPressed() {
+  void _onAddPressed() async {
     String action = '';
     switch (_currentIndex) {
       case 0:
-        action = 'Add new contact';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$action functionality coming soon!')),
-        );
+        // Home tab - open write post screen
+        try {
+          final currentUser = await UserService.getCurrentUser();
+          if (currentUser != null && mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => WritePostScreen(currentUser: currentUser),
+              ),
+            );
+          } else {
+            // Fallback to demo user if no current user
+            final demoUser = User(
+              id: 'demo_user',
+              handle: 'alex_johnson',
+              fullName: 'Alex Johnson',
+              virtualNumber: 'VN-2024-001',
+              bio: '🎨 Digital artist & coffee enthusiast',
+              isDiscoverable: true,
+              status: UserStatus.online,
+              createdAt: DateTime.now().subtract(const Duration(days: 30)),
+              updatedAt: DateTime.now(),
+            );
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => WritePostScreen(currentUser: demoUser),
+              ),
+            );
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to open post creator. Please try again.'),
+            ),
+          );
+        }
         break;
       case 1:
         action = 'Start new chat';
@@ -301,7 +338,7 @@ class _MainScreenState extends State<MainScreen> {
   String _getSearchPlaceholder() {
     switch (_currentIndex) {
       case 0:
-        return 'Search...';
+        return 'Search Boofer...';
       case 1:
         return 'Search chats...';
       case 2:
@@ -672,15 +709,11 @@ class _MainScreenState extends State<MainScreen> {
         automaticallyImplyLeading: false, // Remove default back button
         title: Align(
           alignment: Alignment.centerLeft,
-          child: Text(
-            'Boofer',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).brightness == Brightness.light 
-                  ? Theme.of(context).colorScheme.primary 
-                  : Theme.of(context).colorScheme.onSurface,
-            ),
+          child: SvgPicture.asset(
+            'assets/images/logo/boofer-logo.svg', // Your SVG logo file
+            height: 40, // Increased from 32 to 40
+            width: 150, // Increased from 120 to 150
+            // Removed colorFilter to show original logo colors
           ),
         ),
         titleSpacing: 16, // Add some padding from the left edge
@@ -693,9 +726,14 @@ class _MainScreenState extends State<MainScreen> {
             child: Stack(
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.people,
-                    color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                  icon: SvgPicture.asset(
+                    'assets/icons/find_users.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: ColorFilter.mode(
+                      Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                      BlendMode.srcIn,
+                    ),
                   ),
                   onPressed: () {
                     Navigator.push(

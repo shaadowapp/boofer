@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 /// App color constants based on the updated neutral palette with strategic brand accent usage
 class AppColors {
   // Primary Brand Colors - Intimate & Secure
-  static const Color loveRose = Color(0xFFFF6B9D); // Warm pink - main brand color for romance
-  static const Color deepBlush = Color(0xFFE91E63); // Deeper pink - accents and highlights
+  static const Color loveRose = Color(0xFF5865F2); // Trial brand color - Discord-like blue
+  static const Color deepBlush = Color(0xFF4752C4); // Deeper variant of brand color
   static const Color trustBlue = Color(0xFF2196F3); // Security blue - privacy indicators
   static const Color secretGreen = Color(0xFF00C853); // Encrypted green - secure status
   
@@ -12,7 +12,7 @@ class AppColors {
   static const Color lightBackground = Color(0xFFF9F9F9); // Very light grey background
   static const Color lightSurface = Color(0xFFFFFFFF); // Pure white surfaces
   static const Color lightSearchBar = Color(0xFFF5F5F5); // Soft grey search
-  static const Color lightSenderBubble = Color(0xFFFFE0E6); // Light rose - your messages
+  static const Color lightSenderBubble = Color(0xFFE8EAFF); // Light blue - your messages (complements #5865f2)
   static const Color lightReceiverBubble = Color(0xFFF0F0F0); // Soft grey - partner's messages
   static const Color lightPrimaryText = Color(0xFF2C2C2C); // Warm dark grey
   static const Color lightSecondaryText = Color(0xFF757575); // Medium grey for timestamps
@@ -21,7 +21,7 @@ class AppColors {
   static const Color darkBackground = Color(0xFF000000); // Pure black background
   static const Color darkSurface = Color(0xFF121212); // Dark grey surfaces
   static const Color darkSearchBar = Color(0xFF2C2C2C); // Search bar background
-  static const Color darkSenderBubble = Color(0xFF4A1942); // Deep rose - your messages
+  static const Color darkSenderBubble = Color(0xFF2C3A7A); // Dark blue variant - your messages
   static const Color darkReceiverBubble = Color(0xFF2C2C2C); // Dark grey - partner's messages
   static const Color darkPrimaryText = Color(0xFFFFFFFF); // Pure white text
   static const Color darkSecondaryText = Color(0xFFB0B0B0); // Light grey for timestamps
@@ -29,7 +29,7 @@ class AppColors {
   // Status & Feature Colors
   static const Color onlineStatus = secretGreen; // Green for online/active
   static const Color encryptedStatus = trustBlue; // Blue for encrypted messages
-  static const Color heartReaction = loveRose; // Pink for likes/hearts
+  static const Color heartReaction = loveRose; // Blue for likes/hearts (trial color)
   static const Color disappearingMessage = Color(0xFFFF9800); // Orange for disappearing messages
   
   // Privacy & Security Indicators

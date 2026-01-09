@@ -290,6 +290,10 @@ Download Boofer for secure messaging!
                   _buildProfileInfoSection(),
                   const SizedBox(height: 24),
                   
+                  // Boofer Stats Section
+                  _buildBooferStatsSection(),
+                  const SizedBox(height: 24),
+                  
                   // Account Details Section
                   _buildAccountDetailsSection(),
                   const SizedBox(height: 24),
@@ -556,6 +560,104 @@ Download Boofer for secure messaging!
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBooferStatsSection() {
+    final theme = Theme.of(context);
+    
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.analytics_outlined,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Your Boofer Stats',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.people,
+                    label: 'Connections',
+                    value: '24',
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.location_on,
+                    label: 'Nearby',
+                    value: '8',
+                    color: const Color(0xFF34B7F1),
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.public,
+                    label: 'Global',
+                    value: '16',
+                    color: const Color(0xFF9C27B0),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+      ],
     );
   }
 
