@@ -94,7 +94,7 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.person_add, size: 18),
-      label: Text(_loading ? 'Sending...' : 'Add Friend'),
+      label: Text(_loading ? 'Sending...' : 'Follow'),
       style: ElevatedButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
@@ -227,14 +227,14 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Friend request sent to ${widget.user.displayName}'),
+            content: Text('Follow request sent to ${widget.user.displayName}'),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to send friend request'),
+            content: Text('Failed to send follow request'),
             backgroundColor: Colors.red,
           ),
         );

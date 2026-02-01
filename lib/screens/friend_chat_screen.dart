@@ -313,7 +313,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             IconButton(
               onPressed: _sendFriendRequest,
               icon: const Icon(Icons.person_add),
-              tooltip: 'Add friend',
+              tooltip: 'Follow',
             ),
           // Show pending status if friend request was sent
           if (!_isFriend && !_isBlocked && _friendRequestSent)
@@ -935,7 +935,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             if (!_isFriend && !_isBlocked && !_friendRequestSent)
               _buildBottomSheetOption(
                 icon: Icons.person_add,
-                title: 'Add friend',
+                title: 'Follow',
                 onTap: () {
                   Navigator.pop(context);
                   _sendFriendRequest();

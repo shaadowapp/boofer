@@ -384,7 +384,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   ? Theme.of(context).colorScheme.onSurface
                   : Theme.of(context).colorScheme.onPrimary,
             ),
-            child: Text(isFollowing ? 'Message' : 'Add Friend'),
+            child: Text(isFollowing ? 'Message' : 'Follow'),
           ),
         ),
         onTap: () => _showUserProfile(user),
@@ -427,7 +427,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               Navigator.of(context).pop();
               _handleUserAction(user);
             },
-            child: const Text('Add Friend'),
+            child: const Text('Follow'),
           ),
         ],
       ),

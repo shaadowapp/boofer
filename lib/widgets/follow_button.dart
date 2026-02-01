@@ -131,7 +131,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
       case 'request_cancelled':
       case 'none':
       default:
-        return 'Add Friend';
+        return 'Follow';
     }
   }
 
@@ -258,7 +258,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
         case 'none':
         default:
           success = await _showSendRequestDialog(context, provider);
-          message = success ? 'Friend request sent' : 'Failed to send request';
+          message = success ? 'Follow request sent' : 'Failed to send request';
           break;
       }
 
@@ -303,7 +303,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Send Friend Request to ${widget.user.displayName}'),
+        title: Text('Send Follow Request to ${widget.user.displayName}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -349,8 +349,8 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Friend Request'),
-        content: Text('Cancel friend request to ${widget.user.displayName}?'),
+        title: const Text('Cancel Follow Request'),
+        content: Text('Cancel follow request to ${widget.user.displayName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
