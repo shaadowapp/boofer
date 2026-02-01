@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow test collection for connection testing
+    match /test/{document} {
+      allow read, write: if true; // Allow all for testing
+    }
+    
+    // Users collection - simplified rules for debugging
+    match /users/{userId} {
+      // Allow authenticated users to read/write any user document for now
+      // This is temporary while we debug the custom user ID system
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
+    // User metadata collection - allow authenticated users
+    match /user_metadata/{userId} {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
+    // Messages collection - allow participants to read/write
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Conversations collection - allow participants to read/write
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Connection requests - allow users to read their own requests
+    match /connection_requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Friends collection - allow users to read their own friendships
+    match /friends/{friendshipId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

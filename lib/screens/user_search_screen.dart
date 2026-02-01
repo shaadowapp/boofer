@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/friendship_service.dart';
 import '../services/user_service.dart';
+import '../providers/firestore_user_provider.dart';
 import '../widgets/contextual_user_profile_card.dart';
 import 'friend_chat_screen.dart';
 import 'friend_requests_screen.dart';
@@ -59,15 +61,43 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       _loading = true;
     });
 
-    // Simulate loading delay
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    setState(() {
-      _suggestedUsers = _generateDemoUsers('suggested');
-      _trendingUsers = _generateDemoUsers('trending');
-      _recentSearches = _generateDemoUsers('recent').take(3).toList();
-      _loading = false;
-    });
+    try {
+      // Get real users from Firestore
+      final userProvider = context.read<FirestoreUserProvider>();
+      
+      // Get discoverable users
+      final discoverableUsers = userProvider.getDiscoverableUsers(limit: 20);
+      
+      // Filter out current user
+      final filteredUsers = discoverableUsers.where((user) => user.id != _currentUserId).toList();
+      
+      // Shuffle and split into suggested and trending
+      filteredUsers.shuffle();
+      
+      final halfPoint = (filteredUsers.length / 2).ceil();
+      
+      setState(() {
+        _suggestedUsers = filteredUsers.take(halfPoint).toList();
+        _trendingUsers = filteredUsers.skip(halfPoint).toList();
+        _recentSearches = []; // Could implement recent searches from local storage
+        _loading = false;
+      });
+      
+      print('✅ Loaded ${filteredUsers.length} real users from Firestore');
+      print('   - Suggested: ${_suggestedUsers.length}');
+      print('   - Trending: ${_trendingUsers.length}');
+      
+    } catch (e) {
+      print('❌ Error loading real users: $e');
+      
+      // Fallback to demo users if Firestore fails
+      setState(() {
+        _suggestedUsers = _generateDemoUsers('suggested');
+        _trendingUsers = _generateDemoUsers('trending');
+        _recentSearches = _generateDemoUsers('recent').take(3).toList();
+        _loading = false;
+      });
+    }
   }
 
   List<User> _generateDemoUsers(String type) {
@@ -106,6 +136,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       final handle = name.toLowerCase().replaceAll(' ', '_').replaceAll('.', '');
       final user = User(
         id: '${type}_user_$i',
+        email: '${handle}@demo.com',
         virtualNumber: 'VN${(type == 'suggested' ? 2000 : type == 'trending' ? 3000 : 4000) + i}',
         handle: handle,
         fullName: name,
@@ -192,10 +223,27 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     });
 
     try {
-      // In a real app, this would search through a user database
-      // For now, we'll create mock search results
-      await Future.delayed(const Duration(milliseconds: 500));
+      print('🔍 Searching for users with query: "$query"');
       
+      // Search real users from Firestore
+      final userProvider = context.read<FirestoreUserProvider>();
+      final searchResults = await userProvider.searchUsers(query);
+      
+      // Filter out current user from results
+      final filteredResults = searchResults.where((user) => user.id != _currentUserId).toList();
+      
+      print('✅ Found ${filteredResults.length} users matching "$query"');
+      
+      if (mounted) {
+        setState(() {
+          _searchResults = filteredResults;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Search failed: $e');
+      
+      // Fallback to mock results if Firestore search fails
       final mockResults = _generateMockSearchResults(query);
       
       if (mounted) {
@@ -203,16 +251,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           _searchResults = mockResults;
           _loading = false;
         });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Search failed: $e'),
-            backgroundColor: Colors.red,
+            content: Text('Search failed, showing demo results: $e'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -229,6 +272,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       final handle = '${queryLower}_user$i';
       final user = User(
         id: 'user_${handle}_${DateTime.now().millisecondsSinceEpoch + i}',
+        email: '${handle}@demo.com',
         virtualNumber: 'VN${1000 + i}',
         handle: handle,
         fullName: '${queryLower.substring(0, 1).toUpperCase()}${queryLower.substring(1)} User $i',
@@ -892,17 +936,39 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _openChatWithUser(user);
+                    child: FutureBuilder<bool>(
+                      future: _canMessageUser(user),
+                      builder: (context, snapshot) {
+                        final canMessage = snapshot.data ?? false;
+                        
+                        if (canMessage) {
+                          return OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openChatWithUser(user);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Message'),
+                          );
+                        } else {
+                          return OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showFriendRequestDialog(user);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Add Friend'),
+                          );
+                        }
                       },
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Message'),
                     ),
                   ),
                 ],
@@ -962,6 +1028,92 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
     } else {
       return 'Today';
+    }
+  }
+
+  /// Check if current user can message the given user (must be friends)
+  Future<bool> _canMessageUser(User user) async {
+    final currentUser = await UserService.getCurrentUser();
+    if (currentUser == null) return false;
+    
+    // Users can always message themselves
+    if (currentUser.id == user.id) return true;
+    
+    // Check if they are friends
+    return await FriendshipService.instance.areFriends(currentUser.id, user.id);
+  }
+
+  /// Show friend request dialog
+  Future<void> _showFriendRequestDialog(User user) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Send Friend Request to ${user.displayName}'),
+        content: const Text(
+          'You need to be friends to send messages. Would you like to send a friend request?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Send Request'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _sendFriendRequest(user);
+    }
+  }
+
+  /// Send friend request to user
+  Future<void> _sendFriendRequest(User user) async {
+    final currentUser = await UserService.getCurrentUser();
+    if (currentUser == null) return;
+
+    try {
+      final success = await FriendshipService.instance.sendFriendRequest(
+        currentUser.id,
+        user.id,
+        message: 'Hi! I\'d like to be friends so we can chat.',
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Friend request sent to ${user.displayName}'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to send friend request'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }

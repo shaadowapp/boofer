@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/username_provider.dart';
+import '../providers/auth_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
@@ -232,6 +233,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       builder: (context) => const AboutScreen(),
                     ),
                   ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Account Section
+            _buildSection(
+              context,
+              title: 'Account',
+              children: [
+                _buildSettingsTile(
+                  context,
+                  title: 'Sign Out',
+                  subtitle: 'Sign out of your account',
+                  icon: Icons.logout,
+                  onTap: () => _showSignOutDialog(context),
                 ),
               ],
             ),
@@ -1122,6 +1140,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out? You will need to sign in again to access your account.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const AlertDialog(
+                  content: Row(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(width: 16),
+                      Text('Signing out...'),
+                    ],
+                  ),
+                ),
+              );
+
+              try {
+                final authProvider = context.read<AuthProvider>();
+                await authProvider.signOut();
+                
+                if (mounted) {
+                  Navigator.pop(context); // Close loading dialog
+                  
+                  // Navigate to sign-in screen
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/google-signin',
+                    (route) => false,
+                  );
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Signed out successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context); // Close loading dialog
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Sign out failed: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sign Out'),
+          ),
+        ],
       ),
     );
   }

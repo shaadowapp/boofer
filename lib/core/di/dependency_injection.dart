@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database_manager.dart';
 import '../network/api_client.dart';
 import '../error/error_handler.dart';
-import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
@@ -26,12 +25,6 @@ class DependencyInjection {
       getIt.registerLazySingleton<ErrorHandler>(() => ErrorHandler());
       
       // Business services - also lazy to avoid immediate database access
-      getIt.registerLazySingleton<AuthService>(() => AuthService(
-        database: getIt<DatabaseManager>(),
-        storage: getIt<SharedPreferences>(),
-        errorHandler: getIt<ErrorHandler>(),
-      ));
-      
       getIt.registerLazySingleton<UserService>(() => UserService(
         database: getIt<DatabaseManager>(),
         errorHandler: getIt<ErrorHandler>(),
@@ -53,7 +46,6 @@ class DependencyInjection {
       
       getIt.registerFactory<UserProvider>(() => UserProvider(
         userService: getIt<UserService>(),
-        authService: getIt<AuthService>(),
         errorHandler: getIt<ErrorHandler>(),
       ));
       

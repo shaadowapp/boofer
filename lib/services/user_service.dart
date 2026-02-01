@@ -20,9 +20,9 @@ class UserService {
   Stream<List<User>> get usersStream => _usersController.stream;
 
   // Static methods for backward compatibility
-  static Future<String?> getUserNumber() async {
+  static Future<String?> getUserEmail() async {
     final currentUser = await instance._getCurrentUser();
-    return currentUser?.virtualNumber;
+    return currentUser?.email;
   }
 
   static Future<User?> getCurrentUser() async {
@@ -39,6 +39,92 @@ class UserService {
 
   static Future<bool> isOnboarded() async {
     return await LocalStorageService.isOnboardingCompleted();
+  }
+
+  /// Get user's virtual number
+  static Future<String?> getUserNumber() async {
+    final currentUser = await instance._getCurrentUser();
+    return currentUser?.virtualNumber ?? await LocalStorageService.getVirtualNumber();
+  }
+
+  /// Create user from Google account data
+  static Future<User> createUserFromGoogleData({
+    required String firebaseUid,
+    required String email,
+    required String displayName,
+    String? photoURL,
+  }) async {
+    final now = DateTime.now();
+    
+    // Generate a handle from display name or email
+    String handle = _generateHandleFromName(displayName) ?? _generateHandleFromEmail(email);
+    
+    // Ensure handle is unique
+    handle = await _ensureUniqueHandle(handle);
+    
+    return User(
+      id: firebaseUid, // This will be the custom user ID passed from GoogleAuthService
+      email: email,
+      handle: handle,
+      fullName: displayName.isNotEmpty ? displayName : email.split('@').first,
+      bio: 'Hey there! I\'m using Boofer 👋',
+      isDiscoverable: true,
+      status: UserStatus.online,
+      profilePicture: photoURL,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  /// Generate handle from display name
+  static String? _generateHandleFromName(String displayName) {
+    if (displayName.isEmpty) return null;
+    
+    // Remove special characters and spaces, convert to lowercase
+    String handle = displayName
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_]'), '')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    
+    // Ensure it's not empty and has reasonable length
+    if (handle.isEmpty || handle.length < 3) return null;
+    if (handle.length > 20) handle = handle.substring(0, 20);
+    
+    return handle;
+  }
+
+  /// Generate handle from email
+  static String _generateHandleFromEmail(String email) {
+    String handle = email.split('@').first
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_]'), '')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    
+    if (handle.isEmpty) handle = 'user';
+    if (handle.length > 20) handle = handle.substring(0, 20);
+    
+    return handle;
+  }
+
+  /// Ensure handle is unique by appending numbers if needed
+  static Future<String> _ensureUniqueHandle(String baseHandle) async {
+    String handle = baseHandle;
+    int counter = 1;
+    
+    while (!(await instance.isHandleAvailable(handle))) {
+      handle = '${baseHandle}_$counter';
+      counter++;
+      
+      // Prevent infinite loop
+      if (counter > 999) {
+        handle = '${baseHandle}_${DateTime.now().millisecondsSinceEpoch % 10000}';
+        break;
+      }
+    }
+    
+    return handle;
   }
 
   /// Generate a unique numeric user ID with current date
@@ -59,23 +145,28 @@ class UserService {
     return '$dateTime$random';
   }
 
-  /// Get current user (implement based on your auth system)
+  /// Get current user from Firebase Auth or local storage
   Future<User?> _getCurrentUser() async {
     try {
-      // Try to get onboarding data first
-      final onboardingData = await LocalStorageService.getOnboardingData();
+      // First check if we have a stored user from Firebase Auth
+      final storedUserData = await LocalStorageService.getString('current_user');
+      if (storedUserData != null) {
+        return User.fromJsonString(storedUserData);
+      }
       
+      // Fallback to onboarding data for backward compatibility
+      final onboardingData = await LocalStorageService.getOnboardingData();
       if (onboardingData != null && onboardingData.completed) {
-        // Create a User object from onboarding data
+        // Create a User object from onboarding data (legacy support)
         return User(
-          id: _generateNumericUserId(), // Generate numeric ID with current date
+          id: _generateNumericUserId(), // Generate numeric ID for legacy users
           handle: onboardingData.userName,
-          fullName: onboardingData.userName, // Use userName as fullName for now
-          virtualNumber: onboardingData.virtualNumber,
+          fullName: onboardingData.userName,
+          email: '${onboardingData.userName}@legacy.local', // Placeholder email for legacy users
           bio: 'Hey there! I\'m using Boofer 👋',
-          isDiscoverable: true, // Default to discoverable
+          isDiscoverable: true,
           status: UserStatus.online,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)), // Mock creation date
+          createdAt: DateTime.now().subtract(const Duration(days: 1)),
           updatedAt: DateTime.now(),
         );
       }
@@ -91,11 +182,17 @@ class UserService {
     }
   }
 
+  /// Store current user data
+  static Future<void> setCurrentUser(User user) async {
+    await LocalStorageService.setString('current_user', user.toJsonString());
+  }
+
   /// Clear user data
   Future<void> _clearUserData() async {
     try {
       _cache.clear();
-      // Clear any stored user session data
+      // Clear stored user session data
+      await LocalStorageService.remove('current_user');
     } catch (e, stackTrace) {
       _errorHandler.handleError(AppError.service(
         message: 'Failed to clear user data: $e',
@@ -112,7 +209,7 @@ class UserService {
       
       await _database.update(
         'users',
-        updatedUser.toJson(),
+        updatedUser.toDatabaseJson(),
         where: 'id = ?',
         whereArgs: [user.id],
       );
@@ -206,12 +303,12 @@ class UserService {
     }
   }
   
-  /// Get user by virtual number
-  Future<User?> getUserByVirtualNumber(String virtualNumber) async {
+  /// Get user by email
+  Future<User?> getUserByEmail(String email) async {
     try {
       final results = await _database.query(
-        'SELECT * FROM users WHERE virtual_number = ?',
-        [virtualNumber],
+        'SELECT * FROM users WHERE email = ?',
+        [email],
       );
       
       if (results.isNotEmpty) {
@@ -223,7 +320,7 @@ class UserService {
       return null;
     } catch (e, stackTrace) {
       _errorHandler.handleError(AppError.database(
-        message: 'Failed to get user by virtual number: $e',
+        message: 'Failed to get user by email: $e',
         stackTrace: stackTrace,
         originalException: e is Exception ? e : Exception(e.toString()),
       ));
@@ -239,7 +336,7 @@ class UserService {
     try {
       await _database.insert(
         'users',
-        user.toJson(),
+        user.toDatabaseJson(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
       
@@ -256,7 +353,7 @@ class UserService {
     }
   }
   
-  /// Search users by handle or virtual number
+  /// Search users by handle or email
   Future<List<User>> searchUsers(String query) async {
     try {
       if (query.isEmpty) return <User>[];
@@ -264,14 +361,14 @@ class UserService {
       final results = await _database.query(
         '''
         SELECT * FROM users 
-        WHERE (handle LIKE ? OR virtual_number LIKE ? OR full_name LIKE ?) 
+        WHERE (handle LIKE ? OR email LIKE ? OR full_name LIKE ?) 
         AND is_discoverable = 1
         ORDER BY 
           CASE 
             WHEN handle = ? THEN 1
-            WHEN virtual_number = ? THEN 2
+            WHEN email = ? THEN 2
             WHEN handle LIKE ? THEN 3
-            WHEN virtual_number LIKE ? THEN 4
+            WHEN email LIKE ? THEN 4
             ELSE 5
           END
         LIMIT 20
@@ -348,9 +445,9 @@ class UserService {
     return user == null;
   }
   
-  /// Check if virtual number exists
-  Future<bool> virtualNumberExists(String virtualNumber) async {
-    final user = await getUserByVirtualNumber(virtualNumber);
+  /// Check if email exists
+  Future<bool> emailExists(String email) async {
+    final user = await getUserByEmail(email);
     return user != null;
   }
   

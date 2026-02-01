@@ -3,23 +3,29 @@ import 'dart:convert';
 enum UserStatus { online, offline, away, busy }
 
 class User {
-  final String id;
-  final String virtualNumber;
+  final String id; // Firebase UID
+  final String email; // Google email
   final String handle; // @username (alphanumeric + underscore)
-  final String fullName; // Full name with spaces
+  final String fullName; // Full name from Google
   final String bio;
   final bool isDiscoverable;
   final DateTime? lastUsernameChange;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String? profilePicture;
+  final String? profilePicture; // Google photo URL
   final UserStatus status;
   final DateTime? lastSeen;
   final String? location;
+  final String? virtualNumber; // Virtual number for user identification
+  final int followerCount;
+  final int followingCount;
+  final int friendsCount;
+  final int pendingReceivedRequests;
+  final int pendingSentRequests;
 
   const User({
     required this.id,
-    required this.virtualNumber,
+    required this.email,
     required this.handle,
     required this.fullName,
     required this.bio,
@@ -31,6 +37,12 @@ class User {
     this.status = UserStatus.offline,
     this.lastSeen,
     this.location,
+    this.virtualNumber,
+    this.followerCount = 0,
+    this.followingCount = 0,
+    this.friendsCount = 0,
+    this.pendingReceivedRequests = 0,
+    this.pendingSentRequests = 0,
   });
 
   /// Get formatted handle with @ prefix
@@ -56,7 +68,7 @@ class User {
   /// Check if profile is complete
   bool get isProfileComplete {
     return id.isNotEmpty && 
-           virtualNumber.isNotEmpty && 
+           email.isNotEmpty && 
            handle.isNotEmpty;
   }
 
@@ -93,7 +105,7 @@ class User {
   /// Create a copy with updated fields
   User copyWith({
     String? id,
-    String? virtualNumber,
+    String? email,
     String? handle,
     String? fullName,
     String? bio,
@@ -105,10 +117,16 @@ class User {
     UserStatus? status,
     DateTime? lastSeen,
     String? location,
+    String? virtualNumber,
+    int? followerCount,
+    int? followingCount,
+    int? friendsCount,
+    int? pendingReceivedRequests,
+    int? pendingSentRequests,
   }) {
     return User(
       id: id ?? this.id,
-      virtualNumber: virtualNumber ?? this.virtualNumber,
+      email: email ?? this.email,
       handle: handle ?? this.handle,
       fullName: fullName ?? this.fullName,
       bio: bio ?? this.bio,
@@ -120,6 +138,12 @@ class User {
       status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
       location: location ?? this.location,
+      virtualNumber: virtualNumber ?? this.virtualNumber,
+      followerCount: followerCount ?? this.followerCount,
+      followingCount: followingCount ?? this.followingCount,
+      friendsCount: friendsCount ?? this.friendsCount,
+      pendingReceivedRequests: pendingReceivedRequests ?? this.pendingReceivedRequests,
+      pendingSentRequests: pendingSentRequests ?? this.pendingSentRequests,
     );
   }
 
@@ -127,7 +151,7 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'virtualNumber': virtualNumber,
+      'email': email,
       'handle': handle,
       'fullName': fullName,
       'bio': bio,
@@ -139,6 +163,37 @@ class User {
       'status': status.name,
       'lastSeen': lastSeen?.toIso8601String(),
       'location': location,
+      'virtualNumber': virtualNumber,
+      'followerCount': followerCount,
+      'followingCount': followingCount,
+      'friendsCount': friendsCount,
+      'pendingReceivedRequests': pendingReceivedRequests,
+      'pendingSentRequests': pendingSentRequests,
+    };
+  }
+
+  /// Convert to database JSON (snake_case fields)
+  Map<String, dynamic> toDatabaseJson() {
+    return {
+      'id': id,
+      'email': email,
+      'handle': handle,
+      'full_name': fullName,
+      'bio': bio,
+      'is_discoverable': isDiscoverable ? 1 : 0, // Convert bool to int for SQLite
+      'last_username_change': lastUsernameChange?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'profile_picture': profilePicture,
+      'status': status.name,
+      'last_seen': lastSeen?.toIso8601String(),
+      'location': location,
+      'virtual_number': virtualNumber,
+      'follower_count': followerCount,
+      'following_count': followingCount,
+      'friends_count': friendsCount,
+      'pending_received_requests': pendingReceivedRequests,
+      'pending_sent_requests': pendingSentRequests,
     };
   }
 
@@ -146,25 +201,36 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? '',
-      virtualNumber: json['virtualNumber'] ?? '',
+      email: json['email'] ?? '', // Default to empty string if not present in Firestore
       handle: json['handle'] ?? '',
-      fullName: json['fullName'] ?? '',
+      fullName: json['fullName'] ?? json['full_name'] ?? '',
       bio: json['bio'] ?? '',
-      isDiscoverable: json['isDiscoverable'] ?? true,
+      isDiscoverable: json['isDiscoverable'] ?? 
+          (json['is_discoverable'] is int ? json['is_discoverable'] == 1 : json['is_discoverable']) ?? true,
       lastUsernameChange: json['lastUsernameChange'] != null 
           ? DateTime.parse(json['lastUsernameChange'])
-          : null,
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
-      profilePicture: json['profilePicture'],
+          : json['last_username_change'] != null
+              ? DateTime.parse(json['last_username_change'])
+              : null,
+      createdAt: DateTime.parse(json['createdAt'] ?? json['created_at']),
+      updatedAt: DateTime.parse(json['updatedAt'] ?? json['updated_at']),
+      profilePicture: json['profilePicture'] ?? json['profile_picture'],
       status: UserStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => UserStatus.offline,
       ),
       lastSeen: json['lastSeen'] != null 
           ? DateTime.parse(json['lastSeen'])
-          : null,
+          : json['last_seen'] != null
+              ? DateTime.parse(json['last_seen'])
+              : null,
       location: json['location'],
+      virtualNumber: json['virtualNumber'] ?? json['virtual_number'],
+      followerCount: json['followerCount'] ?? json['follower_count'] ?? 0,
+      followingCount: json['followingCount'] ?? json['following_count'] ?? 0,
+      friendsCount: json['friendsCount'] ?? json['friends_count'] ?? 0,
+      pendingReceivedRequests: json['pendingReceivedRequests'] ?? json['pending_received_requests'] ?? 0,
+      pendingSentRequests: json['pendingSentRequests'] ?? json['pending_sent_requests'] ?? 0,
     );
   }
 
@@ -178,7 +244,7 @@ class User {
 
   @override
   String toString() {
-    return 'User(id: $id, handle: $handle, fullName: $fullName, status: $status)';
+    return 'User(id: $id, email: $email, handle: $handle, fullName: $fullName, status: $status)';
   }
 
   @override

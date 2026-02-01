@@ -470,7 +470,7 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
             
             // Virtual number (always show for grid)
             Text(
-              widget.user.virtualNumber,
+              widget.user.virtualNumber ?? '',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),

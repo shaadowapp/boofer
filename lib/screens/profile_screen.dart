@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/user_service.dart';
+import '../services/local_storage_service.dart';
+import '../services/google_auth_service.dart';
 import '../models/user_model.dart';
 import '../utils/svg_icons.dart';
-import '../widgets/user_profile_card.dart';
+import 'debug_user_data_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -43,7 +44,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final user = await UserService.getCurrentUser();
+      print('🔄 Loading user data...');
+      
+      // First try to get user from local storage
+      User? user = await UserService.getCurrentUser();
+      print('📱 Local user: ${user?.id} - ${user?.fullName}');
+      
+      // If no local user or we want fresh data, fetch from Firestore
+      if (user == null) {
+        print('❌ No local user found, checking custom user ID...');
+        
+        // Try to get custom user ID from local storage
+        final customUserId = await LocalStorageService.getString('custom_user_id');
+        print('🆔 Custom user ID from storage: $customUserId');
+        
+        if (customUserId != null) {
+          print('🔄 Fetching user from Firestore with custom ID: $customUserId');
+          
+          // Fetch user from Firestore using custom ID
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(customUserId)
+              .get();
+          
+          if (doc.exists) {
+            print('✅ User document found in Firestore');
+            final userData = doc.data()!;
+            print('📄 User data: $userData');
+            
+            user = User.fromJson(userData);
+            // Update local storage with fresh data
+            await UserService.setCurrentUser(user);
+            print('✅ User data updated in local storage');
+          } else {
+            print('❌ User document not found in Firestore');
+          }
+        } else {
+          print('❌ No custom user ID found in local storage');
+        }
+      } else {
+        print('✅ Local user found, refreshing from Firestore...');
+        
+        // Refresh user data from Firestore to ensure it's up to date
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .get();
+        
+        if (doc.exists) {
+          print('✅ Fresh user data fetched from Firestore');
+          final freshUser = User.fromJson(doc.data()!);
+          // Update local storage with fresh data
+          await UserService.setCurrentUser(freshUser);
+          user = freshUser;
+        } else {
+          print('⚠️ User document not found in Firestore, using local data');
+        }
+      }
       
       setState(() {
         _currentUser = user;
@@ -53,10 +110,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _linkTreeUrls = []; // Load saved links in real app
         _isLoading = false;
       });
+      
+      if (user != null) {
+        print('✅ User data loaded successfully:');
+        print('   - Name: ${user.fullName}');
+        print('   - ID: ${user.id}');
+        print('   - Handle: ${user.handle}');
+        print('   - Virtual Number: ${user.virtualNumber}');
+        print('   - Email: ${user.email}');
+      } else {
+        print('❌ No user data available');
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
+      print('❌ Error loading profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading profile: $e')),
@@ -80,6 +149,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         updatedAt: DateTime.now(),
       );
 
+      // Update in Firestore first using the custom user ID
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(updatedUser.id) // This is the custom user ID
+          .update({
+        'fullName': updatedUser.fullName,
+        'handle': updatedUser.handle,
+        'bio': updatedUser.bio,
+        'updatedAt': updatedUser.updatedAt.toIso8601String(),
+      });
+
+      // Then update locally
       await UserService.updateUser(updatedUser);
       
       setState(() {
@@ -87,6 +168,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isEditing = false;
         _isLoading = false;
       });
+
+      print('✅ Profile updated successfully');
+      print('📄 Updated user: ${updatedUser.fullName} (${updatedUser.handle})');
+      print('🆔 Custom User ID: ${updatedUser.id}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -100,6 +185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _isLoading = false;
       });
+      print('❌ Error saving profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving profile: $e')),
@@ -119,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _copyNumber() {
     if (_currentUser?.virtualNumber != null) {
-      Clipboard.setData(ClipboardData(text: _currentUser!.virtualNumber));
+      Clipboard.setData(ClipboardData(text: _currentUser!.virtualNumber ?? ''));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Virtual number copied to clipboard'),
@@ -191,7 +277,7 @@ Download Boofer for secure messaging!
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout? You will need to complete onboarding again.'),
+        content: const Text('Are you sure you want to logout? You will need to sign in again.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -214,15 +300,38 @@ Download Boofer for secure messaging!
 
   Future<void> _logout() async {
     try {
+      print('🔄 Starting logout process...');
+      
+      // Clear user data from UserService
       await UserService.clearUserData();
+      print('✅ UserService data cleared');
+      
+      // Sign out from Google Auth and Firebase
+      final googleAuthService = GoogleAuthService();
+      await googleAuthService.signOut();
+      print('✅ Google Auth and Firebase sign out completed');
+      
+      // Clear additional local storage
+      await LocalStorageService.remove('custom_user_id');
+      await LocalStorageService.remove('firebase_to_custom_id');
+      await LocalStorageService.remove('firebase_uid');
+      await LocalStorageService.remove('user_email');
+      await LocalStorageService.remove('user_type');
+      await LocalStorageService.remove('profile_completed');
+      await LocalStorageService.remove('registered_emails'); // Clear stored emails
+      print('✅ Local storage cleared');
+      
       if (mounted) {
+        // Navigate to onboarding screen (which is now an alias to Google sign-in)
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/onboarding',
           (route) => false,
         );
+        print('✅ Navigated to onboarding screen');
       }
     } catch (e) {
+      print('❌ Error during logout: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error during logout: $e')),
@@ -263,6 +372,23 @@ Download Boofer for secure messaging!
               onPressed: _shareProfile,
               icon: const Icon(Icons.share),
               tooltip: 'Share profile',
+            ),
+            IconButton(
+              onPressed: _loadUserData,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh profile data',
+            ),
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DebugUserDataScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.bug_report),
+              tooltip: 'Debug user data',
             ),
             IconButton(
               onPressed: () => setState(() => _isEditing = true),
@@ -694,7 +820,7 @@ Download Boofer for secure messaging!
             // User ID
             _buildInfoTile(
               label: 'User ID',
-              value: _currentUser?.id ?? 'Loading...',
+              value: _currentUser?.id ?? 'Not available',
               icon: Icons.fingerprint,
               onTap: () {
                 if (_currentUser?.id != null) {
@@ -704,25 +830,25 @@ Download Boofer for secure messaging!
                   );
                 }
               },
-              trailing: Icon(
+              trailing: _currentUser?.id != null ? Icon(
                 Icons.copy,
                 size: 18,
                 color: theme.colorScheme.primary,
-              ),
+              ) : null,
             ),
             const SizedBox(height: 12),
             
             // Virtual Number
             _buildInfoTile(
               label: 'Virtual Number',
-              value: _currentUser?.virtualNumber ?? 'Loading...',
+              value: _currentUser?.virtualNumber ?? 'Not assigned',
               icon: Icons.phone,
-              onTap: _copyNumber,
-              trailing: Icon(
+              onTap: _currentUser?.virtualNumber != null ? _copyNumber : null,
+              trailing: _currentUser?.virtualNumber != null ? Icon(
                 Icons.copy,
                 size: 18,
                 color: theme.colorScheme.primary,
-              ),
+              ) : null,
             ),
             const SizedBox(height: 12),
             

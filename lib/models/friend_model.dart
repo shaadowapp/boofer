@@ -101,6 +101,7 @@ class Friend {
   User toUser() {
     return User(
       id: id,
+      email: '${handle}@friend.local',
       virtualNumber: virtualNumber,
       handle: handle,
       fullName: name,

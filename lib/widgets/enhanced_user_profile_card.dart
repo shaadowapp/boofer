@@ -127,7 +127,7 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
             
             // Virtual number (centered)
             Text(
-              widget.user.virtualNumber,
+              widget.user.virtualNumber ?? '',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),
@@ -204,7 +204,7 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
                   
                   // Virtual number below
                   Text(
-                    widget.user.virtualNumber,
+                    widget.user.virtualNumber ?? '',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.6),
                     ),

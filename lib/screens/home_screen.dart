@@ -81,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Initialize with demo user and data immediately for UI testing
     final demoUser = User(
       id: 'demo_user',
+      email: 'alex.johnson@demo.com',
       handle: 'alex_johnson',
       fullName: 'Alex Johnson',
       virtualNumber: 'VN-2024-001',
@@ -117,6 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       User(
         id: 'nearby_1',
+        email: 'alex.nyc@demo.com',
         virtualNumber: '555-901-2345',
         handle: 'alex_nyc',
         fullName: 'Alex Johnson',
@@ -128,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       User(
         id: 'nearby_2',
+        email: 'sarah.coffee@demo.com',
         virtualNumber: '555-902-3456',
         handle: 'sarah_coffee',
         fullName: 'Sarah Wilson',
@@ -139,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       User(
         id: 'nearby_3',
+        email: 'mike.tech@demo.com',
         virtualNumber: '555-903-4567',
         handle: 'mike_tech',
         fullName: 'Mike Chen',
@@ -155,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       User(
         id: 'suggested_1',
+        email: 'emma.artist@demo.com',
         virtualNumber: '555-801-2345',
         handle: 'emma_artist',
         fullName: 'Emma Davis',
@@ -166,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       User(
         id: 'suggested_2',
+        email: 'james.music@demo.com',
         virtualNumber: '555-802-3456',
         handle: 'james_music',
         fullName: 'James Brown',
@@ -177,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       User(
         id: 'suggested_3',
+        email: 'lisa.travel@demo.com',
         virtualNumber: '555-803-4567',
         handle: 'lisa_travel',
         fullName: 'Lisa Garcia',
@@ -197,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Add a few more demo users for variety
       User(
         id: 'friend_1',
+        email: 'maya.rodriguez@demo.com',
         virtualNumber: '555-111-1111',
         handle: 'creative_artist',
         fullName: 'Maya Rodriguez',
@@ -208,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       User(
         id: 'friend_2',
+        email: 'alex.thompson@demo.com',
         virtualNumber: '555-222-2222',
         handle: 'travel_blogger',
         fullName: 'Alex Thompson',

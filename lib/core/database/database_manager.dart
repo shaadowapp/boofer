@@ -16,7 +16,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
   
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   /// Get database instance
   Future<Database> get database async {
@@ -70,6 +70,7 @@ class DatabaseManager {
         status TEXT NOT NULL DEFAULT 'offline',
         last_username_change TEXT,
         last_seen TEXT,
+        location TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -194,8 +195,8 @@ class DatabaseManager {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     // Handle database schema migrations here
     if (oldVersion < 2) {
-      // Example migration for version 2
-      // await db.execute('ALTER TABLE users ADD COLUMN new_field TEXT');
+      // Add location column to users table
+      await db.execute('ALTER TABLE users ADD COLUMN location TEXT');
     }
   }
 

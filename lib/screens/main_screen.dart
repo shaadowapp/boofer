@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
 import 'home_screen.dart';
@@ -14,7 +15,10 @@ import 'friend_requests_screen.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
 import '../providers/theme_provider.dart';
+import '../providers/auth_state_provider.dart';
+import '../providers/firestore_user_provider.dart';
 import '../services/user_service.dart';
+import '../services/local_storage_service.dart';
 import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
@@ -22,8 +26,10 @@ import '../providers/username_provider.dart';
 import '../models/friend_model.dart';
 import '../services/connection_service.dart';
 import '../services/friendship_service.dart';
+import '../services/google_auth_service.dart';
 import '../utils/svg_icons.dart';
 import '../services/notification_service.dart';
+import '../widgets/profile_completion_modal.dart';
 import '../l10n/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
@@ -38,8 +44,8 @@ class _MainScreenState extends State<MainScreen> {
   bool _hasCheckedNotifications = false;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
-  List<Friend> _filteredFriends = [];
-  List<Friend> _allFriends = [];
+  List<User> _filteredUsers = [];
+  List<User> _allUsers = [];
   final ConnectionService _connectionService = ConnectionService.instance;
   final FriendshipService _friendshipService = FriendshipService.instance;
   int _pendingRequestsCount = 0;
@@ -53,8 +59,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _allFriends = Friend.getDemoFriends();
-    _filteredFriends = _allFriends;
     _initializeMainScreen();
     _loadPendingRequests();
     _initializeProviders();
@@ -67,6 +71,214 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     });
+
+    // Check if we need to show profile completion modal
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowProfileCompletion();
+    });
+  }
+
+  Future<void> _checkAndShowProfileCompletion() async {
+    try {
+      // Check if profile completion modal was recently dismissed
+      final lastDismissed = await LocalStorageService.getString('profile_modal_last_dismissed');
+      if (lastDismissed != null) {
+        final dismissedTime = DateTime.tryParse(lastDismissed);
+        if (dismissedTime != null) {
+          final timeSinceDismissed = DateTime.now().difference(dismissedTime);
+          if (timeSinceDismissed.inHours < 24) {
+            print('ℹ️ Profile completion modal was dismissed recently, skipping');
+            return;
+          }
+        }
+      }
+
+      // Check if user just signed in and needs profile completion
+      final authProvider = context.read<AuthStateProvider>();
+      if (authProvider.isAuthenticated) {
+        final currentUser = authProvider.currentUser;
+        if (currentUser != null) {
+          // Get user profile and type from local storage
+          final userType = await LocalStorageService.getString('user_type');
+          final profileCompleted = await LocalStorageService.getString('profile_completed');
+          
+          print('👤 User type: $userType');
+          print('✅ Profile completed: $profileCompleted');
+          
+          // Get user profile using UserService (which handles custom IDs)
+          final userProfile = await UserService.getCurrentUser();
+          
+          if (userProfile != null && mounted) {
+            print('✅ User profile found: ${userProfile.fullName} (ID: ${userProfile.id})');
+            
+            // Check if profile needs completion
+            final needsCompletion = _shouldShowProfileCompletion(
+              userType: userType,
+              profileCompleted: profileCompleted == 'true',
+              userProfile: userProfile,
+            );
+            
+            // If profile appears complete but isn't marked as such, mark it automatically
+            if (!needsCompletion && profileCompleted != 'true' && _isProfileActuallyComplete(userProfile)) {
+              print('✅ Profile appears complete, marking as completed automatically');
+              await LocalStorageService.setString('profile_completed', 'true');
+              await LocalStorageService.setString('user_type', 'completed_user');
+            }
+            
+            if (needsCompletion) {
+              // Show profile completion modal after a short delay
+              Future.delayed(Duration(milliseconds: 800), () {
+                if (mounted) {
+                  _showProfileCompletionModal(userProfile);
+                }
+              });
+            } else {
+              print('ℹ️ Profile completion not needed for this user');
+            }
+          } else {
+            print('❌ No user profile found - user may need to sign in again');
+            
+            // If no user profile exists but user is authenticated,
+            // they may need to complete the signup process
+            if (userType == 'new_signup' || userType == null) {
+              print('🔄 Attempting to create user profile from Firebase auth...');
+              await _handleMissingUserProfile(currentUser);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('❌ Error checking profile completion: $e');
+      // Continue silently
+    }
+  }
+
+  /// Handle case where user is authenticated but has no profile data
+  Future<void> _handleMissingUserProfile(firebase_auth.User firebaseUser) async {
+    try {
+      print('🔄 Creating missing user profile...');
+      
+      final googleAuthService = GoogleAuthService();
+      
+      // Try to restore user session or create new profile
+      final restoredUser = await googleAuthService.restoreUserSession();
+      
+      if (restoredUser != null) {
+        print('✅ User session restored: ${restoredUser.fullName}');
+        
+        // Check if profile completion is needed
+        final needsCompletion = _shouldShowProfileCompletion(
+          userType: 'restored_user',
+          profileCompleted: false,
+          userProfile: restoredUser,
+        );
+        
+        if (needsCompletion && mounted) {
+          Future.delayed(Duration(milliseconds: 800), () {
+            if (mounted) {
+              _showProfileCompletionModal(restoredUser);
+            }
+          });
+        }
+      } else {
+        print('❌ Could not restore user session - user may need to sign in again');
+      }
+    } catch (e) {
+      print('❌ Error handling missing user profile: $e');
+    }
+  }
+
+  /// Determine if profile completion modal should be shown
+  bool _shouldShowProfileCompletion({
+    String? userType,
+    bool profileCompleted = false,
+    required User userProfile,
+  }) {
+    // Never show for completed profiles
+    if (profileCompleted) {
+      print('✅ Profile already completed - skipping modal');
+      return false;
+    }
+
+    // Always show for new signups
+    if (userType == 'new_signup') {
+      print('🆕 New signup detected - showing profile completion');
+      return true;
+    }
+    
+    // For existing users, only show if profile is genuinely incomplete
+    // Check multiple indicators to avoid false positives
+    
+    int incompleteCount = 0;
+    
+    // Check if user has auto-generated handle (heuristic for incomplete profile)
+    if (userProfile.handle.contains('_') && userProfile.handle.length > 15) {
+      incompleteCount++;
+      print('🔧 Auto-generated handle detected');
+    }
+    
+    // Check if user has default bio
+    if (userProfile.bio == 'Hey there! I\'m using Boofer 👋') {
+      incompleteCount++;
+      print('📝 Default bio detected');
+    }
+    
+    // Check if user doesn't have virtual number
+    if (userProfile.virtualNumber == null || userProfile.virtualNumber!.isEmpty) {
+      incompleteCount++;
+      print('🆔 No virtual number detected');
+    }
+    
+    // Check if full name is very short or looks auto-generated
+    if (userProfile.fullName.length < 3 || userProfile.fullName.contains('User')) {
+      incompleteCount++;
+      print('👤 Incomplete full name detected');
+    }
+    
+    // Only show modal if multiple indicators suggest incomplete profile
+    final shouldShow = incompleteCount >= 2;
+    
+    if (shouldShow) {
+      print('📝 Profile appears incomplete ($incompleteCount indicators) - showing completion modal');
+    } else {
+      print('✅ Profile appears complete enough - skipping modal');
+    }
+    
+    return shouldShow;
+  }
+
+  /// Check if profile is actually complete (has all required fields properly filled)
+  bool _isProfileActuallyComplete(User userProfile) {
+    // Check if all essential fields are properly filled
+    final hasProperName = userProfile.fullName.isNotEmpty && 
+                         userProfile.fullName.length >= 3 && 
+                         !userProfile.fullName.contains('User');
+    
+    final hasProperHandle = userProfile.handle.isNotEmpty && 
+                           !userProfile.handle.contains('_') && 
+                           userProfile.handle.length < 15;
+    
+    final hasCustomBio = userProfile.bio.isNotEmpty && 
+                        userProfile.bio != 'Hey there! I\'m using Boofer 👋';
+    
+    final hasVirtualNumber = userProfile.virtualNumber != null && 
+                            userProfile.virtualNumber!.isNotEmpty;
+    
+    return hasProperName && hasProperHandle && hasCustomBio && hasVirtualNumber;
+  }
+
+  void _showProfileCompletionModal(User userProfile) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Cannot be dismissed
+      barrierColor: Colors.transparent, // We handle the blur in the modal
+      builder: (context) => ProfileCompletionModal(
+        initialUser: userProfile,
+        onCompleted: () {
+          Navigator.of(context).pop(); // Close the modal
+        },
+      ),
+    );
   }
 
   void _loadPendingRequests() {
@@ -239,11 +451,12 @@ class _MainScreenState extends State<MainScreen> {
       _isSearching = trimmedQuery.isNotEmpty;
       
       if (trimmedQuery.isEmpty) {
-        _filteredFriends = _allFriends;
+        _filteredUsers = _allUsers;
       } else {
-        _filteredFriends = _allFriends.where((friend) {
-          return friend.name.toLowerCase().contains(trimmedQuery) ||
-                 friend.virtualNumber.toLowerCase().contains(trimmedQuery);
+        _filteredUsers = _allUsers.where((user) {
+          return user.fullName.toLowerCase().contains(trimmedQuery) ||
+                 user.handle.toLowerCase().contains(trimmedQuery) ||
+                 (user.virtualNumber?.toLowerCase().contains(trimmedQuery) ?? false);
         }).toList();
       }
     });
@@ -253,7 +466,7 @@ class _MainScreenState extends State<MainScreen> {
     _searchController.clear();
     setState(() {
       _isSearching = false;
-      _filteredFriends = _allFriends;
+      _filteredUsers = _allUsers;
     });
   }
 
@@ -263,7 +476,9 @@ class _MainScreenState extends State<MainScreen> {
       case 0:
         // Home tab - open write post screen
         try {
-          final currentUser = await UserService.getCurrentUser();
+          final userProvider = context.read<FirestoreUserProvider>();
+          final currentUser = userProvider.currentUser;
+          
           if (currentUser != null && mounted) {
             Navigator.push(
               context,
@@ -272,22 +487,9 @@ class _MainScreenState extends State<MainScreen> {
               ),
             );
           } else {
-            // Fallback to demo user if no current user
-            final demoUser = User(
-              id: 'demo_user',
-              handle: 'alex_johnson',
-              fullName: 'Alex Johnson',
-              virtualNumber: 'VN-2024-001',
-              bio: '🎨 Digital artist & coffee enthusiast',
-              isDiscoverable: true,
-              status: UserStatus.online,
-              createdAt: DateTime.now().subtract(const Duration(days: 30)),
-              updatedAt: DateTime.now(),
-            );
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => WritePostScreen(currentUser: demoUser),
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please complete your profile first'),
               ),
             );
           }
@@ -371,7 +573,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildSearchResults() {
-    if (_filteredFriends.isEmpty) {
+    if (_filteredUsers.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -383,7 +585,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No friends found',
+              'No users found',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
               ),
@@ -394,17 +596,17 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return ListView.builder(
-      itemCount: _filteredFriends.length,
+      itemCount: _filteredUsers.length,
       itemBuilder: (context, index) {
-        final friend = _filteredFriends[index];
-        return _buildFriendTile(friend);
+        final user = _filteredUsers[index];
+        return _buildUserTile(user);
       },
     );
   }
 
-  Widget _buildFriendTile(Friend friend) {
+  Widget _buildUserTile(User user) {
     return InkWell(
-      onTap: () => _onFriendTap(friend),
+      onTap: () => _onUserTap(user),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -423,25 +625,21 @@ class _MainScreenState extends State<MainScreen> {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: friend.avatar != null
-                      ? ClipOval(
-                          child: Image.network(
-                            friend.avatar!,
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Text(
-                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
+                  backgroundImage: user.profilePicture != null
+                      ? NetworkImage(user.profilePicture!)
+                      : null,
+                  child: user.profilePicture == null
+                      ? Text(
+                          user.fullName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase(),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
                             color: Theme.of(context).colorScheme.primary,
                           ),
-                        ),
+                        )
+                      : null,
                 ),
-                if (friend.isOnline)
+                if (user.status == UserStatus.online)
                   Positioned(
                     bottom: 2,
                     right: 2,
@@ -463,7 +661,7 @@ class _MainScreenState extends State<MainScreen> {
             
             const SizedBox(width: 16),
             
-            // Friend Info
+            // User Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,22 +669,20 @@ class _MainScreenState extends State<MainScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        friend.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Text(
+                          user.fullName,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (_currentIndex == 1) // Chat tab
                         Text(
-                          _formatTime(friend.lastMessageTime),
+                          _formatTime(user.lastSeen ?? user.updatedAt),
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: friend.unreadCount > 0
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                            fontWeight: friend.unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                     ],
@@ -498,8 +694,8 @@ class _MainScreenState extends State<MainScreen> {
                       Expanded(
                         child: Text(
                           _currentIndex == 1 // Chat tab
-                              ? friend.lastMessage
-                              : friend.virtualNumber,
+                              ? '@${user.handle}'
+                              : user.virtualNumber ?? '@${user.handle}',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                           ),
@@ -507,22 +703,6 @@ class _MainScreenState extends State<MainScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (_currentIndex == 1 && friend.unreadCount > 0) // Chat tab with unread
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            friend.unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                       if (_currentIndex == 2) // Calls tab
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -533,7 +713,7 @@ class _MainScreenState extends State<MainScreen> {
                                 20,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
-                              onPressed: () => _makeCall(friend, false),
+                              onPressed: () => _makeCall(user, false),
                             ),
                             IconButton(
                               icon: SvgIcons.sized(
@@ -541,7 +721,7 @@ class _MainScreenState extends State<MainScreen> {
                                 20,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
-                              onPressed: () => _makeCall(friend, true),
+                              onPressed: () => _makeCall(user, true),
                             ),
                           ],
                         ),
@@ -556,20 +736,20 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _onFriendTap(Friend friend) {
+  void _onUserTap(User user) {
     // Clear search first
     _clearSearch();
     
     if (_currentIndex == 1) { // Chat tab
-      // Navigate to chat screen
-      Navigator.pushNamed(context, '/chat', arguments: friend);
+      // Navigate to chat screen with user
+      Navigator.pushNamed(context, '/chat', arguments: user);
     } else if (_currentIndex == 2) { // Calls tab
       // Show call options
-      _showCallOptions(friend);
+      _showCallOptions(user);
     }
   }
 
-  void _showCallOptions(Friend friend) {
+  void _showCallOptions(User user) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -590,20 +770,25 @@ class _MainScreenState extends State<MainScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            // Friend info
+            // User info
             Row(
               children: [
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: Text(
-                    friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
+                  backgroundImage: user.profilePicture != null
+                      ? NetworkImage(user.profilePicture!)
+                      : null,
+                  child: user.profilePicture == null
+                      ? Text(
+                          user.fullName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -611,13 +796,13 @@ class _MainScreenState extends State<MainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        friend.name,
+                        user.fullName,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
-                        friend.virtualNumber,
+                        user.virtualNumber ?? '@${user.handle}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
@@ -635,7 +820,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      _makeCall(friend, false);
+                      _makeCall(user, false);
                     },
                     icon: SvgIcons.sized(
                       SvgIcons.voiceCall, 
@@ -653,7 +838,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      _makeCall(friend, true);
+                      _makeCall(user, true);
                     },
                     icon: SvgIcons.sized(
                       SvgIcons.videoCall, 
@@ -674,10 +859,10 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _makeCall(Friend friend, bool isVideo) {
+  void _makeCall(User user, bool isVideo) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${isVideo ? 'Video' : 'Voice'} calling ${friend.name}...'),
+        content: Text('${isVideo ? 'Video' : 'Voice'} calling ${user.fullName}...'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -837,7 +1022,15 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: _isSearching 
                 ? _buildSearchResults() 
-                : _screens[_currentIndex]
+                : Consumer<FirestoreUserProvider>(
+                    builder: (context, userProvider, child) {
+                      // Update local users list when Firestore data changes
+                      _allUsers = userProvider.allUsers;
+                      _filteredUsers = _allUsers;
+                      
+                      return _screens[_currentIndex];
+                    },
+                  )
           ),
         ],
       ),

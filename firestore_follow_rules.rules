@@ -1,0 +1,116 @@
+// Firestore Security Rules for Friend Request System (Instagram/Snapchat style)
+// Add these rules to your existing firestore.rules file
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Friend request system rules
+    match /friend_requests/{requestId} {
+      // Users can read requests where they are sender or receiver
+      allow read: if request.auth != null 
+        && (request.auth.uid == resource.data.fromUserId 
+            || request.auth.uid == resource.data.toUserId);
+            
+      // Users can create requests they are sending
+      allow create: if request.auth != null 
+        && request.auth.uid == resource.data.fromUserId
+        && validateFriendRequest(resource.data);
+        
+      // Users can update requests they received (accept/reject)
+      // or requests they sent (cancel)
+      allow update: if request.auth != null 
+        && ((request.auth.uid == resource.data.toUserId && canRespondToRequest(resource.data))
+            || (request.auth.uid == resource.data.fromUserId && canCancelRequest(resource.data)));
+    }
+    
+    // User's sent requests subcollection
+    match /users/{userId}/sent_requests/{requestId} {
+      // Users can read/write their own sent requests
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User's received requests subcollection
+    match /users/{userId}/received_requests/{requestId} {
+      // Users can read their own received requests
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Only the system can write to received requests (via transactions)
+      allow write: if false; // Managed by server-side transactions
+    }
+    
+    // Friends collection
+    match /friends/{userId} {
+      // Users can read their own friends data
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      match /friends/{friendId} {
+        // Users can read their own friends list
+        allow read: if request.auth != null && request.auth.uid == userId;
+        
+        // Only server can write friendships (via transactions)
+        allow write: if false; // Managed by server-side transactions
+      }
+    }
+    
+    // User documents (update existing rules to include friend counts)
+    match /users/{userId} {
+      // Users can read public user data
+      allow read: if request.auth != null;
+      
+      // Users can only update their own profile
+      allow update: if request.auth != null 
+        && request.auth.uid == userId
+        && validateUserUpdate(request.resource.data);
+        
+      // Users can create their own profile
+      allow create: if request.auth != null 
+        && request.auth.uid == userId
+        && validateUserData(request.resource.data);
+    }
+  }
+  
+  // Validation functions
+  function validateFriendRequest(data) {
+    return data.keys().hasAll(['id', 'fromUserId', 'toUserId', 'status', 'sentAt'])
+      && data.fromUserId is string
+      && data.toUserId is string
+      && data.status == 'pending'
+      && data.sentAt is string
+      && data.fromUserId != data.toUserId; // Can't send request to self
+  }
+  
+  function canRespondToRequest(data) {
+    // Can only accept/reject pending requests
+    return resource.data.status == 'pending' 
+      && (data.status == 'accepted' || data.status == 'rejected')
+      && data.keys().hasAll(['respondedAt']);
+  }
+  
+  function canCancelRequest(data) {
+    // Can only cancel pending requests
+    return resource.data.status == 'pending' 
+      && data.status == 'cancelled'
+      && data.keys().hasAll(['respondedAt']);
+  }
+  
+  function validateUserUpdate(data) {
+    // Allow updating friend counts and other user fields
+    let allowedFields = ['fullName', 'bio', 'isDiscoverable', 'status', 
+                        'lastSeen', 'updatedAt', 'friendsCount', 
+                        'pendingReceivedRequests', 'pendingSentRequests'];
+    return data.keys().hasOnly(allowedFields.concat(['id', 'email', 'handle', 
+                                                    'createdAt', 'profilePicture', 
+                                                    'virtualNumber', 'location',
+                                                    'followerCount', 'followingCount']));
+  }
+  
+  function validateUserData(data) {
+    return data.keys().hasAll(['id', 'handle', 'fullName', 'createdAt', 'updatedAt'])
+      && data.id is string
+      && data.handle is string
+      && data.fullName is string
+      && data.createdAt is string
+      && data.updatedAt is string;
+  }
+}

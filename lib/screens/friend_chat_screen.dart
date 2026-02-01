@@ -104,6 +104,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       // Create recipient user object
       final recipientUser = User(
         id: widget.recipientId,
+        email: '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
         virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
         handle: widget.recipientName.toLowerCase().replaceAll(' ', '_'),
         fullName: widget.recipientName,

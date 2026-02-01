@@ -108,7 +108,7 @@ class UserProfileCard extends StatelessWidget {
                   
                   // Virtual number
                   Text(
-                    user.virtualNumber,
+                    user.virtualNumber ?? '',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.6),
                       fontSize: isCompact ? 11 : 12,
@@ -248,7 +248,7 @@ class HeroUserProfileCard extends StatelessWidget {
             
             // Virtual number
             Text(
-              user.virtualNumber,
+              user.virtualNumber ?? '',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.white.withOpacity(0.8),

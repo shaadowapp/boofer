@@ -2,12 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/error/error_handler.dart';
 import '../services/user_service.dart';
-import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
 class UserProvider with ChangeNotifier {
   final UserService _userService;
-  final AuthService _authService;
   final ErrorHandler _errorHandler;
   
   List<User> _users = [];
@@ -19,20 +17,15 @@ class UserProvider with ChangeNotifier {
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isAuthenticated => _authService.isAuthenticated;
   
   StreamSubscription<List<User>>? _usersSubscription;
-  StreamSubscription<User?>? _authSubscription;
   
   UserProvider({
     required UserService userService,
-    required AuthService authService,
     required ErrorHandler errorHandler,
   }) : _userService = userService, 
-       _authService = authService,
        _errorHandler = errorHandler {
     _initializeSubscriptions();
-    _currentUser = _authService.currentUser;
   }
   
   void _initializeSubscriptions() {
@@ -45,13 +38,6 @@ class UserProvider with ChangeNotifier {
       },
       onError: (error) {
         _handleError(error);
-      },
-    );
-    
-    _authSubscription = _authService.authStateChanges.listen(
-      (user) {
-        _currentUser = user;
-        notifyListeners();
       },
     );
   }
@@ -110,105 +96,9 @@ class UserProvider with ChangeNotifier {
     }
   }
   
-  Future<User> createAccount({
-    required String handle,
-    required String pin,
-    String? fullName,
-    String? bio,
-  }) async {
-    _isLoading = true;
-    _error = null;
+  void setCurrentUser(User? user) {
+    _currentUser = user;
     notifyListeners();
-    
-    try {
-      final user = await _authService.createAccount(
-        handle: handle,
-        pin: pin,
-        fullName: fullName,
-        bio: bio,
-      );
-      _currentUser = user;
-      return user;
-    } catch (e) {
-      _handleError(e);
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-  
-  Future<User> signIn({
-    required String identifier,
-    required String pin,
-  }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-    
-    try {
-      final user = await _authService.signIn(
-        identifier: identifier,
-        pin: pin,
-      );
-      _currentUser = user;
-      return user;
-    } catch (e) {
-      _handleError(e);
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-  
-  Future<bool> changePin({
-    required String currentPin,
-    required String newPin,
-  }) async {
-    try {
-      return await _authService.changePin(
-        currentPin: currentPin,
-        newPin: newPin,
-      );
-    } catch (e) {
-      _handleError(e);
-      return false;
-    }
-  }
-  
-  Future<void> updateProfile({
-    String? fullName,
-    String? bio,
-    bool? isDiscoverable,
-    String? profilePicture,
-  }) async {
-    try {
-      final updatedUser = await _authService.updateProfile(
-        fullName: fullName,
-        bio: bio,
-        isDiscoverable: isDiscoverable,
-        profilePicture: profilePicture,
-      );
-      if (updatedUser != null) {
-        _currentUser = updatedUser;
-        notifyListeners();
-      }
-    } catch (e) {
-      _handleError(e);
-      rethrow;
-    }
-  }
-  
-  Future<void> signOut() async {
-    try {
-      await _authService.signOut();
-      _currentUser = null;
-      _users.clear();
-      notifyListeners();
-    } catch (e) {
-      _handleError(e);
-    }
   }
   
   void _handleError(dynamic error) {
@@ -226,7 +116,6 @@ class UserProvider with ChangeNotifier {
   @override
   void dispose() {
     _usersSubscription?.cancel();
-    _authSubscription?.cancel();
     super.dispose();
   }
 }

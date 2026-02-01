@@ -149,4 +149,54 @@ class LocalStorageService {
       throw Exception('Failed to update user PIN: $e');
     }
   }
+
+  /// Get string value from SharedPreferences
+  static Future<String?> getString(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Set string value in SharedPreferences
+  static Future<void> setString(String key, String value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    } catch (e) {
+      throw Exception('Failed to set string value: $e');
+    }
+  }
+
+  /// Remove value from SharedPreferences
+  static Future<void> remove(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+    } catch (e) {
+      throw Exception('Failed to remove value: $e');
+    }
+  }
+
+  /// Get string list from SharedPreferences
+  static Future<List<String>?> getStringList(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Set string list in SharedPreferences
+  static Future<void> setStringList(String key, List<String> value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(key, value);
+    } catch (e) {
+      throw Exception('Failed to set string list value: $e');
+    }
+  }
 }
