@@ -66,7 +66,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       final userProvider = context.read<FirestoreUserProvider>();
       
       // Get discoverable users
-      final discoverableUsers = userProvider.getDiscoverableUsers(limit: 20);
+      final discoverableUsers = await userProvider.getDiscoverableUsers(limit: 20);
       
       // Filter out current user
       final filteredUsers = discoverableUsers.where((user) => user.id != _currentUserId).toList();
@@ -105,26 +105,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     final users = <User>[];
     
     final profiles = [
-      {'name': 'Alex Johnson', 'bio': '🎨 Digital artist & coffee enthusiast', 'followers': '12.5K'},
-      {'name': 'Sarah Chen', 'bio': '📚 Book lover | World traveler ✈️', 'followers': '8.2K'},
-      {'name': 'Mike Rodriguez', 'bio': '🏃‍♂️ Marathon runner | Fitness coach', 'followers': '15.7K'},
-      {'name': 'Emma Wilson', 'bio': '🎵 Music producer & DJ 🎧', 'followers': '22.1K'},
-      {'name': 'David Kim', 'bio': '👨‍💻 Full-stack developer | Tech enthusiast', 'followers': '9.8K'},
-      {'name': 'Lisa Thompson', 'bio': '🌱 Plant parent | Sustainability advocate', 'followers': '6.4K'},
-      {'name': 'Ryan Martinez', 'bio': '📸 Street photographer | Visual storyteller', 'followers': '18.3K'},
-      {'name': 'Sophie Anderson', 'bio': '🍳 Chef | Food blogger & recipe creator', 'followers': '11.9K'},
-      {'name': 'Jake Miller', 'bio': '🎮 Pro gamer | Twitch streamer', 'followers': '25.6K'},
-      {'name': 'Maya Patel', 'bio': '🧘‍♀️ Yoga instructor | Mindfulness coach', 'followers': '7.1K'},
-      {'name': 'Chris Taylor', 'bio': '🎭 Theater actor | Drama teacher', 'followers': '4.8K'},
-      {'name': 'Zoe Davis', 'bio': '🔬 Research scientist | Science communicator', 'followers': '13.2K'},
-      {'name': 'Noah Brown', 'bio': '🎨 Graphic designer | Creative director', 'followers': '16.5K'},
-      {'name': 'Ava Garcia', 'bio': '🏔️ Adventure seeker | Mountain climber', 'followers': '19.7K'},
-      {'name': 'Ethan Lee', 'bio': '📝 Content writer | Storyteller', 'followers': '5.9K'},
-      {'name': 'Jordan Smith', 'bio': '🎪 Circus performer | Acrobat', 'followers': '14.3K'},
-      {'name': 'Casey Wong', 'bio': '🎯 Marketing strategist | Brand consultant', 'followers': '10.1K'},
-      {'name': 'Taylor Swift', 'bio': '🎤 Singer-songwriter | Music lover', 'followers': '89.2M'},
-      {'name': 'Morgan Freeman', 'bio': '🎬 Actor | Voice artist | Narrator', 'followers': '45.7M'},
-      {'name': 'Riley Cooper', 'bio': '⚽ Professional athlete | Sports enthusiast', 'followers': '32.4K'},
+      {'name': 'Alex Johnson', 'bio': '🎨 Digital artist & coffee enthusiast'},
+      {'name': 'Sarah Chen', 'bio': '📚 Book lover | World traveler ✈️'},
+      {'name': 'Mike Rodriguez', 'bio': '🏃‍♂️ Marathon runner | Fitness coach'},
+      {'name': 'Emma Wilson', 'bio': '🎵 Music producer & DJ 🎧'},
+      {'name': 'David Kim', 'bio': '👨‍💻 Full-stack developer | Tech enthusiast'},
     ];
 
     final shuffledProfiles = List.from(profiles)..shuffle(random);
@@ -154,52 +139,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     return users;
   }
 
-  Future<void> _toggleFollow(User user) async {
-    final isCurrentlyFollowing = _followingStatus[user.id] ?? false;
-    
-    // Optimistic update
-    setState(() {
-      _followingStatus[user.id] = !isCurrentlyFollowing;
-    });
-
-    try {
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // In a real app, you would call your friendship service here
-      // await _friendshipService.sendFriendRequest(user.id);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isCurrentlyFollowing 
-                ? 'Unfollowed ${user.displayName}' 
-                : 'Following ${user.displayName}',
-            ),
-            duration: const Duration(seconds: 2),
-            backgroundColor: isCurrentlyFollowing 
-                ? Colors.orange 
-                : Theme.of(context).colorScheme.primary,
-          ),
-        );
-      }
-    } catch (e) {
-      // Revert on error
-      if (mounted) {
-        setState(() {
-          _followingStatus[user.id] = isCurrentlyFollowing;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to ${isCurrentlyFollowing ? 'unfollow' : 'follow'} user'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   void _onSearchChanged() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
@@ -223,16 +162,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     });
 
     try {
-      print('🔍 Searching for users with query: "$query"');
-      
-      // Search real users from Firestore
       final userProvider = context.read<FirestoreUserProvider>();
-      final searchResults = await userProvider.searchUsers(query);
+      final results = await userProvider.searchUsers(query);
       
-      // Filter out current user from results
-      final filteredResults = searchResults.where((user) => user.id != _currentUserId).toList();
-      
-      print('✅ Found ${filteredResults.length} users matching "$query"');
+      // Filter out current user
+      final filteredResults = results.where((user) => user.id != _currentUserId).toList();
       
       if (mounted) {
         setState(() {
@@ -241,54 +175,19 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         });
       }
     } catch (e) {
-      print('❌ Search failed: $e');
-      
-      // Fallback to mock results if Firestore search fails
-      final mockResults = _generateMockSearchResults(query);
-      
       if (mounted) {
         setState(() {
-          _searchResults = mockResults;
+          _searchResults = [];
           _loading = false;
         });
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Search failed, showing demo results: $e'),
-            backgroundColor: Colors.orange,
+            content: Text('Search failed: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
     }
-  }
-
-  List<User> _generateMockSearchResults(String query) {
-    // Generate mock users based on search query
-    final results = <User>[];
-    final queryLower = query.toLowerCase();
-    
-    // Create some mock users that match the search
-    for (int i = 1; i <= 5; i++) {
-      final handle = '${queryLower}_user$i';
-      final user = User(
-        id: 'user_${handle}_${DateTime.now().millisecondsSinceEpoch + i}',
-        email: '${handle}@demo.com',
-        virtualNumber: 'VN${1000 + i}',
-        handle: handle,
-        fullName: '${queryLower.substring(0, 1).toUpperCase()}${queryLower.substring(1)} User $i',
-        bio: 'Hello, I\'m ${queryLower} user $i',
-        isDiscoverable: true,
-        createdAt: DateTime.now().subtract(Duration(days: i * 10)),
-        updatedAt: DateTime.now(),
-      );
-      
-      // Don't include current user in results
-      if (user.id != _currentUserId) {
-        results.add(user);
-      }
-    }
-    
-    return results;
   }
 
   @override
@@ -297,418 +196,78 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       appBar: AppBar(
         title: const Text('Find Friends'),
         elevation: 0,
-        actions: [
-          // Friend requests button
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FriendRequestsScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.person_add_outlined),
-            tooltip: 'Friend requests',
-          ),
-        ],
+        backgroundColor: Theme.of(context).colorScheme.surface,
       ),
       body: Column(
         children: [
-          _buildSearchBar(),
+          // Search Bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                ),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name, username, or virtual number...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                            _hasSearched = false;
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              ),
+            ),
+          ),
+          
+          // Content
           Expanded(
-            child: _buildSearchContent(),
+            child: _buildContent(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-          ),
-        ),
-      ),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search by username or name...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchResults = [];
-                      _hasSearched = false;
-                    });
-                  },
-                  icon: const Icon(Icons.clear),
-                )
-              : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceVariant,
-        ),
-        textInputAction: TextInputAction.search,
-        onSubmitted: _performSearch,
-      ),
-    );
-  }
-
-  Widget _buildSearchContent() {
+  Widget _buildContent() {
     if (_loading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Searching...'),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_hasSearched && _searchResults.isEmpty) {
-      return _buildNoResults();
+      return _buildEmptySearchResults();
     }
 
     if (_hasSearched && _searchResults.isNotEmpty) {
       return _buildSearchResults();
     }
 
-    return _buildInitialState();
-  }
-
-  Widget _buildInitialState() {
     if (_loading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading users...'),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header section
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Discover People',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Find and connect with interesting people',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Trending Users Section
-          if (_trendingUsers.isNotEmpty) ...[
-            _buildSectionHeader('Trending', Icons.trending_up),
-            _buildHorizontalUserList(_trendingUsers),
-            const SizedBox(height: 24),
-          ],
-          
-          // Suggested Users Section
-          if (_suggestedUsers.isNotEmpty) ...[
-            _buildSectionHeader('Suggested for You', Icons.people_outline),
-            _buildVerticalUserList(_suggestedUsers),
-          ],
-        ],
-      ),
-    );
+    return _buildExploreContent();
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHorizontalUserList(List<User> users) {
-    return SizedBox(
-      height: 200,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: users.length,
-        itemBuilder: (context, index) {
-          final user = users[index];
-          return Container(
-            width: 140,
-            margin: const EdgeInsets.only(right: 12),
-            child: _buildHorizontalUserCard(user),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildHorizontalUserCard(User user) {
-    final isFollowing = _followingStatus[user.id] ?? false;
-    final random = Random(user.id.hashCode);
-    final followerCount = ['1.2K', '5.8K', '12.3K', '890', '25.1K', '3.4K'][random.nextInt(6)];
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            // Profile Picture
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: _getAvatarColor(user.id),
-              child: Text(
-                user.displayName.substring(0, 1).toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 24,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            
-            // Name
-            Text(
-              user.displayName,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            
-            // Handle
-            Text(
-              '@${user.handle}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            
-            // Followers
-            Text(
-              '$followerCount followers',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            
-            const Spacer(),
-            
-            // Follow Button
-            SizedBox(
-              width: double.infinity,
-              height: 32,
-              child: ElevatedButton(
-                onPressed: () => _toggleFollow(user),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isFollowing 
-                      ? Theme.of(context).colorScheme.surfaceVariant
-                      : Theme.of(context).colorScheme.primary,
-                  foregroundColor: isFollowing 
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
-                      : Theme.of(context).colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: EdgeInsets.zero,
-                ),
-                child: Text(
-                  isFollowing ? 'Following' : 'Follow',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerticalUserList(List<User> users) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: users.length,
-      itemBuilder: (context, index) {
-        final user = users[index];
-        return _buildVerticalUserCard(user);
-      },
-    );
-  }
-
-  Widget _buildVerticalUserCard(User user) {
-    final isFollowing = _followingStatus[user.id] ?? false;
-    final random = Random(user.id.hashCode);
-    final followerCount = ['1.2K', '5.8K', '12.3K', '890', '25.1K', '3.4K'][random.nextInt(6)];
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundColor: _getAvatarColor(user.id),
-          child: Text(
-            user.displayName.substring(0, 1).toUpperCase(),
-            style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                user.displayName,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (user.displayName.contains('Swift') || user.displayName.contains('Freeman'))
-              Icon(
-                Icons.verified,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '@${user.handle}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              user.bio ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$followerCount followers',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
-          ],
-        ),
-        trailing: SizedBox(
-          width: 80,
-          height: 32,
-          child: ElevatedButton(
-            onPressed: () => _toggleFollow(user),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isFollowing 
-                  ? Theme.of(context).colorScheme.surfaceVariant
-                  : Theme.of(context).colorScheme.primary,
-              foregroundColor: isFollowing 
-                  ? Theme.of(context).colorScheme.onSurfaceVariant
-                  : Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: EdgeInsets.zero,
-            ),
-            child: Text(
-              isFollowing ? 'Following' : 'Follow',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        onTap: () => _showUserProfile(user),
-      ),
-    );
-  }
-
-  Color _getAvatarColor(String userId) {
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.indigo,
-      Colors.pink,
-    ];
-    return colors[userId.hashCode % colors.length];
-  }
-
-  Widget _buildNoResults() {
+  Widget _buildEmptySearchResults() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -721,17 +280,14 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           const SizedBox(height: 16),
           Text(
             'No users found',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'Try searching with a different username or name',
+            'Try searching with a different term',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -744,82 +300,91 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final user = _searchResults[index];
-        return _buildUserTile(user);
+        return _buildUserCard(user);
       },
     );
   }
 
-  Widget _buildUserTile(User user) {
+  Widget _buildExploreContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_trendingUsers.isNotEmpty) ...[
+            _buildSectionHeader('Trending'),
+            _buildUserList(_trendingUsers),
+            const SizedBox(height: 24),
+          ],
+          
+          if (_suggestedUsers.isNotEmpty) ...[
+            _buildSectionHeader('Suggested for you'),
+            _buildUserList(_suggestedUsers),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserList(List<User> users) {
+    return Column(
+      children: users.map((user) => _buildUserCard(user)).toList(),
+    );
+  }
+
+  Widget _buildUserCard(User user) {
     final isFollowing = _followingStatus[user.id] ?? false;
     
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
-          radius: 24,
-          backgroundColor: _getAvatarColor(user.id),
-          child: Text(
-            user.displayName.substring(0, 1).toUpperCase(),
-            style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          backgroundImage: user.profilePicture?.isNotEmpty == true
+              ? NetworkImage(user.profilePicture!)
+              : null,
+          child: user.profilePicture?.isEmpty != false
+              ? Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?')
+              : null,
         ),
-        title: Text(
-          user.displayName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: Text(user.fullName),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '@${user.handle}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-            if (user.bio != null && user.bio!.isNotEmpty) ...[
-              const SizedBox(height: 2),
+            Text('@${user.handle}'),
+            if (user.virtualNumber?.isNotEmpty == true)
               Text(
-                user.bio!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                user.virtualNumber!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-            ],
           ],
         ),
         trailing: SizedBox(
-          width: 80,
-          height: 32,
+          width: 100,
           child: ElevatedButton(
-            onPressed: () => _toggleFollow(user),
+            onPressed: () => _handleUserAction(user),
             style: ElevatedButton.styleFrom(
               backgroundColor: isFollowing 
-                  ? Theme.of(context).colorScheme.surfaceVariant
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
                   : Theme.of(context).colorScheme.primary,
               foregroundColor: isFollowing 
-                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  ? Theme.of(context).colorScheme.onSurface
                   : Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: EdgeInsets.zero,
             ),
-            child: Text(
-              isFollowing ? 'Following' : 'Follow',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text(isFollowing ? 'Message' : 'Add Friend'),
           ),
         ),
         onTap: () => _showUserProfile(user),
@@ -828,249 +393,68 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   }
 
   void _showUserProfile(User user) {
-    final isFollowing = _followingStatus[user.id] ?? false;
-    final random = Random(user.id.hashCode);
-    final followerCount = ['1.2K', '5.8K', '12.3K', '890', '25.1K', '3.4K'][random.nextInt(6)];
-    final followingCount = ['234', '1.1K', '567', '89', '2.3K', '445'][random.nextInt(6)];
-    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        contentPadding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Container(
-          width: 300,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Profile Picture
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: _getAvatarColor(user.id),
-                child: Text(
-                  user.displayName.substring(0, 1).toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 32,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Name and verification
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    user.displayName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (user.displayName.contains('Swift') || user.displayName.contains('Freeman')) ...[
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.verified,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Handle
-              Text(
-                '@${user.handle}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                ),
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Bio
-              if (user.bio != null && user.bio!.isNotEmpty)
-                Text(
-                  user.bio!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              
-              const SizedBox(height: 16),
-              
-              // Stats
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildStatColumn('Followers', followerCount),
-                  _buildStatColumn('Following', followingCount),
-                  _buildStatColumn('Joined', _formatDate(user.createdAt)),
-                ],
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _toggleFollow(user),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isFollowing 
-                            ? Theme.of(context).colorScheme.surfaceVariant
-                            : Theme.of(context).colorScheme.primary,
-                        foregroundColor: isFollowing 
-                            ? Theme.of(context).colorScheme.onSurfaceVariant
-                            : Theme.of(context).colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(isFollowing ? 'Following' : 'Follow'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FutureBuilder<bool>(
-                      future: _canMessageUser(user),
-                      builder: (context, snapshot) {
-                        final canMessage = snapshot.data ?? false;
-                        
-                        if (canMessage) {
-                          return OutlinedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _openChatWithUser(user);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text('Message'),
-                          );
-                        } else {
-                          return OutlinedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _showFriendRequestDialog(user);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text('Add Friend'),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
+        title: Text(user.fullName),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundImage: user.profilePicture?.isNotEmpty == true
+                  ? NetworkImage(user.profilePicture!)
+                  : null,
+              child: user.profilePicture?.isEmpty != false
+                  ? Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?')
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text('@${user.handle}'),
+            if (user.bio.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(user.bio),
             ],
-          ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _openChatWithUser(User user) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => FriendChatScreen(
-          recipientId: user.id,
-          recipientName: user.displayName,
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 365) {
-      return '${(difference.inDays / 365).floor()} year${(difference.inDays / 365).floor() == 1 ? '' : 's'} ago';
-    } else if (difference.inDays > 30) {
-      return '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() == 1 ? '' : 's'} ago';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-    } else {
-      return 'Today';
-    }
-  }
-
-  /// Check if current user can message the given user (must be friends)
-  Future<bool> _canMessageUser(User user) async {
-    final currentUser = await UserService.getCurrentUser();
-    if (currentUser == null) return false;
-    
-    // Users can always message themselves
-    if (currentUser.id == user.id) return true;
-    
-    // Check if they are friends
-    return await FriendshipService.instance.areFriends(currentUser.id, user.id);
-  }
-
-  /// Show friend request dialog
-  Future<void> _showFriendRequestDialog(User user) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Send Friend Request to ${user.displayName}'),
-        content: const Text(
-          'You need to be friends to send messages. Would you like to send a friend request?'
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Send Request'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _handleUserAction(user);
+            },
+            child: const Text('Add Friend'),
           ),
         ],
       ),
     );
+  }
 
-    if (result == true) {
+  Future<void> _handleUserAction(User user) async {
+    final isFollowing = _followingStatus[user.id] ?? false;
+    
+    if (isFollowing) {
+      // Navigate to chat
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => FriendChatScreen(
+            recipientId: user.id,
+            recipientName: user.fullName,
+            recipientHandle: user.handle,
+            recipientAvatar: user.profilePicture ?? '',
+          ),
+        ),
+      );
+    } else {
+      // Send friend request
       await _sendFriendRequest(user);
     }
   }
 
-  /// Send friend request to user
   Future<void> _sendFriendRequest(User user) async {
     final currentUser = await UserService.getCurrentUser();
     if (currentUser == null) return;
@@ -1086,19 +470,15 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Friend request sent to ${user.displayName}'),
+              content: Text('Friend request sent to ${user.fullName}'),
               backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Failed to send friend request'),
+            const SnackBar(
+              content: Text('Failed to send friend request'),
               backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -1109,8 +489,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           SnackBar(
             content: Text('Error: $e'),
             backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
           ),
         );
       }

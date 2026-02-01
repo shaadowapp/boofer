@@ -152,6 +152,42 @@ class FriendRequest {
 
   @override
   int get hashCode => id.hashCode;
+
+  /// Create FriendRequest from Firestore document
+  factory FriendRequest.fromFirestore(Map<String, dynamic> data, String documentId) {
+    return FriendRequest(
+      id: documentId,
+      fromUserId: data['fromUserId'] ?? '',
+      toUserId: data['toUserId'] ?? '',
+      message: data['message'],
+      status: FriendRequestStatus.values.firstWhere(
+        (e) => e.toString() == 'FriendRequestStatus.${data['status'] ?? 'pending'}',
+        orElse: () => FriendRequestStatus.pending,
+      ),
+      sentAt: data['sentAt'] != null 
+          ? DateTime.parse(data['sentAt']) 
+          : DateTime.now(),
+      respondedAt: data['respondedAt'] != null 
+          ? DateTime.parse(data['respondedAt']) 
+          : null,
+      metadata: data['metadata'] != null 
+          ? Map<String, dynamic>.from(data['metadata']) 
+          : null,
+    );
+  }
+
+  /// Convert FriendRequest to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'fromUserId': fromUserId,
+      'toUserId': toUserId,
+      'message': message,
+      'status': status.toString().split('.').last,
+      'sentAt': sentAt.toIso8601String(),
+      'respondedAt': respondedAt?.toIso8601String(),
+      'metadata': metadata,
+    };
+  }
 }
 
 /// Model for friend request statistics

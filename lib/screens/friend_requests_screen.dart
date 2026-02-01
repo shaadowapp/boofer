@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/friend_request_provider.dart';
+import '../providers/firestore_user_provider.dart';
 import '../models/friend_request_model.dart';
 import '../models/user_model.dart';
-import '../services/firebase_service.dart';
 
 /// Screen showing friend requests (like Instagram/Snapchat)
 class FriendRequestsScreen extends StatefulWidget {
@@ -16,6 +16,7 @@ class FriendRequestsScreen extends StatefulWidget {
 class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  final Map<String, User?> _userCache = {};
 
   @override
   void initState() {
@@ -33,6 +34,25 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Get user by ID with caching to prevent UI freezing
+  Future<User?> _getUserById(String userId) async {
+    // Check cache first
+    if (_userCache.containsKey(userId)) {
+      return _userCache[userId];
+    }
+
+    try {
+      final userProvider = context.read<FirestoreUserProvider>();
+      final user = await userProvider.getUserById(userId);
+      _userCache[userId] = user;
+      return user;
+    } catch (e) {
+      print('❌ Error getting user $userId: $e');
+      _userCache[userId] = null;
+      return null;
+    }
   }
 
   @override
@@ -513,15 +533,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         ],
       ),
     );
-  }
-
-  Future<User?> _getUserById(String userId) async {
-    try {
-      final users = await FirebaseService.instance.searchUsers(userId);
-      return users.firstWhere((user) => user.id == userId);
-    } catch (e) {
-      return null;
-    }
   }
 
   String _formatTimeAgo(DateTime dateTime) {

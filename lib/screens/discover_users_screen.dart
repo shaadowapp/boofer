@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/follow_provider.dart';
+import '../providers/firestore_user_provider.dart';
 import '../models/user_model.dart';
 import '../widgets/follow_button.dart';
-import '../services/firebase_service.dart';
+import '../services/follow_service.dart';
 
 /// Screen for discovering new users to follow
 class DiscoverUsersScreen extends StatefulWidget {
@@ -17,19 +17,19 @@ class _DiscoverUsersScreenState extends State<DiscoverUsersScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final FriendRequestService _followService = FriendRequestService.instance;
   
   List<User> _searchResults = [];
+  List<User> _suggestedUsers = [];
   bool _isSearching = false;
+  bool _isLoading = false;
   String _searchError = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FollowProvider>().loadSuggestedUsers();
-    });
+    _loadSuggestedUsers();
   }
 
   @override
@@ -37,6 +37,61 @@ class _DiscoverUsersScreenState extends State<DiscoverUsersScreen>
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSuggestedUsers() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final users = await _followService.getSuggestedUsers(limit: 20);
+      setState(() {
+        _suggestedUsers = users;
+        _isLoading = false;
+      });
+      print('✅ Loaded ${users.length} suggested users');
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('❌ Error loading suggested users: $e');
+    }
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+        _searchError = '';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchError = '';
+    });
+
+    try {
+      final userProvider = context.read<FirestoreUserProvider>();
+      final results = await userProvider.searchUsers(query);
+      
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+      
+      print('✅ Search completed: ${results.length} results for "$query"');
+    } catch (e) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+        _searchError = 'Search failed: $e';
+      });
+      print('❌ Search error: $e');
+    }
   }
 
   @override
@@ -64,35 +119,255 @@ class _DiscoverUsersScreenState extends State<DiscoverUsersScreen>
   }
 
   Widget _buildSuggestedTab() {
-    return Consumer<FollowProvider>(
-      builder: (context, followProvider, child) {
-        final suggestedUsers = followProvider.getSuggestedUsers();
-        final isLoading = followProvider.isLoading;
-        final error = followProvider.error;
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
 
-        if (isLoading && suggestedUsers.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(),
+    if (_suggestedUsers.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No suggestions available',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try refreshing or check back later',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadSuggestedUsers,
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadSuggestedUsers,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _suggestedUsers.length,
+        itemBuilder: (context, index) {
+          final user = _suggestedUsers[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundImage: user.profilePicture.isNotEmpty
+                    ? NetworkImage(user.profilePicture)
+                    : null,
+                child: user.profilePicture.isEmpty
+                    ? Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?')
+                    : null,
+              ),
+              title: Text(user.fullName),
+              subtitle: Text('@${user.handle}'),
+              trailing: FollowButton(
+                userId: user.id,
+                isFollowing: false, // TODO: Check actual follow status
+                onFollowChanged: (isFollowing) {
+                  // TODO: Handle follow state change
+                },
+              ),
+              onTap: () {
+                // TODO: Navigate to user profile
+              },
+            ),
           );
-        }
+        },
+      ),
+    );
+  }
 
-        if (error != null && suggestedUsers.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildSearchTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search by name, username, or #number',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _performSearch('');
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (value) {
+              // Debounce search
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (_searchController.text == value) {
+                  _performSearch(value);
+                }
+              });
+            },
+          ),
+        ),
+        Expanded(
+          child: _buildSearchResults(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_isSearching) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_searchError.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Search Error',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchError,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchController.text.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Search for people',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter a name, username, or virtual number',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No users found',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try a different search term',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        final user = _searchResults[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundImage: user.profilePicture.isNotEmpty
+                  ? NetworkImage(user.profilePicture)
+                  : null,
+              child: user.profilePicture.isEmpty
+                  ? Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?')
+                  : null,
+            ),
+            title: Text(user.fullName),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to load suggestions',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
+                Text('@${user.handle}'),
+                if (user.virtualNumber.isNotEmpty)
+                  Text(
+                    user.virtualNumber,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+              ],
+            ),
+            trailing: FollowButton(
+              userId: user.id,
+              isFollowing: false, // TODO: Check actual follow status
+              onFollowChanged: (isFollowing) {
+                // TODO: Handle follow state change
+              },
+            ),
+            onTap: () {
+              // TODO: Navigate to user profile
+            },
+          ),
+        );
+      },
+    );
+  }
                   error,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

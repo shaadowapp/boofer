@@ -255,4 +255,64 @@ class User {
 
   @override
   int get hashCode => id.hashCode;
+
+  /// Create User from Firestore document
+  factory User.fromFirestore(Map<String, dynamic> data, String documentId) {
+    return User(
+      id: documentId,
+      email: data['email'] ?? '',
+      handle: data['handle'] ?? '',
+      fullName: data['fullName'] ?? '',
+      bio: data['bio'] ?? '',
+      isDiscoverable: data['isDiscoverable'] ?? true,
+      lastUsernameChange: data['lastUsernameChange'] != null 
+          ? DateTime.parse(data['lastUsernameChange']) 
+          : null,
+      createdAt: data['createdAt'] != null 
+          ? DateTime.parse(data['createdAt']) 
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] != null 
+          ? DateTime.parse(data['updatedAt']) 
+          : DateTime.now(),
+      profilePicture: data['profilePicture'],
+      status: UserStatus.values.firstWhere(
+        (e) => e.toString() == 'UserStatus.${data['status'] ?? 'offline'}',
+        orElse: () => UserStatus.offline,
+      ),
+      lastSeen: data['lastSeen'] != null 
+          ? DateTime.parse(data['lastSeen']) 
+          : null,
+      location: data['location'],
+      virtualNumber: data['virtualNumber'],
+      followerCount: data['followerCount'] ?? 0,
+      followingCount: data['followingCount'] ?? 0,
+      friendsCount: data['friendsCount'] ?? 0,
+      pendingReceivedRequests: data['pendingReceivedRequests'] ?? 0,
+      pendingSentRequests: data['pendingSentRequests'] ?? 0,
+    );
+  }
+
+  /// Convert User to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'email': email,
+      'handle': handle,
+      'fullName': fullName,
+      'bio': bio,
+      'isDiscoverable': isDiscoverable,
+      'lastUsernameChange': lastUsernameChange?.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'profilePicture': profilePicture,
+      'status': status.toString().split('.').last,
+      'lastSeen': lastSeen?.toIso8601String(),
+      'location': location,
+      'virtualNumber': virtualNumber,
+      'followerCount': followerCount,
+      'followingCount': followingCount,
+      'friendsCount': friendsCount,
+      'pendingReceivedRequests': pendingReceivedRequests,
+      'pendingSentRequests': pendingSentRequests,
+    };
+  }
 }

@@ -210,6 +210,100 @@ class FirestoreUserProvider with ChangeNotifier {
     if (query.trim().isEmpty) return [];
     
     try {
+      _setLoading(true);
+      final queryLower = query.toLowerCase().trim();
+      
+      print('🔍 Searching users with query: "$query"');
+      
+      // Search by multiple fields
+      final List<User> results = [];
+      final Set<String> addedUserIds = {};
+      
+      // 1. Search by handle (prefix match)
+      try {
+        final handleQuery = await _firestore
+            .collection('users')
+            .where('handle', isGreaterThanOrEqualTo: queryLower)
+            .where('handle', isLessThanOrEqualTo: queryLower + '\uf8ff')
+            .limit(10)
+            .get();
+        
+        for (final doc in handleQuery.docs) {
+          if (!addedUserIds.contains(doc.id)) {
+            results.add(User.fromFirestore(doc.data(), doc.id));
+            addedUserIds.add(doc.id);
+          }
+        }
+        print('✅ Found ${handleQuery.docs.length} users by handle');
+      } catch (e) {
+        print('⚠️ Handle search failed: $e');
+      }
+      
+      // 2. Search by virtual number (exact match)
+      if (query.contains('#')) {
+        try {
+          final virtualNumberQuery = await _firestore
+              .collection('users')
+              .where('virtualNumber', isEqualTo: query)
+              .limit(5)
+              .get();
+          
+          for (final doc in virtualNumberQuery.docs) {
+            if (!addedUserIds.contains(doc.id)) {
+              results.add(User.fromFirestore(doc.data(), doc.id));
+              addedUserIds.add(doc.id);
+            }
+          }
+          print('✅ Found ${virtualNumberQuery.docs.length} users by virtual number');
+        } catch (e) {
+          print('⚠️ Virtual number search failed: $e');
+        }
+      }
+      
+      // 3. Search by full name (get all users and filter - not ideal but works)
+      try {
+        final allUsersQuery = await _firestore
+            .collection('users')
+            .where('isDiscoverable', isEqualTo: true)
+            .limit(50)
+            .get();
+        
+        for (final doc in allUsersQuery.docs) {
+          if (!addedUserIds.contains(doc.id)) {
+            final user = User.fromFirestore(doc.data(), doc.id);
+            if (user.fullName.toLowerCase().contains(queryLower)) {
+              results.add(user);
+              addedUserIds.add(doc.id);
+            }
+          }
+        }
+        print('✅ Searched ${allUsersQuery.docs.length} users for full name matches');
+      } catch (e) {
+        print('⚠️ Full name search failed: $e');
+      }
+      
+      // 4. Also search in cached users
+      for (final user in _cachedUsers.values) {
+        if (user != null && !addedUserIds.contains(user.id)) {
+          if (user.handle.toLowerCase().contains(queryLower) ||
+              user.fullName.toLowerCase().contains(queryLower) ||
+              (user.virtualNumber?.contains(query) ?? false)) {
+            results.add(user);
+            addedUserIds.add(user.id);
+          }
+        }
+      }
+      
+      _setLoading(false);
+      print('✅ Total search results: ${results.length}');
+      return results;
+      
+    } catch (e) {
+      _setError('Search failed: $e');
+      return [];
+    }
+    
+    try {
       final queryLower = query.toLowerCase().trim();
       
       // Search by handle
@@ -257,20 +351,28 @@ class FirestoreUserProvider with ChangeNotifier {
   }
   
   /// Get user by ID
+  final Map<String, User?> _cachedUsers = {};
+  
   Future<User?> getUserById(String userId) async {
+    // Check cache first
+    if (_cachedUsers.containsKey(userId)) {
+      return _cachedUsers[userId];
+    }
+    
     try {
-      // Check cache first
-      final cachedUser = _allUsers.where((user) => user.id == userId).firstOrNull;
-      if (cachedUser != null) return cachedUser;
-      
-      // Fetch from Firestore
       final doc = await _firestore.collection('users').doc(userId).get();
+      
       if (doc.exists) {
-        return User.fromJson(doc.data()!);
+        final user = User.fromFirestore(doc.data()!, doc.id);
+        _cachedUsers[userId] = user;
+        return user;
+      } else {
+        _cachedUsers[userId] = null;
+        return null;
       }
-      return null;
     } catch (e) {
-      _setError('Failed to get user: $e');
+      print('❌ Error getting user by ID $userId: $e');
+      _cachedUsers[userId] = null;
       return null;
     }
   }
@@ -344,11 +446,32 @@ class FirestoreUserProvider with ChangeNotifier {
   }
   
   /// Get discoverable users for friend suggestions
-  List<User> getDiscoverableUsers({int limit = 20}) {
-    return _allUsers
-        .where((user) => user.id != _currentUser?.id) // Exclude current user
-        .take(limit)
-        .toList();
+  Future<List<User>> getDiscoverableUsers({int limit = 20}) async {
+    try {
+      final query = await _firestore
+          .collection('users')
+          .where('isDiscoverable', isEqualTo: true)
+          .limit(limit)
+          .get();
+
+      final users = query.docs.map((doc) {
+        final user = User.fromFirestore(doc.data(), doc.id);
+        // Cache the user
+        _cachedUsers[doc.id] = user;
+        return user;
+      }).toList();
+
+      print('✅ Loaded ${users.length} discoverable users');
+      return users;
+    } catch (e) {
+      print('❌ Error loading discoverable users: $e');
+      return [];
+    }
+  }
+  
+  /// Clear user cache
+  void clearUserCache() {
+    _cachedUsers.clear();
   }
   
   /// Refresh current user data

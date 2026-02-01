@@ -9,6 +9,7 @@ import 'providers/username_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/auth_state_provider.dart';
 import 'providers/firestore_user_provider.dart';
+import 'providers/friend_request_provider.dart';
 import 'services/chat_service.dart';
 import 'services/user_service.dart';
 import 'services/sync_service.dart';
@@ -54,6 +55,7 @@ class BooferApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthStateProvider()),
         ChangeNotifierProvider(create: (_) => FirestoreUserProvider()),
+        ChangeNotifierProvider(create: (_) => FriendRequestProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider(
           chatService: chatService,
           errorHandler: errorHandler,

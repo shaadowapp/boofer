@@ -5,20 +5,7 @@ import '../models/friend_request_model.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 
-/// Friend Request system service implementing Instagram/Snapchat-like patterns
-/// 
-/// Data Model:
-/// - friend_requests/{requestId} - Individual friend requests
-/// - users/{userId}/sent_requests/{requestId} - Outgoing requests
-/// - users/{userId}/received_requests/{requestId} - Incoming requests
-/// - friends/{userId}/friends/{friendId} - Mutual friendships
-/// - users/{userId} - User document with friend counts
-/// 
-/// Flow:
-/// 1. Send friend request → Creates pending request
-/// 2. Receive notification → Shows in friend requests screen
-/// 3. Accept/Reject → Becomes friends or gets rejected
-/// 4. Only friends can message each other
+/// Follow/Friend system service implementing Instagram/Snapchat-like patterns
 class FriendRequestService {
   static FriendRequestService? _instance;
   static FriendRequestService get instance => _instance ??= FriendRequestService._internal();
@@ -32,11 +19,140 @@ class FriendRequestService {
   final StreamController<List<FriendRequest>> _sentRequestsController = StreamController<List<FriendRequest>>.broadcast();
   final StreamController<FriendRequestStats> _statsController = StreamController<FriendRequestStats>.broadcast();
 
+  // Stream subscriptions
+  final Map<String, StreamSubscription> _subscriptions = {};
+
   Stream<List<FriendRequest>> get receivedRequestsStream => _receivedRequestsController.stream;
   Stream<List<FriendRequest>> get sentRequestsStream => _sentRequestsController.stream;
   Stream<FriendRequestStats> get statsStream => _statsController.stream;
 
-  /// Send a friend request (like Instagram/Snapchat)
+  /// Get suggested users for discovery
+  Future<List<User>> getSuggestedUsers({int limit = 20}) async {
+    try {
+      print('🔍 Loading suggested users from Firestore...');
+      
+      final query = await _firestore
+          .collection('users')
+          .where('isDiscoverable', isEqualTo: true)
+          .limit(limit)
+          .get();
+
+      final users = query.docs.map((doc) {
+        final data = doc.data();
+        return User.fromFirestore(data, doc.id);
+      }).cast<User>().toList();
+
+      print('✅ Loaded ${users.length} suggested users');
+      return users;
+    } catch (e) {
+      print('❌ Error loading suggested users: $e');
+      _errorHandler.handleError(AppError.service(
+        message: 'Failed to load suggested users: $e',
+        originalException: e is Exception ? e : Exception(e.toString()),
+      ));
+      return [];
+    }
+  }
+
+  /// Get followers for a user
+  Future<List<User>> getFollowers(String userId, {int limit = 50}) async {
+    try {
+      print('🔍 Loading followers for user: $userId');
+      
+      final query = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('followers')
+          .limit(limit)
+          .get();
+
+      final List<User> followers = [];
+      for (final doc in query.docs) {
+        final userData = await _firestore.collection('users').doc(doc.id).get();
+        if (userData.exists) {
+          followers.add(User.fromFirestore(userData.data()!, userData.id));
+        }
+      }
+
+      print('✅ Loaded ${followers.length} followers');
+      return followers;
+    } catch (e) {
+      print('❌ Error loading followers: $e');
+      return [];
+    }
+  }
+
+  /// Get following for a user
+  Future<List<User>> getFollowing(String userId, {int limit = 50}) async {
+    try {
+      print('🔍 Loading following for user: $userId');
+      
+      final query = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('following')
+          .limit(limit)
+          .get();
+
+      final List<User> following = [];
+      for (final doc in query.docs) {
+        final userData = await _firestore.collection('users').doc(doc.id).get();
+        if (userData.exists) {
+          following.add(User.fromFirestore(userData.data()!, userData.id));
+        }
+      }
+
+      print('✅ Loaded ${following.length} following');
+      return following;
+    } catch (e) {
+      print('❌ Error loading following: $e');
+      return [];
+    }
+  }
+
+  /// Check if user is following another user
+  Future<bool> isFollowing(String userId, String targetUserId) async {
+    try {
+      final doc = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('following')
+          .doc(targetUserId)
+          .get();
+      
+      return doc.exists;
+    } catch (e) {
+      print('❌ Error checking follow status: $e');
+      return false;
+    }
+  }
+
+  /// Get follow stats for a user
+  Future<FollowStats> getFollowStats(String userId) async {
+    try {
+      final followersQuery = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('followers')
+          .get();
+      
+      final followingQuery = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('following')
+          .get();
+
+      return FollowStats(
+        followersCount: followersQuery.docs.length,
+        followingCount: followingQuery.docs.length,
+      );
+    } catch (e) {
+      print('❌ Error getting follow stats: $e');
+      return FollowStats(followersCount: 0, followingCount: 0);
+    }
+  }
+
+  /// Send a friend request
   Future<bool> sendFriendRequest({
     required String fromUserId,
     required String toUserId,
@@ -48,86 +164,54 @@ class FriendRequestService {
 
     try {
       return await _firestore.runTransaction((transaction) async {
-        // Check if already friends
-        final friendshipDoc = await transaction.get(
-          _firestore.collection('friends').doc(fromUserId).collection('friends').doc(toUserId)
-        );
-        
-        if (friendshipDoc.exists) {
-          return false; // Already friends
-        }
-
         // Check if request already exists
-        final existingRequestQuery = await _firestore
+        final existingRequest = await _firestore
             .collection('friend_requests')
             .where('fromUserId', isEqualTo: fromUserId)
             .where('toUserId', isEqualTo: toUserId)
             .where('status', isEqualTo: 'pending')
             .get();
 
-        if (existingRequestQuery.docs.isNotEmpty) {
-          return false; // Request already sent
+        if (existingRequest.docs.isNotEmpty) {
+          print('⚠️ Friend request already exists');
+          return false;
         }
 
         // Create friend request
-        final request = FriendRequest.create(
+        final requestId = _firestore.collection('friend_requests').doc().id;
+        final request = FriendRequest(
+          id: requestId,
           fromUserId: fromUserId,
           toUserId: toUserId,
-          message: message ?? 'Hi! I\'d like to be friends.',
+          message: message,
+          status: FriendRequestStatus.pending,
+          sentAt: DateTime.now(),
         );
 
-        // Save main request document
         transaction.set(
-          _firestore.collection('friend_requests').doc(request.id),
-          request.toJson(),
+          _firestore.collection('friend_requests').doc(requestId),
+          request.toFirestore(),
         );
 
         // Add to sender's sent requests
         transaction.set(
-          _firestore.collection('users').doc(fromUserId).collection('sent_requests').doc(request.id),
-          {
-            'requestId': request.id,
-            'toUserId': toUserId,
-            'sentAt': request.sentAt.toIso8601String(),
-            'status': request.status.name,
-          },
+          _firestore.collection('users').doc(fromUserId).collection('sent_requests').doc(requestId),
+          {'requestId': requestId, 'toUserId': toUserId, 'createdAt': DateTime.now().toIso8601String()},
         );
 
         // Add to receiver's received requests
         transaction.set(
-          _firestore.collection('users').doc(toUserId).collection('received_requests').doc(request.id),
-          {
-            'requestId': request.id,
-            'fromUserId': fromUserId,
-            'sentAt': request.sentAt.toIso8601String(),
-            'status': request.status.name,
-          },
+          _firestore.collection('users').doc(toUserId).collection('received_requests').doc(requestId),
+          {'requestId': requestId, 'fromUserId': fromUserId, 'createdAt': DateTime.now().toIso8601String()},
         );
 
-        // Update sender's stats
-        transaction.update(
-          _firestore.collection('users').doc(fromUserId),
-          {
-            'pendingSentRequests': FieldValue.increment(1),
-            'updatedAt': DateTime.now().toIso8601String(),
-          },
-        );
-
-        // Update receiver's stats
-        transaction.update(
-          _firestore.collection('users').doc(toUserId),
-          {
-            'pendingReceivedRequests': FieldValue.increment(1),
-            'updatedAt': DateTime.now().toIso8601String(),
-          },
-        );
-
+        print('✅ Friend request sent successfully');
         return true;
       });
-    } catch (e, stackTrace) {
+    } catch (e) {
+      print('❌ Error sending friend request: $e');
       _errorHandler.handleError(AppError.service(
         message: 'Failed to send friend request: $e',
-        stackTrace: stackTrace,
         originalException: e is Exception ? e : Exception(e.toString()),
       ));
       return false;
@@ -135,566 +219,259 @@ class FriendRequestService {
   }
 
   /// Accept a friend request
-  Future<bool> acceptFriendRequest({
-    required String requestId,
-    required String userId,
-  }) async {
+  Future<bool> acceptFriendRequest(String requestId) async {
     try {
       return await _firestore.runTransaction((transaction) async {
-        // Get the request
         final requestDoc = await transaction.get(
           _firestore.collection('friend_requests').doc(requestId)
         );
 
         if (!requestDoc.exists) {
-          return false; // Request not found
+          throw Exception('Friend request not found');
         }
 
-        final request = FriendRequest.fromJson(requestDoc.data()!);
+        final request = FriendRequest.fromFirestore(requestDoc.data()!, requestDoc.id);
         
-        if (request.toUserId != userId || !request.isPending) {
-          return false; // Not authorized or already processed
+        if (request.status != FriendRequestStatus.pending) {
+          throw Exception('Friend request is not pending');
         }
-
-        final now = DateTime.now();
 
         // Update request status
         transaction.update(
           _firestore.collection('friend_requests').doc(requestId),
-          {
-            'status': FriendRequestStatus.accepted.name,
-            'respondedAt': now.toIso8601String(),
-          },
+          {'status': 'accepted', 'updatedAt': DateTime.now().toIso8601String()},
         );
 
         // Create mutual friendship
+        final friendshipData = {
+          'createdAt': DateTime.now().toIso8601String(),
+          'status': 'active',
+        };
+
         transaction.set(
           _firestore.collection('friends').doc(request.fromUserId).collection('friends').doc(request.toUserId),
-          {
-            'userId': request.toUserId,
-            'friendsSince': now.toIso8601String(),
-            'requestId': requestId,
-          },
+          friendshipData,
         );
 
         transaction.set(
           _firestore.collection('friends').doc(request.toUserId).collection('friends').doc(request.fromUserId),
-          {
-            'userId': request.fromUserId,
-            'friendsSince': now.toIso8601String(),
-            'requestId': requestId,
-          },
+          friendshipData,
         );
 
-        // Update sender's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId),
-          {'status': FriendRequestStatus.accepted.name},
+        // Clean up request references
+        transaction.delete(
+          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId)
+        );
+        transaction.delete(
+          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId)
         );
 
-        // Update receiver's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId),
-          {'status': FriendRequestStatus.accepted.name},
-        );
-
-        // Update user stats
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId),
-          {
-            'pendingSentRequests': FieldValue.increment(-1),
-            'friendsCount': FieldValue.increment(1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId),
-          {
-            'pendingReceivedRequests': FieldValue.increment(-1),
-            'friendsCount': FieldValue.increment(1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
+        print('✅ Friend request accepted successfully');
         return true;
       });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to accept friend request: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+    } catch (e) {
+      print('❌ Error accepting friend request: $e');
       return false;
     }
   }
 
   /// Reject a friend request
-  Future<bool> rejectFriendRequest({
-    required String requestId,
-    required String userId,
-  }) async {
+  Future<bool> rejectFriendRequest(String requestId) async {
     try {
       return await _firestore.runTransaction((transaction) async {
-        // Get the request
         final requestDoc = await transaction.get(
           _firestore.collection('friend_requests').doc(requestId)
         );
 
         if (!requestDoc.exists) {
-          return false; // Request not found
+          throw Exception('Friend request not found');
         }
 
-        final request = FriendRequest.fromJson(requestDoc.data()!);
-        
-        if (request.toUserId != userId || !request.isPending) {
-          return false; // Not authorized or already processed
-        }
-
-        final now = DateTime.now();
+        final request = FriendRequest.fromFirestore(requestDoc.data()!, requestDoc.id);
 
         // Update request status
         transaction.update(
           _firestore.collection('friend_requests').doc(requestId),
-          {
-            'status': FriendRequestStatus.rejected.name,
-            'respondedAt': now.toIso8601String(),
-          },
+          {'status': 'rejected', 'updatedAt': DateTime.now().toIso8601String()},
         );
 
-        // Update sender's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId),
-          {'status': FriendRequestStatus.rejected.name},
+        // Clean up request references
+        transaction.delete(
+          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId)
+        );
+        transaction.delete(
+          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId)
         );
 
-        // Update receiver's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId),
-          {'status': FriendRequestStatus.rejected.name},
-        );
-
-        // Update user stats
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId),
-          {
-            'pendingSentRequests': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId),
-          {
-            'pendingReceivedRequests': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
+        print('✅ Friend request rejected successfully');
         return true;
       });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to reject friend request: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+    } catch (e) {
+      print('❌ Error rejecting friend request: $e');
       return false;
     }
   }
 
   /// Cancel a sent friend request
-  Future<bool> cancelFriendRequest({
-    required String requestId,
-    required String userId,
-  }) async {
+  Future<bool> cancelFriendRequest(String requestId) async {
     try {
-      return await _firestore.runTransaction((transaction) async {
-        // Get the request
-        final requestDoc = await transaction.get(
-          _firestore.collection('friend_requests').doc(requestId)
-        );
-
-        if (!requestDoc.exists) {
-          return false; // Request not found
-        }
-
-        final request = FriendRequest.fromJson(requestDoc.data()!);
-        
-        if (request.fromUserId != userId || !request.isPending) {
-          return false; // Not authorized or already processed
-        }
-
-        final now = DateTime.now();
-
-        // Update request status
-        transaction.update(
-          _firestore.collection('friend_requests').doc(requestId),
-          {
-            'status': FriendRequestStatus.cancelled.name,
-            'respondedAt': now.toIso8601String(),
-          },
-        );
-
-        // Update sender's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId),
-          {'status': FriendRequestStatus.cancelled.name},
-        );
-
-        // Update receiver's collections
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId),
-          {'status': FriendRequestStatus.cancelled.name},
-        );
-
-        // Update user stats
-        transaction.update(
-          _firestore.collection('users').doc(request.fromUserId),
-          {
-            'pendingSentRequests': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        transaction.update(
-          _firestore.collection('users').doc(request.toUserId),
-          {
-            'pendingReceivedRequests': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        return true;
-      });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to cancel friend request: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return false;
-    }
-  }
-
-  /// Check if users are friends
-  Future<bool> areFriends({
-    required String userId1,
-    required String userId2,
-  }) async {
-    try {
-      final doc = await _firestore
-          .collection('friends')
-          .doc(userId1)
-          .collection('friends')
-          .doc(userId2)
-          .get();
-
-      return doc.exists;
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to check friendship status: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return false;
-    }
-  }
-
-  /// Check friend request status between two users
-  Future<FriendRequest?> getFriendRequestStatus({
-    required String fromUserId,
-    required String toUserId,
-  }) async {
-    try {
-      final query = await _firestore
-          .collection('friend_requests')
-          .where('fromUserId', isEqualTo: fromUserId)
-          .where('toUserId', isEqualTo: toUserId)
-          .orderBy('sentAt', descending: true)
-          .limit(1)
-          .get();
-
-      if (query.docs.isNotEmpty) {
-        return FriendRequest.fromJson(query.docs.first.data());
+      // Get the request first to get user IDs
+      final requestDoc = await _firestore.collection('friend_requests').doc(requestId).get();
+      if (!requestDoc.exists) {
+        print('❌ Friend request not found');
+        return false;
       }
 
-      return null;
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to get friend request status: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return null;
+      final request = FriendRequest.fromFirestore(requestDoc.data()!, requestDoc.id);
+
+      // Delete the request in a transaction
+      return await _firestore.runTransaction((transaction) async {
+        // Delete from main collection
+        transaction.delete(_firestore.collection('friend_requests').doc(requestId));
+        
+        // Delete from user subcollections
+        transaction.delete(
+          _firestore.collection('users').doc(request.fromUserId).collection('sent_requests').doc(requestId)
+        );
+        transaction.delete(
+          _firestore.collection('users').doc(request.toUserId).collection('received_requests').doc(requestId)
+        );
+
+        print('✅ Friend request cancelled successfully');
+        return true;
+      });
+    } catch (e) {
+      print('❌ Error cancelling friend request: $e');
+      return false;
     }
   }
 
-  /// Get received friend requests (pending)
-  Future<List<FriendRequest>> getReceivedFriendRequests({
-    required String userId,
-    int limit = 20,
-  }) async {
+  /// Get received friend requests
+  Future<List<FriendRequest>> getReceivedRequests(String userId) async {
     try {
       final query = await _firestore
           .collection('friend_requests')
           .where('toUserId', isEqualTo: userId)
           .where('status', isEqualTo: 'pending')
-          .orderBy('sentAt', descending: true)
-          .limit(limit)
+          .orderBy('createdAt', descending: true)
           .get();
 
-      return query.docs
-          .map((doc) => FriendRequest.fromJson(doc.data()))
-          .toList();
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to get received friend requests: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      return query.docs.map((doc) => FriendRequest.fromFirestore(doc.data(), doc.id)).cast<FriendRequest>().toList();
+    } catch (e) {
+      print('❌ Error getting received requests: $e');
       return [];
     }
   }
 
-  /// Get sent friend requests (pending)
-  Future<List<FriendRequest>> getSentFriendRequests({
-    required String userId,
-    int limit = 20,
-  }) async {
+  /// Get sent friend requests
+  Future<List<FriendRequest>> getSentRequests(String userId) async {
     try {
       final query = await _firestore
           .collection('friend_requests')
           .where('fromUserId', isEqualTo: userId)
           .where('status', isEqualTo: 'pending')
-          .orderBy('sentAt', descending: true)
-          .limit(limit)
+          .orderBy('createdAt', descending: true)
           .get();
 
-      return query.docs
-          .map((doc) => FriendRequest.fromJson(doc.data()))
-          .toList();
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to get sent friend requests: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      return query.docs.map((doc) => FriendRequest.fromFirestore(doc.data(), doc.id)).cast<FriendRequest>().toList();
+    } catch (e) {
+      print('❌ Error getting sent requests: $e');
       return [];
     }
   }
 
-  /// Get friends list
-  Future<List<User>> getFriends({
-    required String userId,
-    int limit = 50,
-  }) async {
-    try {
-      final query = await _firestore
+  /// Listen to received requests in real-time
+  void listenToReceivedRequests(String userId) {
+    _subscriptions['received_requests']?.cancel();
+    _subscriptions['received_requests'] = _firestore
+        .collection('friend_requests')
+        .where('toUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      final requests = snapshot.docs.map((doc) => FriendRequest.fromFirestore(doc.data(), doc.id)).cast<FriendRequest>().toList();
+      _receivedRequestsController.add(requests);
+    });
+  }
+
+  /// Listen to sent requests in real-time
+  void listenToSentRequests(String userId) {
+    _subscriptions['sent_requests']?.cancel();
+    _subscriptions['sent_requests'] = _firestore
+        .collection('friend_requests')
+        .where('fromUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      final requests = snapshot.docs.map((doc) => FriendRequest.fromFirestore(doc.data(), doc.id)).cast<FriendRequest>().toList();
+      _sentRequestsController.add(requests);
+    });
+  }
+
+  /// Listen to stats in real-time
+  void listenToStats(String userId) {
+    _subscriptions['stats']?.cancel();
+    
+    // Listen to received requests count
+    _subscriptions['stats'] = _firestore
+        .collection('friend_requests')
+        .where('toUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snapshot) async {
+      final receivedCount = snapshot.docs.length;
+      
+      // Get sent requests count
+      final sentQuery = await _firestore
+          .collection('friend_requests')
+          .where('fromUserId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+      
+      final sentCount = sentQuery.docs.length;
+      
+      // Get friends count
+      final friendsQuery = await _firestore
           .collection('friends')
           .doc(userId)
           .collection('friends')
-          .orderBy('friendsSince', descending: true)
-          .limit(limit)
           .get();
-
-      final friendIds = query.docs
-          .map((doc) => doc.data()['userId'] as String)
-          .toList();
-
-      return await _getUsersByIds(friendIds);
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to get friends: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return [];
-    }
-  }
-
-  /// Get friend request statistics
-  Future<FriendRequestStats> getFriendRequestStats(String userId) async {
-    try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userData = userDoc.data() ?? {};
-
-      return FriendRequestStats(
-        pendingReceived: userData['pendingReceivedRequests'] ?? 0,
-        pendingSent: userData['pendingSentRequests'] ?? 0,
-        totalFriends: userData['friendsCount'] ?? 0,
+      
+      final friendsCount = friendsQuery.docs.length;
+      
+      final stats = FriendRequestStats(
+        pendingReceived: receivedCount,
+        pendingSent: sentCount,
+        totalFriends: friendsCount,
         lastUpdated: DateTime.now(),
       );
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to get friend request stats: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return FriendRequestStats.empty();
-    }
+      
+      _statsController.add(stats);
+    });
   }
 
-  /// Remove friend (unfriend)
-  Future<bool> removeFriend({
-    required String userId,
-    required String friendId,
-  }) async {
-    try {
-      return await _firestore.runTransaction((transaction) async {
-        final now = DateTime.now();
-
-        // Remove friendship from both sides
-        transaction.delete(
-          _firestore.collection('friends').doc(userId).collection('friends').doc(friendId)
-        );
-
-        transaction.delete(
-          _firestore.collection('friends').doc(friendId).collection('friends').doc(userId)
-        );
-
-        // Update friend counts
-        transaction.update(
-          _firestore.collection('users').doc(userId),
-          {
-            'friendsCount': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        transaction.update(
-          _firestore.collection('users').doc(friendId),
-          {
-            'friendsCount': FieldValue.increment(-1),
-            'updatedAt': now.toIso8601String(),
-          },
-        );
-
-        return true;
-      });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to remove friend: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return false;
-    }
-  }
-
-  /// Listen to received friend requests
-  StreamSubscription<QuerySnapshot>? listenToReceivedRequests(String userId) {
-    try {
-      return _firestore
-          .collection('friend_requests')
-          .where('toUserId', isEqualTo: userId)
-          .where('status', isEqualTo: 'pending')
-          .snapshots()
-          .listen((snapshot) {
-        final requests = snapshot.docs
-            .map((doc) => FriendRequest.fromJson(doc.data()))
-            .toList();
-        _receivedRequestsController.add(requests);
-      });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to listen to received requests: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return null;
-    }
-  }
-
-  /// Listen to sent friend requests
-  StreamSubscription<QuerySnapshot>? listenToSentRequests(String userId) {
-    try {
-      return _firestore
-          .collection('friend_requests')
-          .where('fromUserId', isEqualTo: userId)
-          .where('status', isEqualTo: 'pending')
-          .snapshots()
-          .listen((snapshot) {
-        final requests = snapshot.docs
-            .map((doc) => FriendRequest.fromJson(doc.data()))
-            .toList();
-        _sentRequestsController.add(requests);
-      });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to listen to sent requests: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return null;
-    }
-  }
-
-  /// Listen to friend request stats
-  StreamSubscription<DocumentSnapshot>? listenToStats(String userId) {
-    try {
-      return _firestore
-          .collection('users')
-          .doc(userId)
-          .snapshots()
-          .listen((snapshot) {
-        if (snapshot.exists) {
-          final data = snapshot.data() as Map<String, dynamic>;
-          final stats = FriendRequestStats(
-            pendingReceived: data['pendingReceivedRequests'] ?? 0,
-            pendingSent: data['pendingSentRequests'] ?? 0,
-            totalFriends: data['friendsCount'] ?? 0,
-            lastUpdated: DateTime.now(),
-          );
-          _statsController.add(stats);
-        }
-      });
-    } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.service(
-        message: 'Failed to listen to stats: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
-      return null;
-    }
-  }
-
-  // Helper methods
-
-  /// Batch get users by IDs
-  Future<List<User>> _getUsersByIds(List<String> userIds) async {
-    if (userIds.isEmpty) return [];
-
-    final users = <User>[];
-    
-    // Firestore 'in' queries are limited to 10 items
-    final chunks = <List<String>>[];
-    for (int i = 0; i < userIds.length; i += 10) {
-      chunks.add(userIds.sublist(i, i + 10 > userIds.length ? userIds.length : i + 10));
-    }
-
-    for (final chunk in chunks) {
-      final snapshot = await _firestore
-          .collection('users')
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
-
-      for (final doc in snapshot.docs) {
-        try {
-          users.add(User.fromJson(doc.data()));
-        } catch (e) {
-          // Skip invalid user documents
-          continue;
-        }
-      }
-    }
-
-    return users;
-  }
-
+  /// Dispose resources
   void dispose() {
+    for (final subscription in _subscriptions.values) {
+      subscription.cancel();
+    }
+    _subscriptions.clear();
+    
     _receivedRequestsController.close();
     _sentRequestsController.close();
     _statsController.close();
   }
+}
+
+/// Follow statistics model
+class FollowStats {
+  final int followersCount;
+  final int followingCount;
+
+  FollowStats({
+    required this.followersCount,
+    required this.followingCount,
+  });
 }
