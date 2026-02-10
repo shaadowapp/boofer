@@ -692,6 +692,55 @@ class FriendRequestService {
     return users;
   }
 
+  /// Remove friendship (unfriend)
+  Future<bool> removeFriendship({
+    required String userId,
+    required String friendId,
+  }) async {
+    try {
+      return await _firestore.runTransaction((transaction) async {
+        // Remove friendship from both sides
+        transaction.delete(
+          _firestore.collection('friends').doc(userId).collection('friends').doc(friendId)
+        );
+        transaction.delete(
+          _firestore.collection('friends').doc(friendId).collection('friends').doc(userId)
+        );
+
+        // Update friend counts
+        final userDoc = await transaction.get(_firestore.collection('users').doc(userId));
+        final friendDoc = await transaction.get(_firestore.collection('users').doc(friendId));
+
+        if (userDoc.exists) {
+          final currentCount = userDoc.data()?['friendCount'] ?? 0;
+          transaction.update(
+            _firestore.collection('users').doc(userId),
+            {'friendCount': (currentCount - 1).clamp(0, double.infinity).toInt()},
+          );
+        }
+
+        if (friendDoc.exists) {
+          final currentCount = friendDoc.data()?['friendCount'] ?? 0;
+          transaction.update(
+            _firestore.collection('users').doc(friendId),
+            {'friendCount': (currentCount - 1).clamp(0, double.infinity).toInt()},
+          );
+        }
+
+        return true;
+      });
+    } catch (e) {
+      _errorHandler.handleError(AppError(
+        message: 'Failed to remove friendship',
+        code: 'REMOVE_FRIENDSHIP_ERROR',
+        severity: ErrorSeverity.medium,
+        category: ErrorCategory.service,
+        originalException: e is Exception ? e : Exception(e.toString()),
+      ));
+      return false;
+    }
+  }
+
   void dispose() {
     _receivedRequestsController.close();
     _sentRequestsController.close();

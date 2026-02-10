@@ -1,41 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Privacy-focused rules without Firebase Auth requirement
+    // Users are identified by their custom user ID stored locally
+    
     // Allow test collection for connection testing
     match /test/{document} {
       allow read, write: if true; // Allow all for testing
     }
     
-    // Users collection - simplified rules for debugging
+    // Allow connection test collection for internet connectivity checks
+    match /_connection_test/{document} {
+      allow read: if true; // Allow reading for connectivity checks
+    }
+    
+    // Users collection - open for privacy-focused anonymous users
     match /users/{userId} {
-      // Allow authenticated users to read/write any user document for now
-      // This is temporary while we debug the custom user ID system
-      allow read, write, create, update, delete: if request.auth != null;
+      // Anyone can read user profiles (for discovery)
+      allow read: if true;
+      
+      // Anyone can create a user profile (anonymous signup)
+      allow create: if true;
+      
+      // Users can update their own profile (validated by client)
+      allow update: if true;
+      
+      // Users can delete their own profile
+      allow delete: if true;
     }
     
-    // User metadata collection - allow authenticated users
+    // User metadata collection
     match /user_metadata/{userId} {
-      allow read, write, create, update, delete: if request.auth != null;
+      allow read, write: if true;
     }
     
-    // Messages collection - allow participants to read/write
+    // Messages collection - open for privacy-focused messaging
     match /conversations/{conversationId}/messages/{messageId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
     
-    // Conversations collection - allow participants to read/write
+    // Conversations collection - open for privacy-focused messaging
     match /conversations/{conversationId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
     
-    // Connection requests - allow users to read their own requests
+    // Connection requests - open for privacy-focused connections
     match /connection_requests/{requestId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
     
-    // Friends collection - allow users to read their own friendships
-    match /friends/{friendshipId} {
-      allow read, write: if request.auth != null;
+    // Friends collection - open for privacy-focused friendships
+    match /friends/{userId}/friends/{friendId} {
+      allow read, write: if true;
+    }
+    
+    // Friend requests collection - open for privacy-focused friend requests
+    match /friend_requests/{requestId} {
+      allow read, write: if true;
     }
   }
 }

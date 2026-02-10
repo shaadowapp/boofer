@@ -92,6 +92,17 @@ class UnifiedStorageService {
     return prefs.getInt(key);
   }
   
+  // Double operations
+  static Future<bool> setDouble(String key, double value) async {
+    final prefs = await _prefs;
+    return await prefs.setDouble(key, value);
+  }
+  
+  static Future<double?> getDouble(String key) async {
+    final prefs = await _prefs;
+    return prefs.getDouble(key);
+  }
+  
   // Remove operations
   static Future<bool> remove(String key) async {
     final prefs = await _prefs;

@@ -86,14 +86,14 @@ void main() {
 
     testWidgets('displays messages when available', (WidgetTester tester) async {
       final testMessages = [
-        Message()
+        const Message()
           ..id = 1
           ..text = 'Hello'
           ..senderId = 'user1'
           ..timestamp = DateTime.now()
           ..isOffline = false
           ..status = MessageStatus.sent,
-        Message()
+        const Message()
           ..id = 2
           ..text = 'Hi there'
           ..senderId = 'user2'
@@ -150,7 +150,9 @@ void main() {
       when(mockChatService.isOnline).thenReturn(true);
       when(mockChatService.isOfflineMode).thenReturn(false);
       when(mockChatService.peerCount).thenReturn(0);
-      when(mockChatService.toggleMode()).thenAnswer((_) async {});
+      when(mockChatService.toggleMode()).thenAnswer((_) async {
+        return null;
+      });
 
       await tester.pumpWidget(
         MaterialApp(
@@ -167,7 +169,7 @@ void main() {
 
     testWidgets('scrolls to bottom when new message arrives', (WidgetTester tester) async {
       final testMessages = [
-        Message()
+        const Message()
           ..id = 1
           ..text = 'First message'
           ..senderId = 'user1'

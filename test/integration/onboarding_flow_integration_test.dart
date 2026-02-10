@@ -291,7 +291,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Complete Steps 1 and 2
-      await _completeSteps1And2(tester, 'Optional Test User');
+      await completeSteps1And2(tester, 'Optional Test User');
 
       // Step 3: Test optional actions
       expect(find.byType(OnboardingStep3), findsOneWidget);
@@ -328,7 +328,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Complete Steps 1 and 2
-      await _completeSteps1And2(tester, 'Copy Test User');
+      await completeSteps1And2(tester, 'Copy Test User');
 
       // Step 3: Test virtual number copy
       expect(find.byType(OnboardingStep3), findsOneWidget);
@@ -395,13 +395,13 @@ void main() {
       expect(find.text('Step 1 of 3'), findsOneWidget);
 
       // Complete Step 1
-      await _completeStep1(tester, 'Progress Test User');
+      await completeStep1(tester, 'Progress Test User');
 
       // Check Step 2 progress
       expect(find.text('Step 2 of 3'), findsOneWidget);
 
       // Complete Step 2
-      await _completeStep2(tester);
+      await completeStep2(tester);
 
       // Check Step 3 progress
       expect(find.text('Step 3 of 3'), findsOneWidget);
@@ -420,7 +420,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Complete Steps 1 and 2
-      await _completeSteps1And2(tester, 'Error Test User');
+      await completeSteps1And2(tester, 'Error Test User');
 
       // Step 3: Test error scenarios
       expect(find.byType(OnboardingStep3), findsOneWidget);
@@ -440,7 +440,7 @@ void main() {
   });
 
   // Helper methods
-  Future<void> _completeStep1(WidgetTester tester, String userName) async {
+  Future<void> completeStep1(WidgetTester tester, String userName) async {
     final nameField = find.byType(TextFormField);
     await tester.enterText(nameField, userName);
     await tester.pump();
@@ -454,7 +454,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> _completeStep2(WidgetTester tester) async {
+  Future<void> completeStep2(WidgetTester tester) async {
     final pinFields = find.byType(TextFormField);
     await tester.enterText(pinFields.first, '1234');
     await tester.pump();
@@ -466,8 +466,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> _completeSteps1And2(WidgetTester tester, String userName) async {
-    await _completeStep1(tester, userName);
-    await _completeStep2(tester);
+  Future<void> completeSteps1And2(WidgetTester tester, String userName) async {
+    await completeStep1(tester, userName);
+    await completeStep2(tester);
   }
 }

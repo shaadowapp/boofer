@@ -68,7 +68,7 @@ void main() {
 
     testWidgets('incomplete onboarding startup - should show onboarding', (WidgetTester tester) async {
       // Pre-populate incomplete onboarding data
-      final incompleteData = OnboardingData(
+      const incompleteData = OnboardingData(
         userName: 'Incomplete User',
         virtualNumber: '',
         pin: null,
@@ -92,7 +92,7 @@ void main() {
     testWidgets('corrupted data startup - should show onboarding', (WidgetTester tester) async {
       // Simulate corrupted data by saving invalid JSON
       try {
-        await LocalStorageService.saveOnboardingData(OnboardingData(
+        await LocalStorageService.saveOnboardingData(const OnboardingData(
           userName: '',
           virtualNumber: '',
           pin: null,

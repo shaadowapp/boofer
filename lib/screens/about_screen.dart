@@ -193,7 +193,7 @@ class AboutScreen extends StatelessWidget {
         ),
         Card(
           elevation: 0,
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
           child: Column(children: children),
         ),
       ],
@@ -473,7 +473,7 @@ class AboutScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (index) => 
-                Icon(
+                const Icon(
                   Icons.star,
                   color: Colors.amber,
                   size: 32,

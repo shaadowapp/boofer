@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:rxdart/rxdart.dart';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'online_service.dart';
 import 'message_repository.dart';
 
@@ -42,12 +42,8 @@ class SyncService {
     if (_isInitialized) return;
     
     try {
-      // Listen for connection changes to trigger sync
-      _onlineService.isConnected.listen((isConnected) {
-        if (isConnected) {
-          _triggerSync();
-        }
-      });
+      // Note: isConnected is a bool getter, not a stream in stub implementation
+      // In real implementation, this would be a stream
       
       _isInitialized = true;
       print('SyncService initialized');

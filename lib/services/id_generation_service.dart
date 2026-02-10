@@ -16,19 +16,33 @@ class IdGenerationService {
       String userId;
       bool isUnique = false;
       int attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 3; // Reduced from 10 to fail faster if offline
 
       do {
         userId = _generateUserIdFormat();
-        isUnique = await _isUserIdUnique(userId);
+        
+        // Try to check uniqueness, but don't fail if offline
+        try {
+          isUnique = await _isUserIdUnique(userId).timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {
+              print('⚠️ Timeout checking user ID uniqueness - assuming unique (offline mode)');
+              return true; // Assume unique if we can't check (offline)
+            },
+          );
+        } catch (e) {
+          print('⚠️ Error checking user ID uniqueness: $e - assuming unique (offline mode)');
+          isUnique = true; // Assume unique if we can't check (offline)
+        }
+        
         attempts++;
         
-        if (attempts >= maxAttempts) {
-          // Fallback with timestamp
+        if (attempts >= maxAttempts && !isUnique) {
+          // Fallback to timestamp-based ID
           userId = _generateTimestampBasedUserId();
           break;
         }
-      } while (!isUnique);
+      } while (!isUnique && attempts < maxAttempts);
 
       print('✅ Generated unique user ID: $userId (attempts: $attempts)');
       return userId;
@@ -62,7 +76,7 @@ class IdGenerationService {
     final segment3 = _generateRandomString(4, chars);
     final segment4 = timestamp.substring(timestamp.length - 6, timestamp.length - 2);
     
-    return '$segment1$segment2-$segment3-${segment1}$segment4';
+    return '$segment1$segment2-$segment3-$segment1$segment4';
   }
 
   /// Generate random string from character set
@@ -89,19 +103,33 @@ class IdGenerationService {
       String phoneNumber;
       bool isUnique = false;
       int attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 3; // Reduced from 10 to fail faster if offline
 
       do {
         phoneNumber = _generatePhoneNumberFormat();
-        isUnique = await _isPhoneNumberUnique(phoneNumber);
+        
+        // Try to check uniqueness, but don't fail if offline
+        try {
+          isUnique = await _isPhoneNumberUnique(phoneNumber).timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {
+              print('⚠️ Timeout checking phone number uniqueness - assuming unique (offline mode)');
+              return true; // Assume unique if we can't check (offline)
+            },
+          );
+        } catch (e) {
+          print('⚠️ Error checking phone number uniqueness: $e - assuming unique (offline mode)');
+          isUnique = true; // Assume unique if we can't check (offline)
+        }
+        
         attempts++;
         
-        if (attempts >= maxAttempts) {
+        if (attempts >= maxAttempts && !isUnique) {
           // Fallback with timestamp
           phoneNumber = _generateTimestampBasedPhoneNumber();
           break;
         }
-      } while (!isUnique);
+      } while (!isUnique && attempts < maxAttempts);
 
       print('✅ Generated unique phone number: $phoneNumber (attempts: $attempts)');
       return phoneNumber;

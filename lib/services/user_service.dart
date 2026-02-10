@@ -10,10 +10,20 @@ import 'local_storage_service.dart';
 class UserService {
   static UserService? _instance;
   static UserService get instance => _instance ??= UserService._internal();
-  UserService._internal();
-
-  final DatabaseManager _database = DatabaseManager.instance;
-  final ErrorHandler _errorHandler = ErrorHandler();
+  
+  final DatabaseManager _database;
+  final ErrorHandler _errorHandler;
+  
+  UserService._internal()
+      : _database = DatabaseManager.instance,
+        _errorHandler = ErrorHandler();
+  
+  // Named constructor for dependency injection
+  UserService({
+    required DatabaseManager database,
+    required ErrorHandler errorHandler,
+  })  : _database = database,
+        _errorHandler = errorHandler;
   final Map<String, User> _cache = {};
   final StreamController<List<User>> _usersController = StreamController<List<User>>.broadcast();
   

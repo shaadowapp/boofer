@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:rxdart/rxdart.dart';
-import '../models/network_state.dart';
+import '../../models/network_state.dart';
 import 'mesh_service.dart';
 import 'online_service.dart';
 
@@ -13,9 +13,12 @@ abstract class INetworkService {
   Future<void> initialize();
   Future<void> setMode(NetworkMode mode);
   Future<bool> checkInternetConnection();
+  Future<void> refreshNetworkState();
   NetworkState get currentNetworkState;
+  Map<String, dynamic> getNetworkStatistics();
   bool get isOnline;
   bool get isOffline;
+  void dispose();
 }
 
 /// Network monitoring service that manages connectivity and mode switching
@@ -30,7 +33,7 @@ class NetworkService implements INetworkService {
   final BehaviorSubject<NetworkState> _networkStateController = 
       BehaviorSubject<NetworkState>.seeded(NetworkState.initial());
   
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
   Timer? _connectionCheckTimer;
   Timer? _modeTransitionTimer;
   
@@ -165,8 +168,8 @@ class NetworkService implements INetworkService {
   /// Set up connectivity monitoring
   void _setupConnectivityMonitoring() {
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-      (List<ConnectivityResult> results) {
-        _handleConnectivityChange(results);
+      (ConnectivityResult result) {
+        _handleConnectivityChange(result);
       },
       onError: (error) {
         print('Connectivity monitoring error: $error');
@@ -175,12 +178,11 @@ class NetworkService implements INetworkService {
   }
 
   /// Handle connectivity changes
-  void _handleConnectivityChange(List<ConnectivityResult> results) async {
-    print('Connectivity changed: $results');
+  void _handleConnectivityChange(ConnectivityResult result) async {
+    print('Connectivity changed: $result');
     
     // Check if we have any connection
-    final hasConnection = results.any((result) => 
-        result != ConnectivityResult.none);
+    final hasConnection = result != ConnectivityResult.none;
     
     if (hasConnection) {
       // Test actual internet connectivity
@@ -200,12 +202,11 @@ class NetworkService implements INetworkService {
     try {
       // Try to connect to a reliable service
       // In a real app, you might ping your own server or a reliable endpoint
-      final result = await _connectivity.checkConnectivity();
+      final ConnectivityResult result = await _connectivity.checkConnectivity();
       
       // For now, we'll assume connection if we have WiFi or mobile data
-      return result.any((connectivity) => 
-          connectivity == ConnectivityResult.wifi ||
-          connectivity == ConnectivityResult.mobile);
+      return result == ConnectivityResult.wifi ||
+             result == ConnectivityResult.mobile;
           
     } catch (e) {
       print('Internet connection test failed: $e');
@@ -222,19 +223,10 @@ class NetworkService implements INetworkService {
 
   /// Set up listeners for service state changes
   void _setupServiceStateListeners() {
-    // Listen to mesh service state
-    _meshService.connectedPeersCount.listen((peerCount) {
-      _updateNetworkState(connectedPeers: peerCount);
-    });
-    
-    _meshService.isActive.listen((isActive) {
-      _updateNetworkState(isMeshActive: isActive);
-    });
-    
-    // Listen to online service state
-    _onlineService.isConnected.listen((isConnected) {
-      _updateNetworkState(isOnlineServiceActive: isConnected);
-    });
+    // For stub services, we don't have streams for these properties
+    // In a real implementation, these would be streams
+    // For now, we'll just skip setting up listeners
+    print('Service state listeners setup (stub implementation)');
   }
 
   /// Schedule service mode transition

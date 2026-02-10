@@ -25,7 +25,7 @@ class Follow {
     Map<String, dynamic>? metadata,
   }) {
     return Follow(
-      id: '${followerId}_${followingId}',
+      id: '${followerId}_$followingId',
       followerId: followerId,
       followingId: followingId,
       followedAt: DateTime.now(),

@@ -24,7 +24,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FollowProvider>().loadFollowing(widget.userId);
+      context.read<FriendRequestProvider>().loadFollowing(widget.userId);
     });
   }
 
@@ -39,7 +39,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
         ),
         elevation: 0,
       ),
-      body: Consumer<FollowProvider>(
+      body: Consumer<FriendRequestProvider>(
         builder: (context, followProvider, child) {
           final following = followProvider.getFollowing(widget.userId);
           final isLoading = followProvider.isLoading;
@@ -149,7 +149,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
   Widget _buildFollowingItem(
     BuildContext context,
     User user,
-    FollowProvider followProvider,
+    FriendRequestProvider followProvider,
   ) {
     final currentUserId = followProvider.currentUserId;
     final isCurrentUser = user.id == currentUserId;
@@ -215,7 +215,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
               FollowButton(
                 user: user,
                 compact: true,
-                onFollowChanged: () {
+                onStatusChanged: () {
                   // Refresh the list after unfollowing
                   followProvider.loadFollowing(widget.userId, refresh: true);
                 },

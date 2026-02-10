@@ -65,9 +65,9 @@ class UserProvider with ChangeNotifier {
   
   Future<void> updateUser(User user) async {
     try {
-      final updatedUser = await _userService.updateUser(user);
+      await UserService.updateUser(user);
       if (_currentUser?.id == user.id) {
-        _currentUser = updatedUser;
+        _currentUser = user.copyWith(updatedAt: DateTime.now());
         notifyListeners();
       }
     } catch (e) {

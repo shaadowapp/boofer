@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/user_model.dart';
-import '../services/google_auth_service.dart';
+import '../services/anonymous_auth_service.dart';
 import '../services/local_storage_service.dart';
 
 /// Provider that manages real user data from Firestore
 class FirestoreUserProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleAuthService _authService = GoogleAuthService();
+  final AnonymousAuthService _authService = AnonymousAuthService();
   
   User? _currentUser;
   List<User> _allUsers = [];
@@ -31,11 +30,11 @@ class FirestoreUserProvider with ChangeNotifier {
     try {
       _setLoading(true);
       
-      // Get current Firebase user
-      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
-      if (firebaseUser != null) {
-        await _initializeCurrentUser(firebaseUser.uid);
-        _listenToCurrentUser(firebaseUser.uid);
+      // Get current user ID from local storage (anonymous auth)
+      final customUserId = await LocalStorageService.getString('custom_user_id');
+      if (customUserId != null) {
+        await _initializeCurrentUser(customUserId);
+        _listenToCurrentUser(customUserId);
         _listenToAllUsers();
       }
       
@@ -48,16 +47,8 @@ class FirestoreUserProvider with ChangeNotifier {
   }
   
   /// Initialize current user from Firestore
-  Future<void> _initializeCurrentUser(String firebaseUid) async {
+  Future<void> _initializeCurrentUser(String customUserId) async {
     try {
-      // Get custom user ID from Firebase UID
-      final customUserId = await _getCustomUserIdFromFirebaseUid(firebaseUid);
-      
-      if (customUserId == null) {
-        print('⚠️ No custom user ID found for Firebase UID: $firebaseUid');
-        return;
-      }
-      
       final userDoc = await _firestore.collection('users').doc(customUserId).get();
       if (userDoc.exists) {
         _currentUser = User.fromJson(userDoc.data()!);
@@ -74,72 +65,30 @@ class FirestoreUserProvider with ChangeNotifier {
     }
   }
 
-  /// Get custom user ID from Firebase UID
-  Future<String?> _getCustomUserIdFromFirebaseUid(String firebaseUid) async {
-    try {
-      // Check local storage first
-      final mapping = await LocalStorageService.getString('firebase_to_custom_id');
-      if (mapping != null && mapping.contains(':')) {
-        final parts = mapping.split(':');
-        if (parts[0] == firebaseUid) {
-          return parts[1];
-        }
-      }
-      
-      // Query Firestore for user with this Firebase UID
-      final query = await _firestore
-          .collection('users')
-          .where('firebaseUid', isEqualTo: firebaseUid)
-          .limit(1)
-          .get();
-      
-      if (query.docs.isNotEmpty) {
-        final customUserId = query.docs.first.id;
-        // Store mapping locally for future use
-        await LocalStorageService.setString('firebase_to_custom_id', '$firebaseUid:$customUserId');
-        await LocalStorageService.setString('custom_user_id', customUserId);
-        return customUserId;
-      }
-      
-      return null;
-    } catch (e) {
-      print('❌ Error getting custom user ID: $e');
-      return null;
-    }
-  }
-  
   /// Listen to real-time updates for current user
-  void _listenToCurrentUser(String firebaseUid) {
+  void _listenToCurrentUser(String customUserId) {
     _currentUserSubscription?.cancel();
     
-    // Get custom user ID first
-    _getCustomUserIdFromFirebaseUid(firebaseUid).then((customUserId) {
-      if (customUserId == null) {
-        print('⚠️ Cannot listen to user updates: No custom user ID found');
-        return;
-      }
-      
-      _currentUserSubscription = _firestore
-          .collection('users')
-          .doc(customUserId)
-          .snapshots()
-          .listen(
-        (snapshot) {
-          if (snapshot.exists) {
-            _currentUser = User.fromJson(snapshot.data()!);
-            
-            // Update local storage
-            LocalStorageService.setString('current_user', _currentUser!.toJsonString());
-            
-            notifyListeners();
-            print('🔄 Current user updated: ${_currentUser!.fullName}');
-          }
-        },
-        onError: (error) {
-          _setError('Failed to listen to current user: $error');
-        },
-      );
-    });
+    _currentUserSubscription = _firestore
+        .collection('users')
+        .doc(customUserId)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          _currentUser = User.fromJson(snapshot.data()!);
+          
+          // Update local storage
+          LocalStorageService.setString('current_user', _currentUser!.toJsonString());
+          
+          notifyListeners();
+          print('🔄 Current user updated: ${_currentUser!.fullName}');
+        }
+      },
+      onError: (error) {
+        _setError('Failed to listen to current user: $error');
+      },
+    );
   }
   
   /// Listen to all users for discovery and search
@@ -206,7 +155,7 @@ class FirestoreUserProvider with ChangeNotifier {
   }
   
   /// Search users by name, handle, or virtual number
-  Future<List<User>> searchUsers(String query) async {
+  Future<List<User>> searchUsers(String query, {String? currentUserId}) async {
     if (query.trim().isEmpty) return [];
     
     try {
@@ -224,11 +173,14 @@ class FirestoreUserProvider with ChangeNotifier {
         final handleQuery = await _firestore
             .collection('users')
             .where('handle', isGreaterThanOrEqualTo: queryLower)
-            .where('handle', isLessThanOrEqualTo: queryLower + '\uf8ff')
+            .where('handle', isLessThanOrEqualTo: '$queryLower\uf8ff')
             .limit(10)
             .get();
         
         for (final doc in handleQuery.docs) {
+          // Skip current user
+          if (currentUserId != null && doc.id == currentUserId) continue;
+          
           if (!addedUserIds.contains(doc.id)) {
             results.add(User.fromFirestore(doc.data(), doc.id));
             addedUserIds.add(doc.id);
@@ -240,7 +192,7 @@ class FirestoreUserProvider with ChangeNotifier {
       }
       
       // 2. Search by virtual number (exact match)
-      if (query.contains('#')) {
+      if (query.contains('#') || query.contains('-')) {
         try {
           final virtualNumberQuery = await _firestore
               .collection('users')
@@ -249,6 +201,9 @@ class FirestoreUserProvider with ChangeNotifier {
               .get();
           
           for (final doc in virtualNumberQuery.docs) {
+            // Skip current user
+            if (currentUserId != null && doc.id == currentUserId) continue;
+            
             if (!addedUserIds.contains(doc.id)) {
               results.add(User.fromFirestore(doc.data(), doc.id));
               addedUserIds.add(doc.id);
@@ -269,6 +224,9 @@ class FirestoreUserProvider with ChangeNotifier {
             .get();
         
         for (final doc in allUsersQuery.docs) {
+          // Skip current user
+          if (currentUserId != null && doc.id == currentUserId) continue;
+          
           if (!addedUserIds.contains(doc.id)) {
             final user = User.fromFirestore(doc.data(), doc.id);
             if (user.fullName.toLowerCase().contains(queryLower)) {
@@ -285,6 +243,9 @@ class FirestoreUserProvider with ChangeNotifier {
       // 4. Also search in cached users
       for (final user in _cachedUsers.values) {
         if (user != null && !addedUserIds.contains(user.id)) {
+          // Skip current user
+          if (currentUserId != null && user.id == currentUserId) continue;
+          
           if (user.handle.toLowerCase().contains(queryLower) ||
               user.fullName.toLowerCase().contains(queryLower) ||
               (user.virtualNumber?.contains(query) ?? false)) {
@@ -295,57 +256,11 @@ class FirestoreUserProvider with ChangeNotifier {
       }
       
       _setLoading(false);
-      print('✅ Total search results: ${results.length}');
+      print('✅ Total search results: ${results.length} (current user filtered)');
       return results;
       
     } catch (e) {
       _setError('Search failed: $e');
-      return [];
-    }
-    
-    try {
-      final queryLower = query.toLowerCase().trim();
-      
-      // Search by handle
-      final handleQuery = await _firestore
-          .collection('users')
-          .where('handle', isGreaterThanOrEqualTo: queryLower)
-          .where('handle', isLessThan: queryLower + '\uf8ff')
-          .where('isDiscoverable', isEqualTo: true)
-          .limit(20)
-          .get();
-      
-      // Search by virtual number
-      final virtualNumberQuery = await _firestore
-          .collection('users')
-          .where('virtualNumber', isGreaterThanOrEqualTo: query.toUpperCase())
-          .where('virtualNumber', isLessThan: query.toUpperCase() + '\uf8ff')
-          .where('isDiscoverable', isEqualTo: true)
-          .limit(20)
-          .get();
-      
-      final users = <User>[];
-      final seenIds = <String>{};
-      
-      // Combine results and remove duplicates
-      for (final doc in [...handleQuery.docs, ...virtualNumberQuery.docs]) {
-        if (!seenIds.contains(doc.id)) {
-          users.add(User.fromJson(doc.data()));
-          seenIds.add(doc.id);
-        }
-      }
-      
-      // Also search in cached users by full name
-      final nameMatches = _allUsers.where((user) =>
-          user.fullName.toLowerCase().contains(queryLower) &&
-          !seenIds.contains(user.id)
-      ).toList();
-      
-      users.addAll(nameMatches);
-      
-      return users;
-    } catch (e) {
-      _setError('Failed to search users: $e');
       return [];
     }
   }
@@ -476,9 +391,9 @@ class FirestoreUserProvider with ChangeNotifier {
   
   /// Refresh current user data
   Future<void> refreshCurrentUser() async {
-    final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
-    if (firebaseUser != null) {
-      await _initializeCurrentUser(firebaseUser.uid);
+    final customUserId = await LocalStorageService.getString('custom_user_id');
+    if (customUserId != null) {
+      await _initializeCurrentUser(customUserId);
     }
   }
   

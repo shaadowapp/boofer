@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/archive_settings_provider.dart';
@@ -10,6 +11,7 @@ import 'providers/locale_provider.dart';
 import 'providers/auth_state_provider.dart';
 import 'providers/firestore_user_provider.dart';
 import 'providers/friend_request_provider.dart';
+import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
 import 'services/user_service.dart';
 import 'services/sync_service.dart';
@@ -17,10 +19,26 @@ import 'core/database/database_manager.dart';
 import 'core/error/error_handler.dart';
 import 'screens/main_screen.dart';
 import 'screens/friend_chat_screen.dart';
-import 'screens/firebase_debug_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/notification_settings_screen.dart';
+import 'screens/appearance_settings_screen.dart';
 import 'screens/auth/google_sign_in_screen.dart';
 import 'models/friend_model.dart';
 import 'l10n/app_localizations.dart';
+import 'services/notification_service.dart';
+
+/// Background message handler for Firebase Messaging
+/// This must be a top-level function
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Firebase if not already initialized
+  await Firebase.initializeApp();
+  
+  print('📬 Background message received: ${message.notification?.title}');
+  
+  // Handle the message (notification is automatically shown by the system)
+  // You can add custom logic here if needed
+}
 
 
 void main() async {
@@ -29,8 +47,28 @@ void main() async {
   // Initialize Firebase for real-time functionality
   await Firebase.initializeApp();
   
+  // Set up background message handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  
+  // Configure Firestore for offline support and reduce network spam
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    
+    // Disable network temporarily to prevent spam during initialization
+    // It will auto-enable when network is available
+    print('📱 Firestore configured with offline persistence');
+  } catch (e) {
+    print('⚠️ Firestore settings error (non-critical): $e');
+  }
+  
   // Initialize sync service for hybrid online/offline functionality
   await SyncService.instance.initialize();
+  
+  // Initialize notification service with channels
+  await NotificationService.instance.initialize();
   
   print('Starting beautiful Boofer app with real-time capabilities...');
   
@@ -53,6 +91,13 @@ class BooferApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProxyProvider<ThemeProvider, AppearanceProvider>(
+          create: (context) => AppearanceProvider(),
+          update: (context, themeProvider, appearanceProvider) {
+            appearanceProvider?.setThemeProvider(themeProvider);
+            return appearanceProvider!;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => AuthStateProvider()),
         ChangeNotifierProvider(create: (_) => FirestoreUserProvider()),
         ChangeNotifierProvider(create: (_) => FriendRequestProvider()),
@@ -75,10 +120,11 @@ class BooferApp extends StatelessWidget {
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SplashScreen(),
             routes: {
-              '/onboarding': (context) => const GoogleSignInScreen(), // Alias for logout compatibility
-              '/google-signin': (context) => const GoogleSignInScreen(),
+              '/onboarding': (context) => const OnboardingScreen(),
               '/main': (context) => const MainScreen(),
-              '/firebase-debug': (context) => FirebaseDebugScreen(),
+              '/google-signin': (context) => const GoogleSignInScreen(),
+              '/notification-settings': (context) => const NotificationSettingsScreen(),
+              '/appearance-settings': (context) => const AppearanceSettingsScreen(),
               '/chat': (context) {
                 final friend = ModalRoute.of(context)?.settings.arguments as Friend?;
                 if (friend != null) {
@@ -130,6 +176,10 @@ class _SplashScreenState extends State<SplashScreen> {
         _statusMessage = 'Checking authentication...';
       });
 
+      // Initialize appearance provider
+      final appearanceProvider = context.read<AppearanceProvider>();
+      await appearanceProvider.initialize();
+
       await Future.delayed(const Duration(seconds: 1));
       
       // Check if user is authenticated with Google
@@ -162,7 +212,7 @@ class _SplashScreenState extends State<SplashScreen> {
         await Future.delayed(const Duration(milliseconds: 500));
         
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/google-signin');
+          Navigator.pushReplacementNamed(context, '/onboarding');
         }
       }
     } catch (e) {
@@ -171,10 +221,10 @@ class _SplashScreenState extends State<SplashScreen> {
         _hasError = true;
       });
       
-      // Still proceed to sign-in after showing error
+      // Still proceed to onboarding after showing error
       await Future.delayed(const Duration(seconds: 3));
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/google-signin');
+        Navigator.pushReplacementNamed(context, '/onboarding');
       }
     }
   }
@@ -213,7 +263,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final firestore = FirebaseFirestore.instance;
       
       // Just test if we can access Firestore settings (doesn't require auth)
-      await firestore.settings;
+      firestore.settings;
       
       print('✅ Firebase connection successful!');
       setState(() {
@@ -284,13 +334,13 @@ class _SplashScreenState extends State<SplashScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.chat_bubble_rounded,
                         size: 80,
                         color: Colors.white,
                       ),
-                      SizedBox(height: 16),
-                      Text(
+                      const SizedBox(height: 16),
+                      const Text(
                         'Boofer',
                         style: TextStyle(
                           fontSize: 32,
@@ -299,20 +349,20 @@ class _SplashScreenState extends State<SplashScreen> {
                           letterSpacing: 1,
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
+                      const SizedBox(height: 8),
+                      const Text(
                         'Privacy-first messaging',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white70,
                         ),
                       ),
-                      SizedBox(height: 40),
+                      const SizedBox(height: 40),
                       if (!_hasError) ...[
-                        CircularProgressIndicator(
+                        const CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                       ],
                       Text(
                         _statusMessage,

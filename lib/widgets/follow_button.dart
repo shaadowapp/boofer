@@ -22,6 +22,9 @@ class FriendRequestButton extends StatefulWidget {
   State<FriendRequestButton> createState() => _FriendRequestButtonState();
 }
 
+/// Alias for backward compatibility
+typedef FollowButton = FriendRequestButton;
+
 class _FriendRequestButtonState extends State<FriendRequestButton> {
   bool _isProcessing = false;
 
@@ -165,7 +168,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
         );
       case 'request_sent':
         return ElevatedButton.styleFrom(
-          backgroundColor: theme.colorScheme.surfaceVariant,
+          backgroundColor: theme.colorScheme.surfaceContainerHighest,
           foregroundColor: theme.colorScheme.onSurfaceVariant,
           elevation: 0,
         );
@@ -192,7 +195,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
       case 'friends':
         return theme.colorScheme.secondaryContainer;
       case 'request_sent':
-        return theme.colorScheme.surfaceVariant;
+        return theme.colorScheme.surfaceContainerHighest;
       case 'request_received':
         return Colors.green;
       case 'request_rejected':
@@ -307,7 +310,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Add a message (optional):'),
+            const Text('Add a message (optional):'),
             const SizedBox(height: 12),
             TextField(
               controller: messageController,

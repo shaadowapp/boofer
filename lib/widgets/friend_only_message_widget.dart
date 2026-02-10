@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
 import '../widgets/friendship_status_widget.dart';
 
 /// Widget shown when trying to message someone who isn't a friend

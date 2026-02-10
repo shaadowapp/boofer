@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/friendship_service.dart';
 import '../services/user_service.dart';
 import '../providers/firestore_user_provider.dart';
-import '../widgets/contextual_user_profile_card.dart';
+import '../providers/friend_request_provider.dart';
 import 'friend_chat_screen.dart';
 import 'friend_requests_screen.dart';
 
@@ -26,10 +25,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   List<User> _suggestedUsers = [];
   List<User> _trendingUsers = [];
   List<User> _recentSearches = [];
-  Map<String, bool> _followingStatus = {};
+  final Map<String, bool> _followingStatus = {};
   bool _loading = false;
   bool _hasSearched = false;
   String? _currentUserId;
+  String? _currentUserHandle;
   Timer? _debounceTimer;
 
   @override
@@ -52,7 +52,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     if (currentUser != null) {
       setState(() {
         _currentUserId = currentUser.id;
+        _currentUserHandle = currentUser.handle;
       });
+      print('✅ Current user loaded: ${currentUser.handle} (ID: ${currentUser.id})');
     }
   }
 
@@ -62,14 +64,24 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     });
 
     try {
-      // Get real users from Firestore
+      // Get real users from Firestore ONLY
       final userProvider = context.read<FirestoreUserProvider>();
       
       // Get discoverable users
       final discoverableUsers = await userProvider.getDiscoverableUsers(limit: 20);
       
-      // Filter out current user
-      final filteredUsers = discoverableUsers.where((user) => user.id != _currentUserId).toList();
+      // Filter out current user by both ID and handle
+      final filteredUsers = discoverableUsers.where((user) {
+        final isDifferentId = user.id != _currentUserId;
+        final isDifferentHandle = user.handle != _currentUserHandle;
+        return isDifferentId && isDifferentHandle;
+      }).toList();
+      
+      print('🔍 Filtering users:');
+      print('   - Total users: ${discoverableUsers.length}');
+      print('   - Current user ID: $_currentUserId');
+      print('   - Current user handle: $_currentUserHandle');
+      print('   - Filtered users: ${filteredUsers.length}');
       
       // Shuffle and split into suggested and trending
       filteredUsers.shuffle();
@@ -83,60 +95,21 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         _loading = false;
       });
       
-      print('✅ Loaded ${filteredUsers.length} real users from Firestore');
+      print('✅ Loaded ${filteredUsers.length} real users from Firestore (current user excluded)');
       print('   - Suggested: ${_suggestedUsers.length}');
       print('   - Trending: ${_trendingUsers.length}');
       
     } catch (e) {
       print('❌ Error loading real users: $e');
       
-      // Fallback to demo users if Firestore fails
+      // NO FALLBACK - Show empty state instead
       setState(() {
-        _suggestedUsers = _generateDemoUsers('suggested');
-        _trendingUsers = _generateDemoUsers('trending');
-        _recentSearches = _generateDemoUsers('recent').take(3).toList();
+        _suggestedUsers = [];
+        _trendingUsers = [];
+        _recentSearches = [];
         _loading = false;
       });
     }
-  }
-
-  List<User> _generateDemoUsers(String type) {
-    final random = Random();
-    final users = <User>[];
-    
-    final profiles = [
-      {'name': 'Alex Johnson', 'bio': '🎨 Digital artist & coffee enthusiast'},
-      {'name': 'Sarah Chen', 'bio': '📚 Book lover | World traveler ✈️'},
-      {'name': 'Mike Rodriguez', 'bio': '🏃‍♂️ Marathon runner | Fitness coach'},
-      {'name': 'Emma Wilson', 'bio': '🎵 Music producer & DJ 🎧'},
-      {'name': 'David Kim', 'bio': '👨‍💻 Full-stack developer | Tech enthusiast'},
-    ];
-
-    final shuffledProfiles = List.from(profiles)..shuffle(random);
-    final count = type == 'recent' ? 5 : 15;
-    
-    for (int i = 0; i < count && i < shuffledProfiles.length; i++) {
-      final profile = shuffledProfiles[i];
-      final name = profile['name'] as String;
-      final handle = name.toLowerCase().replaceAll(' ', '_').replaceAll('.', '');
-      final user = User(
-        id: '${type}_user_$i',
-        email: '${handle}@demo.com',
-        virtualNumber: 'VN${(type == 'suggested' ? 2000 : type == 'trending' ? 3000 : 4000) + i}',
-        handle: handle,
-        fullName: name,
-        bio: profile['bio'] as String,
-        isDiscoverable: true,
-        createdAt: DateTime.now().subtract(Duration(days: random.nextInt(365) + 1)),
-        updatedAt: DateTime.now(),
-      );
-      users.add(user);
-      
-      // Initialize follow status (some already followed for demo)
-      _followingStatus[user.id] = random.nextBool() && i % 5 == 0;
-    }
-    
-    return users;
   }
 
   void _onSearchChanged() {
@@ -165,8 +138,16 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       final userProvider = context.read<FirestoreUserProvider>();
       final results = await userProvider.searchUsers(query);
       
-      // Filter out current user
-      final filteredResults = results.where((user) => user.id != _currentUserId).toList();
+      // Filter out current user by both ID and handle
+      final filteredResults = results.where((user) {
+        final isDifferentId = user.id != _currentUserId;
+        final isDifferentHandle = user.handle != _currentUserHandle;
+        return isDifferentId && isDifferentHandle;
+      }).toList();
+      
+      print('🔍 Search results filtered:');
+      print('   - Total results: ${results.length}');
+      print('   - After filtering current user: ${filteredResults.length}');
       
       if (mounted) {
         setState(() {
@@ -194,9 +175,59 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find Friends'),
+        title: const Text('Discover'),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actions: [
+          // Friend Requests button with badge
+          Consumer<FriendRequestProvider>(
+            builder: (context, provider, child) {
+              final receivedCount = provider.receivedRequests.length;
+              
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.person_add_outlined),
+                    tooltip: 'Requests',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const FriendRequestsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (receivedCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.error,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          receivedCount > 9 ? '9+' : receivedCount.toString(),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onError,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

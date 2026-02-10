@@ -96,7 +96,7 @@ class UserProfileSyncService {
       print('📄 Firestore fields: ${userData.keys.join(', ')}');
     } catch (e) {
       print('❌ Failed to sync to Firestore: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -113,7 +113,7 @@ class UserProfileSyncService {
       print('✅ Data synced to local storage');
     } catch (e) {
       print('❌ Failed to sync to local storage: $e');
-      throw e;
+      rethrow;
     }
   }
 

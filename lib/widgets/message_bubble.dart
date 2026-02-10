@@ -201,7 +201,7 @@ class MessageBubble extends StatelessWidget {
     if (isOwnMessage) {
       return Theme.of(context).colorScheme.primary;
     } else {
-      return Theme.of(context).colorScheme.surfaceVariant;
+      return Theme.of(context).colorScheme.surfaceContainerHighest;
     }
   }
 

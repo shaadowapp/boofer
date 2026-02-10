@@ -217,7 +217,7 @@ class FriendshipService {
     try {
       final friends = await _connectionService.getFriends(userId);
       // Ensure we're returning List<User>
-      final userList = friends is List<User> ? friends : <User>[];
+      final userList = friends;
       _friendsController.add(userList);
       return userList;
     } catch (e, stackTrace) {

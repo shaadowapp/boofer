@@ -16,7 +16,7 @@ extension UserListExtensions on List<User> {
       id: user.id,
       name: user.fullName,
       handle: user.handle,
-      virtualNumber: user.virtualNumber,
+      virtualNumber: user.virtualNumber ?? '',
       lastMessage: '',
       lastMessageTime: DateTime.now(),
       isOnline: user.status == UserStatus.online,

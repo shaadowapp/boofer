@@ -8,10 +8,14 @@ class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
   AppThemeMode _themeMode = AppThemeMode.system;
   bool _isSystemDarkMode = false;
+  Color _accentColor = AppColors.loveRose;
+  double _fontSizeScale = 1.0; // Font size multiplier (16.0 / 16.0 = 1.0)
 
   AppThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == AppThemeMode.dark || 
                         (_themeMode == AppThemeMode.system && _isSystemDarkMode);
+  Color get accentColor => _accentColor;
+  double get fontSizeScale => _fontSizeScale;
   
   String get themeModeString {
     switch (_themeMode) {
@@ -27,6 +31,23 @@ class ThemeProvider extends ChangeNotifier {
   ThemeProvider() {
     _loadTheme();
     _detectSystemTheme();
+  }
+
+  // Update accent color and rebuild theme
+  void updateAccentColor(Color color) {
+    if (_accentColor != color) {
+      _accentColor = color;
+      notifyListeners();
+    }
+  }
+
+  // Update font size and rebuild theme smoothly
+  void updateFontSize(double fontSize) {
+    final newScale = fontSize / 16.0; // 16.0 is the base font size
+    if ((_fontSizeScale - newScale).abs() > 0.01) { // Only update if change is significant
+      _fontSizeScale = newScale;
+      notifyListeners();
+    }
   }
 
   Future<void> _loadTheme() async {
@@ -87,12 +108,12 @@ class ThemeProvider extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.loveRose,
+        seedColor: _accentColor,
         brightness: Brightness.light,
-        primary: AppColors.loveRose,
-        secondary: AppColors.deepBlush,
-        surface: AppColors.lightSurface, // #ffffff
-        background: AppColors.lightBackground, // #f9f9f9
+        primary: _accentColor,
+        secondary: _accentColor.withOpacity(0.8),
+        surface: AppColors.lightSurface,
+        background: AppColors.lightBackground,
         onPrimary: Colors.white,
         onSecondary: AppColors.lightPrimaryText,
         onSurface: AppColors.lightPrimaryText,
@@ -100,47 +121,54 @@ class ThemeProvider extends ChangeNotifier {
         outline: AppColors.lightSecondaryText,
         error: AppColors.danger,
       ),
-      appBarTheme: const AppBarTheme(
+      textTheme: _buildTextTheme(Brightness.light),
+      appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
-        backgroundColor: AppColors.lightBackground, // #f9f9f9
+        backgroundColor: AppColors.lightBackground,
         foregroundColor: AppColors.lightPrimaryText,
-        iconTheme: IconThemeData(color: AppColors.lightPrimaryText),
+        iconTheme: const IconThemeData(color: AppColors.lightPrimaryText),
         titleTextStyle: TextStyle(
           color: AppColors.lightPrimaryText,
-          fontSize: 20,
+          fontSize: 20 * _fontSizeScale,
           fontWeight: FontWeight.w600,
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        selectedItemColor: AppColors.loveRose,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        selectedItemColor: _accentColor,
         unselectedItemColor: AppColors.lightSecondaryText,
-        selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
-        backgroundColor: AppColors.lightSurface, // #ffffff
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12 * _fontSizeScale,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 12 * _fontSizeScale,
+        ),
+        backgroundColor: AppColors.lightSurface,
       ),
       cardTheme: const CardThemeData(
-        color: AppColors.lightSurface, // Pure white
+        color: AppColors.lightSurface,
         elevation: 2,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
-      scaffoldBackgroundColor: AppColors.lightBackground, // #f9f9f9
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.loveRose,
+      scaffoldBackgroundColor: AppColors.lightBackground,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: _accentColor,
         foregroundColor: Colors.white,
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.loveRose;
+            return _accentColor;
           }
           return AppColors.lightSecondaryText;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.loveRose.withOpacity(0.3);
+            return _accentColor.withOpacity(0.3);
           }
           return AppColors.lightSecondaryText.withOpacity(0.3);
         }),
@@ -153,12 +181,12 @@ class ThemeProvider extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.loveRose,
+        seedColor: _accentColor,
         brightness: Brightness.dark,
-        primary: AppColors.loveRose,
-        secondary: AppColors.deepBlush,
-        surface: AppColors.darkSurface, // #121212
-        background: AppColors.darkBackground, // #000000
+        primary: _accentColor,
+        secondary: _accentColor.withOpacity(0.8),
+        surface: AppColors.darkSurface,
+        background: AppColors.darkBackground,
         onPrimary: Colors.white,
         onSecondary: AppColors.darkPrimaryText,
         onSurface: AppColors.darkPrimaryText,
@@ -166,51 +194,83 @@ class ThemeProvider extends ChangeNotifier {
         outline: AppColors.darkSecondaryText,
         error: AppColors.danger,
       ),
-      appBarTheme: const AppBarTheme(
+      textTheme: _buildTextTheme(Brightness.dark),
+      appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
-        backgroundColor: AppColors.darkBackground, // #000000
+        backgroundColor: AppColors.darkBackground,
         foregroundColor: AppColors.darkPrimaryText,
-        iconTheme: IconThemeData(color: AppColors.darkPrimaryText),
+        iconTheme: const IconThemeData(color: AppColors.darkPrimaryText),
         titleTextStyle: TextStyle(
           color: AppColors.darkPrimaryText,
-          fontSize: 20,
+          fontSize: 20 * _fontSizeScale,
           fontWeight: FontWeight.w600,
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        selectedItemColor: AppColors.brandAccent,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        selectedItemColor: _accentColor,
         unselectedItemColor: AppColors.darkSecondaryText,
-        selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
-        backgroundColor: AppColors.darkSurface, // #121212
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12 * _fontSizeScale,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 12 * _fontSizeScale,
+        ),
+        backgroundColor: AppColors.darkSurface,
       ),
       cardTheme: const CardThemeData(
-        color: AppColors.darkSurface, // #121212
+        color: AppColors.darkSurface,
         elevation: 2,
         shadowColor: Colors.black54,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
-      scaffoldBackgroundColor: AppColors.darkBackground, // #000000
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.loveRose,
+      scaffoldBackgroundColor: AppColors.darkBackground,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: _accentColor,
         foregroundColor: Colors.white,
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.loveRose;
+            return _accentColor;
           }
           return AppColors.darkSecondaryText;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.loveRose.withOpacity(0.3);
+            return _accentColor.withOpacity(0.3);
           }
           return AppColors.darkSecondaryText.withOpacity(0.3);
         }),
       ),
+    );
+  }
+
+  // Build text theme with font size scaling
+  TextTheme _buildTextTheme(Brightness brightness) {
+    final baseColor = brightness == Brightness.light 
+        ? AppColors.lightPrimaryText 
+        : AppColors.darkPrimaryText;
+    
+    return TextTheme(
+      displayLarge: TextStyle(fontSize: 57 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      displayMedium: TextStyle(fontSize: 45 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      displaySmall: TextStyle(fontSize: 36 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      headlineLarge: TextStyle(fontSize: 32 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      headlineMedium: TextStyle(fontSize: 28 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      headlineSmall: TextStyle(fontSize: 24 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      titleLarge: TextStyle(fontSize: 22 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      titleMedium: TextStyle(fontSize: 16 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      titleSmall: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
+      bodyLarge: TextStyle(fontSize: 16 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      bodyMedium: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      bodySmall: TextStyle(fontSize: 12 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
+      labelLarge: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
+      labelMedium: TextStyle(fontSize: 12 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
+      labelSmall: TextStyle(fontSize: 11 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
     );
   }
 }

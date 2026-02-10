@@ -35,7 +35,7 @@ void main() {
       expect(find.text('Step 1 of 3'), findsOneWidget);
 
       // 2. Complete Onboarding Flow
-      await _completeFullOnboardingFlow(tester, 'Complete Flow User');
+      await completeFullOnboardingFlow(tester, 'Complete Flow User');
 
       // 3. Verify Main Screen Access
       expect(find.byType(MainScreen), findsOneWidget);
@@ -97,7 +97,7 @@ void main() {
 
       // 1. Start with corrupted data
       try {
-        await LocalStorageService.saveOnboardingData(OnboardingData(
+        await LocalStorageService.saveOnboardingData(const OnboardingData(
           userName: '',
           virtualNumber: '',
           pin: null,
@@ -116,7 +116,7 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
 
       // 2. Complete onboarding with edge case data
-      await _completeOnboardingWithEdgeCases(tester);
+      await completeOnboardingWithEdgeCases(tester);
 
       // Should successfully reach main screen
       expect(find.byType(MainScreen), findsOneWidget);
@@ -131,21 +131,21 @@ void main() {
       // Test different user configuration scenarios
 
       // Scenario 1: User with PIN
-      await _testUserScenario(tester, 'PIN User', '1234', true);
+      await testUserScenario(tester, 'PIN User', '1234', true);
 
       // Clear data
       await LocalStorageService.clearOnboardingData();
       await tester.pumpWidget(Container());
 
       // Scenario 2: User without PIN
-      await _testUserScenario(tester, 'No PIN User', null, false);
+      await testUserScenario(tester, 'No PIN User', null, false);
 
       // Clear data
       await LocalStorageService.clearOnboardingData();
       await tester.pumpWidget(Container());
 
       // Scenario 3: User with special characters in name
-      await _testUserScenario(tester, 'Spëcîál Üser 123!', '9999', true);
+      await testUserScenario(tester, 'Spëcîál Üser 123!', '9999', true);
     });
 
     testWidgets('complete app flow - performance and timing', (WidgetTester tester) async {
@@ -158,7 +158,7 @@ void main() {
       final onboardingStartTime = stopwatch.elapsedMilliseconds;
       
       // Complete onboarding quickly
-      await _completeFullOnboardingFlow(tester, 'Performance User');
+      await completeFullOnboardingFlow(tester, 'Performance User');
       
       final completionTime = stopwatch.elapsedMilliseconds;
       stopwatch.stop();
@@ -184,7 +184,7 @@ void main() {
       // Test keyboard navigation and screen reader support
       // (This would require more detailed accessibility testing)
       
-      await _completeFullOnboardingFlow(tester, 'Accessibility User');
+      await completeFullOnboardingFlow(tester, 'Accessibility User');
       expect(find.byType(MainScreen), findsOneWidget);
     });
 
@@ -203,7 +203,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Complete onboarding with theme applied
-      await _completeFullOnboardingFlow(tester, 'Theme User');
+      await completeFullOnboardingFlow(tester, 'Theme User');
       
       // Verify main screen maintains theme
       expect(find.byType(MainScreen), findsOneWidget);
@@ -276,7 +276,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // App should work offline for onboarding
-      await _completeFullOnboardingFlow(tester, 'Offline User');
+      await completeFullOnboardingFlow(tester, 'Offline User');
       expect(find.byType(MainScreen), findsOneWidget);
 
       // Verify local data storage works without network
@@ -300,7 +300,7 @@ void main() {
           await tester.pumpAndSettle(const Duration(seconds: 3));
         }
 
-        await _completeFullOnboardingFlow(tester, 'Memory Test User $i');
+        await completeFullOnboardingFlow(tester, 'Memory Test User $i');
         expect(find.byType(MainScreen), findsOneWidget);
 
         // Verify no memory leaks (basic check)
@@ -310,7 +310,7 @@ void main() {
   });
 
   // Helper Methods
-  Future<void> _completeFullOnboardingFlow(WidgetTester tester, String userName) async {
+  Future<void> completeFullOnboardingFlow(WidgetTester tester, String userName) async {
     // Step 1: Registration
     final nameField = find.byType(TextFormField);
     await tester.enterText(nameField, userName);
@@ -342,7 +342,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> _completeOnboardingWithEdgeCases(WidgetTester tester) async {
+  Future<void> completeOnboardingWithEdgeCases(WidgetTester tester) async {
     // Test with edge case inputs
     final nameField = find.byType(TextFormField);
     await tester.enterText(nameField, 'Edge Case User With Very Long Name That Tests Limits');
@@ -368,7 +368,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> _testUserScenario(WidgetTester tester, String userName, String? pin, bool shouldHavePin) async {
+  Future<void> testUserScenario(WidgetTester tester, String userName, String? pin, bool shouldHavePin) async {
     OnboardingData onboardingData;
     
     if (shouldHavePin && pin != null) {

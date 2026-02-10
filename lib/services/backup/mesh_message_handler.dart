@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 
 /// Utility class for handling mesh message serialization and transmission
 class MeshMessageHandler {
@@ -48,18 +48,22 @@ class MeshMessageHandler {
         throw Exception('Unsupported message version: $version');
       }
 
-      // Create message object
-      final message = Message();
-      message.text = messageData['text'] as String;
-      message.senderId = messageData['senderId'] as String;
-      message.timestamp = DateTime.fromMillisecondsSinceEpoch(messageData['timestamp'] as int);
-      message.isOffline = messageData['isOffline'] as bool;
-      message.status = MessageStatus.values.firstWhere(
-        (status) => status.name == messageData['status'],
+      // Create message object with proper status
+      final status = MessageStatus.values.firstWhere(
+        (s) => s.name == messageData['status'],
         orElse: () => MessageStatus.delivered,
       );
-      message.conversationId = messageData['conversationId'] as String?;
-      message.messageHash = messageData['messageHash'] as String?;
+      
+      final message = Message(
+        id: messageData['id'] as String,
+        text: messageData['text'] as String,
+        senderId: messageData['senderId'] as String,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(messageData['timestamp'] as int),
+        isOffline: messageData['isOffline'] as bool,
+        status: status,
+        conversationId: messageData['conversationId'] as String?,
+        messageHash: messageData['messageHash'] as String?,
+      );
 
       // Verify checksum
       final expectedChecksum = messageData['checksum'] as String?;
@@ -133,9 +137,6 @@ class MeshMessageHandler {
         isOffline: message.isOffline,
         conversationId: message.conversationId,
       );
-      
-      // Add chunk metadata
-      chunkMessage.messageHash = '${message.messageHash}_chunk_${i + 1}_of_$totalChunks';
       chunks.add(chunkMessage);
     }
 
@@ -165,12 +166,14 @@ class MeshMessageHandler {
 
     // Reconstruct the full message
     final fullText = chunks.map((chunk) => chunk.text).join();
-    final reconstructed = Message.create(
+    final reconstructed = Message(
+      id: chunks.first.id,
       text: fullText,
       senderId: chunks.first.senderId,
+      timestamp: chunks.first.timestamp,
       isOffline: chunks.first.isOffline,
       conversationId: chunks.first.conversationId,
-      timestamp: chunks.first.timestamp,
+      messageHash: chunks.first.messageHash?.split('_chunk_').first,
     );
 
     return reconstructed;

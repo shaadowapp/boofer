@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart' as app_user;
 import '../services/local_storage_service.dart';
 import '../services/id_generation_service.dart';
+import '../services/user_mapping_service.dart';
 import 'user_service.dart' as user_service;
 
 class GoogleAuthService {
@@ -18,6 +19,7 @@ class GoogleAuthService {
 
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final UserMappingService _mappingService = UserMappingService();
 
   /// Sign in with Google and authenticate with Firebase
   Future<User?> signInWithGoogle() async {
@@ -158,18 +160,32 @@ class GoogleAuthService {
   }
 
   /// Create comprehensive user profile for new users
+  /// REQUIRES INTERNET CONNECTION - Will fail if Firestore write fails
   Future<void> _createNewUserProfile(User firebaseUser, GoogleSignInAccount googleUser) async {
     try {
       print('🔄 Creating comprehensive user profile for new user...');
+      
+      // Check internet connectivity first
+      print('🔄 Checking internet connectivity...');
+      final hasInternet = await _checkInternetConnectivity();
+      if (!hasInternet) {
+        print('❌ No internet connection - signup requires internet');
+        throw Exception('Internet connection required for signup. Please check your connection and try again.');
+      }
+      print('✅ Internet connection verified');
       
       // Generate custom user ID and virtual phone number
       final idService = IdGenerationService();
       final credentials = await idService.generateUserCredentials();
       final customUserId = credentials['userId']!;
-      final virtualPhoneNumber = credentials['virtualNumber']!;
+      String virtualPhoneNumber = credentials['virtualNumber']!;
       
       print('✅ Generated custom user ID: $customUserId');
       print('✅ Generated virtual phone: $virtualPhoneNumber');
+      
+      // Check if virtual phone number already exists and regenerate if needed
+      virtualPhoneNumber = await _ensureUniqueVirtualNumber(virtualPhoneNumber);
+      print('✅ Ensured unique virtual phone: $virtualPhoneNumber');
       
       // Create app user model with custom ID
       final appUser = await user_service.UserService.createUserFromGoogleData(
@@ -179,8 +195,15 @@ class GoogleAuthService {
         photoURL: firebaseUser.photoURL ?? googleUser.photoUrl,
       );
 
-      // Update with virtual phone number
-      final updatedUser = appUser.copyWith(virtualNumber: virtualPhoneNumber);
+      // Check if userhandle already exists and get unique one if needed
+      final String uniqueHandle = await _ensureUniqueUserhandle(appUser.handle);
+      print('✅ Ensured unique userhandle: $uniqueHandle');
+
+      // Update with virtual phone number and unique handle
+      final updatedUser = appUser.copyWith(
+        virtualNumber: virtualPhoneNumber,
+        handle: uniqueHandle,
+      );
 
       // Prepare comprehensive user data for Firestore (without email)
       final userData = {
@@ -199,8 +222,8 @@ class GoogleAuthService {
         'updatedAt': updatedUser.updatedAt.toIso8601String(),
         'lastSignIn': DateTime.now().toIso8601String(),
         'provider': 'google',
-        // Profile completion status
-        'profileCompleted': false,
+        // Profile completion status - automatically complete for Google Auth users
+        'profileCompleted': true,
         'profileVersion': 1,
         // Google account info (without email)
         'googleAccountInfo': {
@@ -225,19 +248,68 @@ class GoogleAuthService {
           'signUpMethod': 'google',
           'accountType': 'standard',
           'isVerified': true,
-          'userType': 'new_signup',
+          'userType': 'completed_user',
         },
         // Signup tracking
         'signupMetadata': {
           'signupDate': DateTime.now().toIso8601String(),
           'signupMethod': 'google_oauth',
           'signupPlatform': 'android',
-          'initialProfileComplete': false,
+          'initialProfileComplete': true,
         },
       };
 
-      // Store in Firestore using custom user ID as document ID
-      await _firestore.collection('users').doc(customUserId).set(userData);
+      // CRITICAL: Store in Firestore - MUST succeed for signup to complete
+      print('🔄 Storing user data in Firestore (REQUIRED)...');
+      try {
+        await _firestore.collection('users').doc(customUserId).set(userData).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            print('❌ Firestore write timeout after 15 seconds');
+            throw TimeoutException('Firestore write timeout - please check your internet connection');
+          },
+        );
+        print('✅ User data stored in Firestore successfully!');
+        
+        // Verify the write by reading it back
+        print('🔄 Verifying Firestore write...');
+        final verifyDoc = await _firestore.collection('users').doc(customUserId).get().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('❌ Firestore read verification timeout');
+            throw TimeoutException('Failed to verify Firestore write');
+          },
+        );
+        
+        if (!verifyDoc.exists) {
+          print('❌ Firestore verification failed - document does not exist');
+          throw Exception('Failed to verify user creation in Firestore');
+        }
+        print('✅ Firestore write verified successfully!');
+        
+      } on FirebaseException catch (e) {
+        print('❌ Firebase Exception: ${e.code} - ${e.message}');
+        if (e.code == 'permission-denied') {
+          throw Exception('Firestore permission denied. Please contact support.');
+        } else if (e.code == 'unavailable') {
+          throw Exception('Unable to connect to server. Please check your internet connection.');
+        }
+        throw Exception('Failed to create profile in database: ${e.message}');
+      } on TimeoutException catch (e) {
+        print('❌ Timeout: ${e.message}');
+        throw Exception('Connection timeout. Please check your internet and try again.');
+      }
+
+      // Create secure mapping between Firebase UID and custom user ID
+      await _mappingService.createMapping(
+        firebaseUid: firebaseUser.uid,
+        customUserId: customUserId,
+        metadata: {
+          'createdVia': 'google_auth',
+          'email': updatedUser.email,
+          'createdAt': DateTime.now().toIso8601String(),
+        },
+      );
 
       // Store locally with custom user ID
       await user_service.UserService.setCurrentUser(updatedUser);
@@ -245,16 +317,113 @@ class GoogleAuthService {
       // Store email locally for existence checking
       await _storeEmailLocally(updatedUser.email);
       
-      // Store mapping from Firebase UID to custom user ID
-      await LocalStorageService.setString('firebase_to_custom_id', '${firebaseUser.uid}:$customUserId');
-      await LocalStorageService.setString('custom_user_id', customUserId);
+      // Mark profile as completed since we have all data from Google
+      await LocalStorageService.setString('profile_completed', 'true');
+      await LocalStorageService.setString('user_type', 'completed_user');
+      await LocalStorageService.setString('firestore_synced', 'true'); // Mark as synced
 
       print('✅ Comprehensive user profile created for new user');
       print('📄 Custom ID: $customUserId');
       print('📞 Virtual Phone: $virtualPhoneNumber');
+      print('👤 Userhandle: $uniqueHandle');
+      print('✅ Profile stored in both Firestore and local storage');
     } catch (e) {
       print('❌ Failed to create new user profile: $e');
-      throw e;
+      // Clean up Firebase auth if profile creation failed
+      await _firebaseAuth.currentUser?.delete();
+      rethrow;
+    }
+  }
+  
+  /// Check internet connectivity by attempting to reach Firestore
+  Future<bool> _checkInternetConnectivity() async {
+    try {
+      await _firestore.collection('_connection_test').limit(1).get().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('Connection check timeout');
+        },
+      );
+      return true;
+    } catch (e) {
+      print('⚠️ Internet connectivity check failed: $e');
+      return false;
+    }
+  }
+
+  /// Ensure virtual number is unique by regenerating if it exists
+  Future<String> _ensureUniqueVirtualNumber(String virtualNumber) async {
+    try {
+      int attempts = 0;
+      String currentNumber = virtualNumber;
+      
+      while (attempts < 10) {
+        // Check if virtual number exists in Firestore
+        final query = await _firestore
+            .collection('users')
+            .where('virtualNumber', isEqualTo: currentNumber)
+            .limit(1)
+            .get();
+        
+        if (query.docs.isEmpty) {
+          // Virtual number is unique
+          print('✅ Virtual number is unique: $currentNumber');
+          return currentNumber;
+        }
+        
+        // Virtual number exists, regenerate
+        print('⚠️ Virtual number exists, regenerating... (attempt ${attempts + 1})');
+        final idService = IdGenerationService();
+        currentNumber = await idService.generateVirtualPhoneNumber();
+        attempts++;
+      }
+      
+      // If we couldn't find a unique number after 10 attempts, use timestamp-based fallback
+      print('⚠️ Using timestamp-based fallback for virtual number');
+      final now = DateTime.now();
+      final timestamp = now.millisecondsSinceEpoch.toString();
+      final lastTen = timestamp.substring(timestamp.length - 10);
+      return '${lastTen.substring(0, 3)}-${lastTen.substring(3, 6)}-${lastTen.substring(6, 10)}';
+    } catch (e) {
+      print('❌ Error ensuring unique virtual number: $e');
+      // Return original number as fallback
+      return virtualNumber;
+    }
+  }
+
+  /// Ensure userhandle is unique by appending numbers if needed
+  Future<String> _ensureUniqueUserhandle(String baseHandle) async {
+    try {
+      String handle = baseHandle;
+      int counter = 1;
+      
+      while (counter < 1000) {
+        // Check if handle exists in Firestore
+        final query = await _firestore
+            .collection('users')
+            .where('handle', isEqualTo: handle)
+            .limit(1)
+            .get();
+        
+        if (query.docs.isEmpty) {
+          // Handle is unique
+          print('✅ Userhandle is unique: $handle');
+          return handle;
+        }
+        
+        // Handle exists, try with counter
+        print('⚠️ Userhandle exists, trying with counter... (attempt $counter)');
+        handle = '${baseHandle}_$counter';
+        counter++;
+      }
+      
+      // If we couldn't find a unique handle after 999 attempts, use timestamp
+      print('⚠️ Using timestamp-based fallback for userhandle');
+      return '${baseHandle}_${DateTime.now().millisecondsSinceEpoch % 10000}';
+    } catch (e) {
+      print('❌ Error ensuring unique userhandle: $e');
+      // Return original handle as fallback
+      return baseHandle;
     }
   }
 
@@ -296,11 +465,10 @@ class GoogleAuthService {
         if (firebaseUser.displayName != null && firebaseUser.displayName != existingData['fullName'])
           'fullName': firebaseUser.displayName,
           
-        // Update Google account info
+        // Update Google account info (without email)
         'googleAccountInfo': {
           'displayName': googleUser.displayName,
           'photoUrl': googleUser.photoUrl,
-          'email': googleUser.email,
           'lastUpdated': DateTime.now().toIso8601String(),
         },
         
@@ -323,9 +491,12 @@ class GoogleAuthService {
         // Update metadata
         'metadata': {
           ...existingData['metadata'] ?? {},
-          'userType': 'returning_user',
+          'userType': 'completed_user',
           'lastActiveAt': DateTime.now().toIso8601String(),
         },
+        
+        // Ensure profile is marked as completed
+        'profileCompleted': true,
       };
 
       await _firestore.collection('users').doc(customUserId).update(updateData);
@@ -341,37 +512,9 @@ class GoogleAuthService {
     }
   }
 
-  /// Get custom user ID from Firebase UID
+  /// Get custom user ID from Firebase UID using mapping service
   Future<String?> _getCustomUserIdFromFirebaseUid(String firebaseUid) async {
-    try {
-      // Check local storage first
-      final mapping = await LocalStorageService.getString('firebase_to_custom_id');
-      if (mapping != null && mapping.contains(':')) {
-        final parts = mapping.split(':');
-        if (parts[0] == firebaseUid) {
-          return parts[1];
-        }
-      }
-      
-      // Query Firestore for user with this Firebase UID
-      final query = await _firestore
-          .collection('users')
-          .where('firebaseUid', isEqualTo: firebaseUid)
-          .limit(1)
-          .get();
-      
-      if (query.docs.isNotEmpty) {
-        final customUserId = query.docs.first.id;
-        // Store mapping locally for future use
-        await LocalStorageService.setString('firebase_to_custom_id', '$firebaseUid:$customUserId');
-        return customUserId;
-      }
-      
-      return null;
-    } catch (e) {
-      print('❌ Error getting custom user ID: $e');
-      return null;
-    }
+    return await _mappingService.getCustomUserId(firebaseUid);
   }
 
   /// Store user data locally for offline access
@@ -400,16 +543,10 @@ class GoogleAuthService {
         await LocalStorageService.setString('custom_user_id', customUserId);
         await LocalStorageService.setString('user_email', firebaseUser.email ?? '');
         await LocalStorageService.setString('last_login', DateTime.now().toIso8601String());
-        await LocalStorageService.setString('user_type', userData['metadata']?['userType'] ?? 'unknown');
+        await LocalStorageService.setString('user_type', 'completed_user');
         
-        // Only update profile_completed if it's not already true locally
-        // This prevents overwriting local completion status with stale Firestore data
-        final currentProfileCompleted = await LocalStorageService.getString('profile_completed');
-        if (currentProfileCompleted != 'true') {
-          await LocalStorageService.setString('profile_completed', (userData['profileCompleted'] ?? false).toString());
-        } else {
-          print('ℹ️ Profile already completed locally, keeping local status');
-        }
+        // Always mark Google Auth users as profile completed
+        await LocalStorageService.setString('profile_completed', 'true');
         
         print('✅ User data and auth state stored locally');
         print('👤 Custom ID: $customUserId');
@@ -444,7 +581,7 @@ class GoogleAuthService {
       print('✅ Sign out successful');
     } catch (e) {
       print('❌ Error signing out: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -525,10 +662,10 @@ class GoogleAuthService {
     try {
       print('🔄 Updating user profile in Firestore...');
       
-      // Prepare comprehensive user data for Firestore
+      // Prepare comprehensive user data for Firestore (without email)
       final userData = {
         'id': user.id,
-        'email': user.email,
+        // 'email': user.email, // REMOVED: Store email only locally
         'handle': user.handle,
         'fullName': user.fullName,
         'bio': user.bio,

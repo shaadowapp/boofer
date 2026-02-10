@@ -80,7 +80,7 @@ class SecurityManager {
   // Sanitize user input
   static String sanitizeInput(String input) {
     return input
-        .replaceAll(RegExp(r'[<>"\']'), '')
+        .replaceAll(RegExp(r'[<>"\'']'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }

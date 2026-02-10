@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rxdart/rxdart.dart';
-import '../models/network_state.dart';
+import '../../models/network_state.dart';
 import 'network_service.dart';
 import 'mesh_service.dart';
 import 'online_service.dart';
 import 'sync_service.dart';
+import 'message_repository.dart';
 
 /// Manager for handling mode switching and user preferences
 class ModeManager {

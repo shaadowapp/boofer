@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
 import 'home_screen.dart';
@@ -9,27 +8,21 @@ import 'dialpad_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
-import 'connection_requests_screen.dart';
-import 'friends_screen.dart';
-import 'friend_requests_screen.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/firestore_user_provider.dart';
+import '../providers/friend_request_provider.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
 import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../providers/username_provider.dart';
-import '../models/friend_model.dart';
 import '../services/connection_service.dart';
-import '../services/friendship_service.dart';
-import '../services/google_auth_service.dart';
 import '../utils/svg_icons.dart';
 import '../services/notification_service.dart';
-import '../widgets/profile_completion_modal.dart';
 import '../l10n/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
@@ -47,7 +40,6 @@ class _MainScreenState extends State<MainScreen> {
   List<User> _filteredUsers = [];
   List<User> _allUsers = [];
   final ConnectionService _connectionService = ConnectionService.instance;
-  final FriendshipService _friendshipService = FriendshipService.instance;
   int _pendingRequestsCount = 0;
 
   final List<Widget> _screens = [
@@ -72,213 +64,41 @@ class _MainScreenState extends State<MainScreen> {
       }
     });
 
-    // Check if we need to show profile completion modal
+    // Initialize providers and load data
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowProfileCompletion();
+      _initializeUserData();
     });
   }
 
-  Future<void> _checkAndShowProfileCompletion() async {
+  Future<void> _initializeUserData() async {
     try {
-      // Check if profile completion modal was recently dismissed
-      final lastDismissed = await LocalStorageService.getString('profile_modal_last_dismissed');
-      if (lastDismissed != null) {
-        final dismissedTime = DateTime.tryParse(lastDismissed);
-        if (dismissedTime != null) {
-          final timeSinceDismissed = DateTime.now().difference(dismissedTime);
-          if (timeSinceDismissed.inHours < 24) {
-            print('ℹ️ Profile completion modal was dismissed recently, skipping');
-            return;
-          }
-        }
-      }
-
-      // Check if user just signed in and needs profile completion
+      print('🔄 Initializing user data...');
+      
+      // Get current user data
       final authProvider = context.read<AuthStateProvider>();
       if (authProvider.isAuthenticated) {
-        final currentUser = authProvider.currentUser;
-        if (currentUser != null) {
-          // Get user profile and type from local storage
-          final userType = await LocalStorageService.getString('user_type');
-          final profileCompleted = await LocalStorageService.getString('profile_completed');
+        final userProfile = await UserService.getCurrentUser();
+        
+        // Initialize FriendRequestProvider with current user ID
+        if (userProfile != null) {
+          final friendRequestProvider = context.read<FriendRequestProvider>();
+          friendRequestProvider.initialize(userProfile.id);
+          print('✅ FriendRequestProvider initialized with user ID: ${userProfile.id}');
+        }
+        
+        if (userProfile != null) {
+          print('✅ User data loaded: ${userProfile.fullName} (ID: ${userProfile.id})');
           
-          print('👤 User type: $userType');
-          print('✅ Profile completed: $profileCompleted');
-          
-          // Get user profile using UserService (which handles custom IDs)
-          final userProfile = await UserService.getCurrentUser();
-          
-          if (userProfile != null && mounted) {
-            print('✅ User profile found: ${userProfile.fullName} (ID: ${userProfile.id})');
-            
-            // Check if profile needs completion
-            final needsCompletion = _shouldShowProfileCompletion(
-              userType: userType,
-              profileCompleted: profileCompleted == 'true',
-              userProfile: userProfile,
-            );
-            
-            // If profile appears complete but isn't marked as such, mark it automatically
-            if (!needsCompletion && profileCompleted != 'true' && _isProfileActuallyComplete(userProfile)) {
-              print('✅ Profile appears complete, marking as completed automatically');
-              await LocalStorageService.setString('profile_completed', 'true');
-              await LocalStorageService.setString('user_type', 'completed_user');
-            }
-            
-            if (needsCompletion) {
-              // Show profile completion modal after a short delay
-              Future.delayed(Duration(milliseconds: 800), () {
-                if (mounted) {
-                  _showProfileCompletionModal(userProfile);
-                }
-              });
-            } else {
-              print('ℹ️ Profile completion not needed for this user');
-            }
-          } else {
-            print('❌ No user profile found - user may need to sign in again');
-            
-            // If no user profile exists but user is authenticated,
-            // they may need to complete the signup process
-            if (userType == 'new_signup' || userType == null) {
-              print('🔄 Attempting to create user profile from Firebase auth...');
-              await _handleMissingUserProfile(currentUser);
-            }
-          }
+          // Ensure profile is marked as completed for Google Auth users
+          await LocalStorageService.setString('profile_completed', 'true');
+          await LocalStorageService.setString('user_type', 'completed_user');
+        } else {
+          print('⚠️ No user profile found');
         }
       }
     } catch (e) {
-      print('❌ Error checking profile completion: $e');
-      // Continue silently
+      print('❌ Error initializing user data: $e');
     }
-  }
-
-  /// Handle case where user is authenticated but has no profile data
-  Future<void> _handleMissingUserProfile(firebase_auth.User firebaseUser) async {
-    try {
-      print('🔄 Creating missing user profile...');
-      
-      final googleAuthService = GoogleAuthService();
-      
-      // Try to restore user session or create new profile
-      final restoredUser = await googleAuthService.restoreUserSession();
-      
-      if (restoredUser != null) {
-        print('✅ User session restored: ${restoredUser.fullName}');
-        
-        // Check if profile completion is needed
-        final needsCompletion = _shouldShowProfileCompletion(
-          userType: 'restored_user',
-          profileCompleted: false,
-          userProfile: restoredUser,
-        );
-        
-        if (needsCompletion && mounted) {
-          Future.delayed(Duration(milliseconds: 800), () {
-            if (mounted) {
-              _showProfileCompletionModal(restoredUser);
-            }
-          });
-        }
-      } else {
-        print('❌ Could not restore user session - user may need to sign in again');
-      }
-    } catch (e) {
-      print('❌ Error handling missing user profile: $e');
-    }
-  }
-
-  /// Determine if profile completion modal should be shown
-  bool _shouldShowProfileCompletion({
-    String? userType,
-    bool profileCompleted = false,
-    required User userProfile,
-  }) {
-    // Never show for completed profiles
-    if (profileCompleted) {
-      print('✅ Profile already completed - skipping modal');
-      return false;
-    }
-
-    // Always show for new signups
-    if (userType == 'new_signup') {
-      print('🆕 New signup detected - showing profile completion');
-      return true;
-    }
-    
-    // For existing users, only show if profile is genuinely incomplete
-    // Check multiple indicators to avoid false positives
-    
-    int incompleteCount = 0;
-    
-    // Check if user has auto-generated handle (heuristic for incomplete profile)
-    if (userProfile.handle.contains('_') && userProfile.handle.length > 15) {
-      incompleteCount++;
-      print('🔧 Auto-generated handle detected');
-    }
-    
-    // Check if user has default bio
-    if (userProfile.bio == 'Hey there! I\'m using Boofer 👋') {
-      incompleteCount++;
-      print('📝 Default bio detected');
-    }
-    
-    // Check if user doesn't have virtual number
-    if (userProfile.virtualNumber == null || userProfile.virtualNumber!.isEmpty) {
-      incompleteCount++;
-      print('🆔 No virtual number detected');
-    }
-    
-    // Check if full name is very short or looks auto-generated
-    if (userProfile.fullName.length < 3 || userProfile.fullName.contains('User')) {
-      incompleteCount++;
-      print('👤 Incomplete full name detected');
-    }
-    
-    // Only show modal if multiple indicators suggest incomplete profile
-    final shouldShow = incompleteCount >= 2;
-    
-    if (shouldShow) {
-      print('📝 Profile appears incomplete ($incompleteCount indicators) - showing completion modal');
-    } else {
-      print('✅ Profile appears complete enough - skipping modal');
-    }
-    
-    return shouldShow;
-  }
-
-  /// Check if profile is actually complete (has all required fields properly filled)
-  bool _isProfileActuallyComplete(User userProfile) {
-    // Check if all essential fields are properly filled
-    final hasProperName = userProfile.fullName.isNotEmpty && 
-                         userProfile.fullName.length >= 3 && 
-                         !userProfile.fullName.contains('User');
-    
-    final hasProperHandle = userProfile.handle.isNotEmpty && 
-                           !userProfile.handle.contains('_') && 
-                           userProfile.handle.length < 15;
-    
-    final hasCustomBio = userProfile.bio.isNotEmpty && 
-                        userProfile.bio != 'Hey there! I\'m using Boofer 👋';
-    
-    final hasVirtualNumber = userProfile.virtualNumber != null && 
-                            userProfile.virtualNumber!.isNotEmpty;
-    
-    return hasProperName && hasProperHandle && hasCustomBio && hasVirtualNumber;
-  }
-
-  void _showProfileCompletionModal(User userProfile) {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Cannot be dismissed
-      barrierColor: Colors.transparent, // We handle the blur in the modal
-      builder: (context) => ProfileCompletionModal(
-        initialUser: userProfile,
-        onCompleted: () {
-          Navigator.of(context).pop(); // Close the modal
-        },
-      ),
-    );
   }
 
   void _loadPendingRequests() {
@@ -928,7 +748,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     );
                   },
-                  tooltip: 'Find friends',
+                  tooltip: 'Discover',
                 ),
                 if (_pendingRequestsCount > 0)
                   Positioned(

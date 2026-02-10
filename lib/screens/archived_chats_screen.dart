@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
-import '../providers/archive_settings_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/friend_model.dart';
 import 'archive_settings_screen.dart';

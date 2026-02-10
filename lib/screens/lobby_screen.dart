@@ -4,6 +4,7 @@ import '../models/friend_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
+import '../services/anonymous_auth_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
 import 'archived_chats_screen.dart';
@@ -751,8 +752,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
           TextButton(
             onPressed: () async {
-              await UserService.clearUserData();
-              Navigator.pushReplacementNamed(context, '/');
+              // Use anonymous auth service for logout
+              final anonymousAuth = AnonymousAuthService();
+              await anonymousAuth.signOut();
+              Navigator.pushReplacementNamed(context, '/onboarding');
             },
             child: const Text('Logout'),
           ),

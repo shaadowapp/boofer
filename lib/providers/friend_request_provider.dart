@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/friend_request_model.dart';
-import '../services/follow_service.dart';
+import '../services/friend_request_service.dart';
 
 /// Provider for managing friend request system state (Instagram/Snapchat style)
 class FriendRequestProvider extends ChangeNotifier {
@@ -15,7 +15,7 @@ class FriendRequestProvider extends ChangeNotifier {
   FriendRequestStats _stats = FriendRequestStats.empty();
   List<FriendRequest> _receivedRequests = [];
   List<FriendRequest> _sentRequests = [];
-  List<User> _friends = [];
+  final List<User> _friends = [];
   
   bool _isLoading = false;
   String? _error;
@@ -74,10 +74,13 @@ class FriendRequestProvider extends ChangeNotifier {
     if (refresh || _receivedRequests.isEmpty) {
       _setLoading(true);
       try {
-        _receivedRequests = await _friendRequestService.getReceivedRequests(_currentUserId!);
+        _receivedRequests = await _friendRequestService.getReceivedFriendRequests(
+          userId: _currentUserId!,
+        );
         _setError(null);
       } catch (e) {
         _setError('Failed to load received requests: $e');
+        print('❌ Error getting received requests: $e');
       } finally {
         _setLoading(false);
       }
@@ -91,10 +94,13 @@ class FriendRequestProvider extends ChangeNotifier {
     if (refresh || _sentRequests.isEmpty) {
       _setLoading(true);
       try {
-        _sentRequests = await _friendRequestService.getSentRequests(_currentUserId!);
+        _sentRequests = await _friendRequestService.getSentFriendRequests(
+          userId: _currentUserId!,
+        );
         _setError(null);
       } catch (e) {
         _setError('Failed to load sent requests: $e');
+        print('❌ Error getting sent requests: $e');
       } finally {
         _setLoading(false);
       }
@@ -130,9 +136,14 @@ class FriendRequestProvider extends ChangeNotifier {
 
   /// Accept a friend request
   Future<bool> acceptFriendRequest(String requestId) async {
+    if (_currentUserId == null) return false;
+    
     _setLoading(true);
     try {
-      final success = await _friendRequestService.acceptFriendRequest(requestId);
+      final success = await _friendRequestService.acceptFriendRequest(
+        requestId: requestId,
+        userId: _currentUserId!,
+      );
       
       if (success) {
         // Refresh received requests
@@ -151,9 +162,14 @@ class FriendRequestProvider extends ChangeNotifier {
 
   /// Reject a friend request
   Future<bool> rejectFriendRequest(String requestId) async {
+    if (_currentUserId == null) return false;
+    
     _setLoading(true);
     try {
-      final success = await _friendRequestService.rejectFriendRequest(requestId);
+      final success = await _friendRequestService.rejectFriendRequest(
+        requestId: requestId,
+        userId: _currentUserId!,
+      );
       
       if (success) {
         // Refresh received requests
@@ -172,9 +188,14 @@ class FriendRequestProvider extends ChangeNotifier {
 
   /// Cancel a sent friend request
   Future<bool> cancelFriendRequest(String requestId) async {
+    if (_currentUserId == null) return false;
+    
     _setLoading(true);
     try {
-      final success = await _friendRequestService.cancelFriendRequest(requestId);
+      final success = await _friendRequestService.cancelFriendRequest(
+        requestId: requestId,
+        userId: _currentUserId!,
+      );
       
       if (success) {
         // Refresh sent requests
@@ -194,7 +215,10 @@ class FriendRequestProvider extends ChangeNotifier {
   /// Check if users are friends
   Future<bool> areFriends(String userId1, String userId2) async {
     try {
-      return await _friendRequestService.isFollowing(userId1, userId2);
+      return await _friendRequestService.areFriends(
+        userId1: userId1,
+        userId2: userId2,
+      );
     } catch (e) {
       return false;
     }
@@ -220,6 +244,10 @@ class FriendRequestProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _clearError() {
+    _error = null;
+  }
+
   @override
   void dispose() {
     for (final subscription in _subscriptions.values) {
@@ -229,4 +257,51 @@ class FriendRequestProvider extends ChangeNotifier {
     _friendRequestService.dispose();
     super.dispose();
   }
+
+  /// Remove a friend (unfriend)
+  Future<bool> removeFriend(String friendId) async {
+    if (_currentUserId == null) return false;
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Remove friendship from both sides
+      final success = await _friendRequestService.removeFriendship(
+        userId: _currentUserId!,
+        friendId: friendId,
+      );
+
+      if (success) {
+        _friendshipStatus[friendId] = false;
+        _friends.removeWhere((user) => user.id == friendId);
+        notifyListeners();
+      }
+
+      return success;
+    } catch (e) {
+      _setError('Failed to remove friend: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Get relationship status with another user
+  String getRelationshipStatus(String userId) {
+    if (userId == _currentUserId) return 'self';
+    if (_friendshipStatus[userId] == true) return 'friends';
+    
+    final sentRequest = _sentRequests.where((r) => r.toUserId == userId).firstOrNull;
+    if (sentRequest != null) return 'pending_sent';
+    
+    final receivedRequest = _receivedRequests.where((r) => r.fromUserId == userId).firstOrNull;
+    if (receivedRequest != null) return 'pending_received';
+    
+    return 'none';
+  }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

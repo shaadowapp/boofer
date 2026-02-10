@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import '../models/chat_error.dart';
+import '../../models/chat_error.dart';
 
 /// Service for handling error logging, notification, and retry logic
 class ErrorService {

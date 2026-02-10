@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import '../services/chat_service.dart';
 import '../services/friendship_service.dart';
 import '../services/user_service.dart';
 import '../widgets/message_bubble.dart';
-import '../widgets/chat_input.dart';
 import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
+import '../providers/appearance_provider.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -96,10 +97,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       );
 
       // Check if user is blocked (mock implementation for now)
-      final isBlocked = false; // TODO: Implement when FriendshipService has isBlocked method
+      const isBlocked = false; // TODO: Implement when FriendshipService has isBlocked method
 
       // Check if friend request was already sent (mock implementation for now)
-      final friendRequestSent = false; // TODO: Implement when FriendshipService has hasPendingFriendRequest method
+      const friendRequestSent = false; // TODO: Implement when FriendshipService has hasPendingFriendRequest method
 
       // Create recipient user object
       final recipientUser = User(
@@ -273,6 +274,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
+    
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
@@ -317,9 +321,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
           // Show pending status if friend request was sent
           if (!_isFriend && !_isBlocked && _friendRequestSent)
-            IconButton(
+            const IconButton(
               onPressed: null, // Disabled
-              icon: const Icon(Icons.hourglass_empty),
+              icon: Icon(Icons.hourglass_empty),
               tooltip: 'Friend request sent',
             ),
           // Always show the 3-dot menu button
@@ -335,23 +339,35 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   Widget _buildBody() {
+    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
+    
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
+      return Container(
+        decoration: wallpaperDecoration,
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
     if (!_canChat) {
-      return _buildFriendOnlyScreen();
+      return Container(
+        decoration: wallpaperDecoration,
+        child: _buildFriendOnlyScreen(),
+      );
     }
 
-    return Column(
-      children: [
-        Expanded(
-          child: _buildMessagesList(),
-        ),
-        _buildChatInput(),
-      ],
+    return Container(
+      decoration: wallpaperDecoration,
+      child: Column(
+        children: [
+          Expanded(
+            child: _buildMessagesList(),
+          ),
+          _buildChatInput(),
+        ],
+      ),
     );
   }
 
@@ -447,7 +463,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceVariant,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,

@@ -266,3 +266,80 @@ class FriendRequestStats {
   @override
   int get hashCode => Object.hash(pendingReceived, pendingSent, totalFriends);
 }
+
+/// Model for follow statistics (Instagram/Snapchat style)
+class FollowStats {
+  final int followersCount;
+  final int followingCount;
+  final int mutualFollowsCount;
+  final DateTime lastUpdated;
+
+  const FollowStats({
+    required this.followersCount,
+    required this.followingCount,
+    required this.mutualFollowsCount,
+    required this.lastUpdated,
+  });
+
+  /// Create empty stats
+  factory FollowStats.empty() {
+    return FollowStats(
+      followersCount: 0,
+      followingCount: 0,
+      mutualFollowsCount: 0,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  /// Create a copy with updated fields
+  FollowStats copyWith({
+    int? followersCount,
+    int? followingCount,
+    int? mutualFollowsCount,
+    DateTime? lastUpdated,
+  }) {
+    return FollowStats(
+      followersCount: followersCount ?? this.followersCount,
+      followingCount: followingCount ?? this.followingCount,
+      mutualFollowsCount: mutualFollowsCount ?? this.mutualFollowsCount,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+
+  /// Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'followersCount': followersCount,
+      'followingCount': followingCount,
+      'mutualFollowsCount': mutualFollowsCount,
+      'lastUpdated': lastUpdated.toIso8601String(),
+    };
+  }
+
+  /// Create from JSON
+  factory FollowStats.fromJson(Map<String, dynamic> json) {
+    return FollowStats(
+      followersCount: json['followersCount'] ?? 0,
+      followingCount: json['followingCount'] ?? 0,
+      mutualFollowsCount: json['mutualFollowsCount'] ?? 0,
+      lastUpdated: DateTime.parse(json['lastUpdated']),
+    );
+  }
+
+  @override
+  String toString() {
+    return 'FollowStats(followers: $followersCount, following: $followingCount, mutual: $mutualFollowsCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FollowStats &&
+        other.followersCount == followersCount &&
+        other.followingCount == followingCount &&
+        other.mutualFollowsCount == mutualFollowsCount;
+  }
+
+  @override
+  int get hashCode => Object.hash(followersCount, followingCount, mutualFollowsCount);
+}

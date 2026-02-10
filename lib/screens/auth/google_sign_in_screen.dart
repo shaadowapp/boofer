@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/auth_state_provider.dart';
+import '../../services/google_auth_service.dart';
 import '../../widgets/custom_button.dart';
 
 class GoogleSignInScreen extends StatefulWidget {
@@ -72,13 +73,17 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
     });
 
     try {
-      final authProvider = context.read<AuthStateProvider>();
-      await authProvider.signInWithGoogle();
+      final googleAuthService = GoogleAuthService();
+      final user = await googleAuthService.signInWithGoogle();
       
-      if (mounted && authProvider.isAuthenticated) {
+      if (mounted && user != null) {
+        // Update auth state
+        final authProvider = context.read<AuthStateProvider>();
+        await authProvider.checkAuthState();
+        
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
@@ -91,23 +96,45 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
           ),
         );
         
-        // Navigate to main screen (chats tab) - profile completion modal will be shown there
+        // Navigate to main screen (chats tab) - user profile is automatically completed
         Navigator.of(context).pushReplacementNamed('/main');
+      } else if (mounted) {
+        // Sign-in was cancelled or failed silently
+        _showErrorDialog(
+          'Sign In Cancelled',
+          'You cancelled the sign-in process. Please try again to continue.',
+          showRetry: true,
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('Sign in failed: ${e.toString()}')),
-              ],
-            ),
-            backgroundColor: AppColors.danger,
-            duration: Duration(seconds: 4),
-          ),
+        String errorTitle = 'Sign In Failed';
+        String errorMessage = 'An unexpected error occurred. Please try again.';
+        bool showNetworkHelp = false;
+
+        // Parse error and provide user-friendly messages
+        final errorString = e.toString().toLowerCase();
+        
+        if (errorString.contains('network_error') || 
+            errorString.contains('apiexception: 7')) {
+          errorTitle = 'No Internet Connection';
+          errorMessage = 'Unable to connect to Google services. Please check your internet connection and try again.';
+          showNetworkHelp = true;
+        } else if (errorString.contains('sign_in_cancelled') || 
+                   errorString.contains('cancelled')) {
+          errorTitle = 'Sign In Cancelled';
+          errorMessage = 'You cancelled the sign-in process.';
+        } else if (errorString.contains('sign_in_failed')) {
+          errorTitle = 'Sign In Failed';
+          errorMessage = 'Unable to sign in with Google. Please try again.';
+        } else if (errorString.contains('account_exists')) {
+          errorTitle = 'Account Already Exists';
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        }
+
+        _showErrorDialog(errorTitle, errorMessage, 
+          showRetry: true, 
+          showNetworkHelp: showNetworkHelp,
         );
       }
     } finally {
@@ -117,6 +144,98 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
         });
       }
     }
+  }
+
+  void _showErrorDialog(String title, String message, {
+    bool showRetry = false,
+    bool showNetworkHelp = false,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              showNetworkHelp ? Icons.wifi_off : Icons.error_outline,
+              color: AppColors.danger,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            if (showNetworkHelp) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.trustBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.trustBlue.withOpacity(0.3),
+                  ),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, 
+                          size: 16, 
+                          color: AppColors.trustBlue,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Troubleshooting Tips:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '• Check your Wi-Fi or mobile data\n'
+                      '• Try turning airplane mode off\n'
+                      '• Restart your device if needed\n'
+                      '• Make sure Google services are accessible',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          if (showRetry)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _handleGoogleSignIn();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.trustBlue,
+              ),
+              child: const Text('Try Again'),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -143,7 +262,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
                     margin: const EdgeInsets.only(bottom: 32),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         colors: [
                           AppColors.trustBlue,
                           AppColors.loveRose,
@@ -179,7 +298,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
                   
                   const SizedBox(height: 12),
                   
-                  Text(
+                  const Text(
                     'Connect with your loved ones in a secure, private space',
                     style: TextStyle(
                       fontSize: 16,
@@ -204,7 +323,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Center(
+                          child: const Center(
                             child: Text(
                               'G',
                               style: TextStyle(
@@ -233,7 +352,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.security,
                           color: AppColors.trustBlue,
                           size: 20,
@@ -298,7 +417,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen>
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Text(emoji, style: TextStyle(fontSize: 14)),
+          Text(emoji, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

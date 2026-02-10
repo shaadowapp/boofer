@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:rxdart/rxdart.dart';
-import '../models/message_model.dart';
-import '../models/network_state.dart';
+import '../../models/message_model.dart';
+import '../../models/network_state.dart';
 import 'message_repository.dart';
 import 'mesh_service.dart';
 import 'online_service.dart';
@@ -159,8 +159,8 @@ class ChatService implements IChatService {
 
       // Step 1: Initialize database
       _statusController.add('initializing_database');
-      await DatabaseService.instance.initialize();
-      print('✓ Database initialized');
+      // await DatabaseService.instance.initialize(); // TODO: Implement database service
+      print('✓ Database initialization skipped (stub)');
 
       // Step 2: Initialize mesh service
       _statusController.add('initializing_mesh');
@@ -242,7 +242,6 @@ class ChatService implements IChatService {
         senderId: _currentUserId!,
         isOffline: isOfflineMode,
         conversationId: conversationId,
-        status: MessageStatus.pending,
       );
 
       // Queue the message for sending with automatic retry

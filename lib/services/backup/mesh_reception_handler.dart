@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:rxdart/rxdart.dart';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'message_repository.dart';
 import 'mesh_message_handler.dart';
 
@@ -67,21 +67,20 @@ class MeshReceptionHandler {
   Future<void> _handleRegularMessage(Message message) async {
     try {
       // Set message as delivered since we received it successfully
-      message.status = MessageStatus.delivered;
+      final deliveredMessage = message.copyWith(status: MessageStatus.delivered);
       
       // Save to database
-      final messageId = await _messageRepository.saveMessage(message);
-      message.id = messageId;
+      await _messageRepository.saveMessage(deliveredMessage);
 
       // Add to deduplication cache
-      if (message.messageHash != null) {
-        _addToDeduplicationCache(message.messageHash!);
+      if (deliveredMessage.messageHash != null) {
+        _addToDeduplicationCache(deliveredMessage.messageHash!);
       }
 
       // Emit the processed message
-      _processedMessagesController.add(message);
+      _processedMessagesController.add(deliveredMessage);
 
-      print('Regular message processed successfully: ${message.text}');
+      print('Regular message processed successfully: ${deliveredMessage.text}');
     } catch (e) {
       print('Error handling regular message: $e');
       rethrow;

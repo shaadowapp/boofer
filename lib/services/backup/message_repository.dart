@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'database_service.dart';
 
 /// Repository interface for message operations
@@ -9,17 +9,20 @@ abstract class IMessageRepository {
   Future<List<Message>> getMessagesByConversation(String conversationId);
   Future<List<Message>> getMessagesByStatus(MessageStatus status);
   Future<List<Message>> getOfflineMessages();
+  Future<List<Message>> getRecentMessages();
+  Future<List<Message>> getFailedMessages();
   Future<int> saveMessage(Message message);
   Future<List<int>> saveMessages(List<Message> messages);
-  Future<void> updateMessageStatus(int messageId, MessageStatus status);
-  Future<void> updateMessageStatuses(List<int> messageIds, MessageStatus status);
-  Future<bool> deleteMessage(int messageId);
+  Future<void> updateMessageStatus(String messageId, MessageStatus status);
+  Future<void> updateMessageStatuses(List<String> messageIds, MessageStatus status);
+  Future<bool> deleteMessage(String messageId);
   Future<int> deleteOldMessages(DateTime cutoffDate);
   Future<int> getMessageCount();
   Future<int> getMessageCountByStatus(MessageStatus status);
   Future<bool> messageExists(String messageHash);
   Future<Message?> findMessageByHash(String messageHash);
   Future<void> clearAllMessages();
+  Future<Map<String, int>> getMessageStatistics();
 }
 
 /// Concrete implementation of message repository using Isar database
@@ -88,7 +91,8 @@ class MessageRepository implements IMessageRepository {
           await _databaseService.messageExists(message.messageHash!)) {
         print('Message already exists, skipping save: ${message.messageHash}');
         final existing = await _databaseService.findMessageByHash(message.messageHash!);
-        return existing?.id ?? 0;
+        // Return a hash code as int since Message.id is String
+        return existing?.id.hashCode ?? 0;
       }
 
       return await _databaseService.saveMessage(message);
@@ -123,7 +127,7 @@ class MessageRepository implements IMessageRepository {
   }
 
   @override
-  Future<void> updateMessageStatus(int messageId, MessageStatus status) async {
+  Future<void> updateMessageStatus(String messageId, MessageStatus status) async {
     try {
       await _databaseService.updateMessageStatus(messageId, status);
     } catch (e) {
@@ -133,7 +137,7 @@ class MessageRepository implements IMessageRepository {
   }
 
   @override
-  Future<void> updateMessageStatuses(List<int> messageIds, MessageStatus status) async {
+  Future<void> updateMessageStatuses(List<String> messageIds, MessageStatus status) async {
     try {
       await _databaseService.updateMessageStatuses(messageIds, status);
     } catch (e) {
@@ -143,7 +147,7 @@ class MessageRepository implements IMessageRepository {
   }
 
   @override
-  Future<bool> deleteMessage(int messageId) async {
+  Future<bool> deleteMessage(String messageId) async {
     try {
       return await _databaseService.deleteMessage(messageId);
     } catch (e) {
@@ -237,12 +241,12 @@ class MessageRepository implements IMessageRepository {
   }
 
   /// Mark messages as delivered
-  Future<void> markMessagesAsDelivered(List<int> messageIds) async {
+  Future<void> markMessagesAsDelivered(List<String> messageIds) async {
     await updateMessageStatuses(messageIds, MessageStatus.delivered);
   }
 
   /// Mark messages as failed
-  Future<void> markMessagesAsFailed(List<int> messageIds) async {
+  Future<void> markMessagesAsFailed(List<String> messageIds) async {
     await updateMessageStatuses(messageIds, MessageStatus.failed);
   }
 

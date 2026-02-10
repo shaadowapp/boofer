@@ -4,11 +4,9 @@ import 'package:sqflite/sqflite.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
-import '../models/user_model.dart';
 import '../models/message_model.dart';
 import 'firebase_service.dart';
 import 'user_service.dart';
-import 'chat_service.dart';
 
 /// Hybrid sync service that manages data between local SQLite and Firebase
 class SyncService {

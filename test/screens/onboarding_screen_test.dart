@@ -23,11 +23,17 @@ void main() {
       when(mockController.currentStep).thenReturn(1);
       when(mockController.isLoading).thenReturn(false);
       when(mockController.errorMessage).thenReturn(null);
-      when(mockController.initialize()).thenAnswer((_) async {});
-      when(mockController.nextStep()).thenAnswer((_) async {});
+      when(mockController.initialize()).thenAnswer((_) async {
+        return null;
+      });
+      when(mockController.nextStep()).thenAnswer((_) async {
+        return null;
+      });
       when(mockController.previousStep()).thenReturn(null);
       when(mockController.goToStep(any)).thenReturn(null);
-      when(mockController.completeOnboarding()).thenAnswer((_) async {});
+      when(mockController.completeOnboarding()).thenAnswer((_) async {
+        return null;
+      });
     });
 
     Widget createTestWidget() {

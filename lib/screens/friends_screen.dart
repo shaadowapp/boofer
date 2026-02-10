@@ -115,7 +115,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 );
               },
               icon: const Icon(Icons.search),
-              label: const Text('Find Friends'),
+              label: const Text('Discover'),
             ),
           ],
         ),

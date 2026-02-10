@@ -179,7 +179,7 @@ class HelpScreen extends StatelessWidget {
         ),
         Card(
           elevation: 0,
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
           child: Column(children: children),
         ),
       ],
@@ -260,7 +260,7 @@ class HelpScreen extends StatelessWidget {
           child: ListView(
             children: [
               _buildGuideStep('1', 'Create Your Profile', 'Set up your name, bio, and add links to your Link Tree.'),
-              _buildGuideStep('2', 'Find Friends', 'Use the search feature to find and connect with friends.'),
+              _buildGuideStep('2', 'Discover People', 'Use the search feature to find and connect with friends.'),
               _buildGuideStep('3', 'Start Messaging', 'Send secure messages using your virtual number.'),
               _buildGuideStep('4', 'Make Calls', 'Use voice and video calling features for real-time communication.'),
               _buildGuideStep('5', 'Customize Settings', 'Adjust privacy, notifications, and appearance settings.'),
@@ -400,7 +400,7 @@ class HelpScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: problemType,
+                  initialValue: problemType,
                   decoration: const InputDecoration(
                     labelText: 'Problem Type',
                     border: OutlineInputBorder(),

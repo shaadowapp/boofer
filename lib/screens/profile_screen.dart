@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
-import '../services/google_auth_service.dart';
+import '../services/anonymous_auth_service.dart';
 import '../models/user_model.dart';
 import '../utils/svg_icons.dart';
-import 'debug_user_data_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,7 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
   bool _isLoading = false;
   User? _currentUser;
-  List<String> _linkTreeUrls = [];
 
   @override
   void initState() {
@@ -107,7 +105,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _fullNameController.text = user?.fullName ?? '';
         _handleController.text = user?.handle ?? '';
         _bioController.text = user?.bio ?? 'Hey there! I\'m using Boofer 👋';
-        _linkTreeUrls = []; // Load saved links in real app
         _isLoading = false;
       });
       
@@ -238,8 +235,6 @@ Handle: ${_currentUser!.formattedHandle}
 Bio: ${_currentUser!.bio}
 Virtual Number: ${_currentUser!.virtualNumber}
 
-${_linkTreeUrls.isNotEmpty ? 'Links:\n${_linkTreeUrls.join('\n')}' : ''}
-
 Download Boofer for secure messaging!
 ''';
     
@@ -248,26 +243,6 @@ Download Boofer for secure messaging!
       const SnackBar(
         content: Text('Profile copied to clipboard - Share it anywhere!'),
         duration: Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showLinkTreeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => LinkTreeDialog(
-        currentLinks: _linkTreeUrls,
-        onSave: (links) {
-          setState(() {
-            _linkTreeUrls = links;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Links updated successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
       ),
     );
   }
@@ -306,10 +281,10 @@ Download Boofer for secure messaging!
       await UserService.clearUserData();
       print('✅ UserService data cleared');
       
-      // Sign out from Google Auth and Firebase
-      final googleAuthService = GoogleAuthService();
-      await googleAuthService.signOut();
-      print('✅ Google Auth and Firebase sign out completed');
+      // Sign out from Anonymous Auth
+      final anonymousAuthService = AnonymousAuthService();
+      await anonymousAuthService.signOut();
+      print('✅ Anonymous Auth sign out completed');
       
       // Clear additional local storage
       await LocalStorageService.remove('custom_user_id');
@@ -379,18 +354,6 @@ Download Boofer for secure messaging!
               tooltip: 'Refresh profile data',
             ),
             IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DebugUserDataScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.bug_report),
-              tooltip: 'Debug user data',
-            ),
-            IconButton(
               onPressed: () => setState(() => _isEditing = true),
               icon: SvgIcons.sized(
                 SvgIcons.edit,
@@ -423,10 +386,6 @@ Download Boofer for secure messaging!
                   // Account Details Section
                   _buildAccountDetailsSection(),
                   const SizedBox(height: 24),
-                  
-                  // Link Tree Section
-                  _buildLinkTreeSection(),
-                  const SizedBox(height: 32),
                   
                   // Logout Button
                   _buildLogoutButton(),
@@ -628,7 +587,7 @@ Download Boofer for secure messaging!
     
     return Card(
       elevation: 0,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -694,7 +653,7 @@ Download Boofer for secure messaging!
     
     return Card(
       elevation: 0,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -792,7 +751,7 @@ Download Boofer for secure messaging!
     
     return Card(
       elevation: 0,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -962,7 +921,7 @@ Download Boofer for secure messaging!
             filled: true,
             fillColor: enabled 
                 ? theme.colorScheme.surface
-                : theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                : theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
           ),
         ),
       ],
@@ -1026,92 +985,25 @@ Download Boofer for secure messaging!
     );
   }
 
-  Widget _buildLinkTreeSection() {
-    final theme = Theme.of(context);
-    
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Link Tree',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _showLinkTreeDialog,
-                  icon: Icon(
-                    _linkTreeUrls.isEmpty ? Icons.add : Icons.edit,
-                    size: 18,
-                  ),
-                  label: Text(_linkTreeUrls.isEmpty ? 'Add Links' : 'Edit'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Share your products, services, or social media links',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            if (_linkTreeUrls.isEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                    style: BorderStyle.solid,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.link,
-                      size: 48,
-                      color: theme.colorScheme.onSurface.withOpacity(0.3),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No links added yet',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add links to your website, social media, or products',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.4),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              ...(_linkTreeUrls.asMap().entries.map((entry) {
-                final index = entry.key;
-                final url = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildLinkTile(url, index),
-                );
-              }).toList()),
-            ],
-          ],
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _showLogoutDialog,
+        icon: const Icon(
+          Icons.logout,
+          color: Colors.red,
+        ),
+        label: const Text(
+          'Logout',
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.red),
+          padding: const EdgeInsets.symmetric(vertical: 16),
         ),
       ),
     );
@@ -1173,30 +1065,6 @@ Download Boofer for secure messaging!
             tooltip: 'Copy link',
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: _showLogoutDialog,
-        icon: const Icon(
-          Icons.logout,
-          color: Colors.red,
-        ),
-        label: const Text(
-          'Logout',
-          style: TextStyle(
-            color: Colors.red,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.red),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
       ),
     );
   }

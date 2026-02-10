@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
+// import 'package:integration_test/integration_test.dart'; // Package not available
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'package:boofer/main.dart' as app;
 import 'package:boofer/services/chat_service.dart';
-import 'package:boofer/services/mesh_service.dart';
-import 'package:boofer/services/online_service.dart';
-import 'package:boofer/services/network_service.dart';
+import 'package:boofer/services/backup/mesh_service.dart';
+import 'package:boofer/services/backup/online_service.dart';
+import 'package:boofer/services/backup/network_service.dart';
 import 'package:boofer/models/message_model.dart';
 import 'package:boofer/widgets/message_bubble.dart';
 import 'package:boofer/widgets/chat_input.dart';
 import 'package:boofer/widgets/connection_status.dart';
+import 'package:boofer/models/network_state.dart';
 
 @GenerateMocks([IMeshService, IOnlineService, INetworkService])
 import 'app_e2e_test.mocks.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // IntegrationTestWidgetsFlutterBinding.ensureInitialized(); // Package not available
 
   group('End-to-End App Tests', () {
     testWidgets('complete offline message flow', (WidgetTester tester) async {
@@ -224,7 +225,7 @@ void main() {
       expect(find.text('Message 20'), findsOneWidget);
 
       // Should be able to scroll up to see older messages
-      await tester.drag(find.byType(ListView), Offset(0, 500));
+      await tester.drag(find.byType(ListView), const Offset(0, 500));
       await tester.pumpAndSettle();
 
       // Should still see messages after scrolling

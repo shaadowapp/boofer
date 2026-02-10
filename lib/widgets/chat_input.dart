@@ -121,7 +121,7 @@ class _ChatInputState extends State<ChatInput> {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(24),
             ),
             child: TextField(

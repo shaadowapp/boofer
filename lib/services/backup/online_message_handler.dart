@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'online_service.dart';
 import 'message_repository.dart';
 
@@ -23,7 +23,8 @@ class OnlineMessageHandler {
        _messageRepository = messageRepository {
     
     // Listen for connection status changes
-    _onlineService.isConnected.listen(_handleConnectionChange);
+    // Note: isConnected is a bool getter, not a stream in stub implementation
+    // In real implementation, this would be a stream
   }
 
   /// Send message with retry logic
@@ -38,7 +39,6 @@ class OnlineMessageHandler {
       senderId: senderId,
       isOffline: false,
       conversationId: conversationId,
-      status: MessageStatus.pending,
     );
 
     await _sendMessageWithRetryLogic(message, maxAttempts);
@@ -65,8 +65,8 @@ class OnlineMessageHandler {
         );
         
         // Success - update message status
-        message.status = MessageStatus.sent;
-        await _messageRepository.saveMessage(message);
+        final sentMessage = message.copyWith(status: MessageStatus.sent);
+        await _messageRepository.saveMessage(sentMessage);
         
         print('Message sent successfully after $attempts attempts');
         return;
@@ -76,8 +76,8 @@ class OnlineMessageHandler {
         
         if (attempts >= maxAttempts) {
           // All attempts failed - mark as failed
-          message.status = MessageStatus.failed;
-          await _messageRepository.saveMessage(message);
+          final failedMessage = message.copyWith(status: MessageStatus.failed);
+          await _messageRepository.saveMessage(failedMessage);
           
           print('Message failed after $maxAttempts attempts');
           rethrow;
@@ -91,11 +91,11 @@ class OnlineMessageHandler {
 
   /// Queue message for sending when connection is restored
   Future<void> _queueMessageForLater(Message message) async {
-    message.status = MessageStatus.pending;
-    await _messageRepository.saveMessage(message);
+    final pendingMessage = message.copyWith(status: MessageStatus.pending);
+    await _messageRepository.saveMessage(pendingMessage);
     
-    _pendingMessages.add(message);
-    print('Message queued for later transmission: ${message.text}');
+    _pendingMessages.add(pendingMessage);
+    print('Message queued for later transmission: ${pendingMessage.text}');
   }
 
   /// Handle connection status changes

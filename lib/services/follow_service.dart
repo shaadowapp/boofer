@@ -27,14 +27,14 @@ class FriendRequestService {
   Stream<FriendRequestStats> get statsStream => _statsController.stream;
 
   /// Get suggested users for discovery
-  Future<List<User>> getSuggestedUsers({int limit = 20}) async {
+  Future<List<User>> getSuggestedUsers({int limit = 20, String? currentUserId}) async {
     try {
       print('🔍 Loading suggested users from Firestore...');
       
       final query = await _firestore
           .collection('users')
           .where('isDiscoverable', isEqualTo: true)
-          .limit(limit)
+          .limit(limit + 1) // Get one extra in case we need to filter current user
           .get();
 
       final users = query.docs.map((doc) {
@@ -42,8 +42,13 @@ class FriendRequestService {
         return User.fromFirestore(data, doc.id);
       }).cast<User>().toList();
 
-      print('✅ Loaded ${users.length} suggested users');
-      return users;
+      // Filter out current user
+      final filteredUsers = currentUserId != null
+          ? users.where((user) => user.id != currentUserId).toList()
+          : users;
+
+      print('✅ Loaded ${filteredUsers.length} suggested users (filtered current user)');
+      return filteredUsers.take(limit).toList();
     } catch (e) {
       print('❌ Error loading suggested users: $e');
       _errorHandler.handleError(AppError.service(
@@ -55,7 +60,7 @@ class FriendRequestService {
   }
 
   /// Get followers for a user
-  Future<List<User>> getFollowers(String userId, {int limit = 50}) async {
+  Future<List<User>> getFollowers({required String userId, int limit = 50}) async {
     try {
       print('🔍 Loading followers for user: $userId');
       
@@ -83,7 +88,7 @@ class FriendRequestService {
   }
 
   /// Get following for a user
-  Future<List<User>> getFollowing(String userId, {int limit = 50}) async {
+  Future<List<User>> getFollowing({required String userId, int limit = 50}) async {
     try {
       print('🔍 Loading following for user: $userId');
       
@@ -111,13 +116,13 @@ class FriendRequestService {
   }
 
   /// Check if user is following another user
-  Future<bool> isFollowing(String userId, String targetUserId) async {
+  Future<bool> isFollowing({required String followerId, required String followingId}) async {
     try {
       final doc = await _firestore
           .collection('friends')
-          .doc(userId)
+          .doc(followerId)
           .collection('following')
-          .doc(targetUserId)
+          .doc(followingId)
           .get();
       
       return doc.exists;
@@ -127,8 +132,46 @@ class FriendRequestService {
     }
   }
 
-  /// Get follow stats for a user
-  Future<FollowStats> getFollowStats(String userId) async {
+  /// Follow a user
+  Future<bool> followUser({required String followerId, required String followingId}) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        transaction.set(
+          _firestore.collection('friends').doc(followerId).collection('following').doc(followingId),
+          {'createdAt': DateTime.now().toIso8601String()},
+        );
+        transaction.set(
+          _firestore.collection('friends').doc(followingId).collection('followers').doc(followerId),
+          {'createdAt': DateTime.now().toIso8601String()},
+        );
+      });
+      return true;
+    } catch (e) {
+      print('❌ Error following user: $e');
+      return false;
+    }
+  }
+
+  /// Unfollow a user
+  Future<bool> unfollowUser({required String followerId, required String followingId}) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        transaction.delete(
+          _firestore.collection('friends').doc(followerId).collection('following').doc(followingId),
+        );
+        transaction.delete(
+          _firestore.collection('friends').doc(followingId).collection('followers').doc(followerId),
+        );
+      });
+      return true;
+    } catch (e) {
+      print('❌ Error unfollowing user: $e');
+      return false;
+    }
+  }
+
+  /// Get follow counts
+  Future<Map<String, int>> getFollowCounts(String userId) async {
     try {
       final followersQuery = await _firestore
           .collection('friends')
@@ -142,15 +185,96 @@ class FriendRequestService {
           .collection('following')
           .get();
 
-      return FollowStats(
-        followersCount: followersQuery.docs.length,
-        followingCount: followingQuery.docs.length,
-      );
+      return {
+        'followers': followersQuery.docs.length,
+        'following': followingQuery.docs.length,
+      };
     } catch (e) {
-      print('❌ Error getting follow stats: $e');
-      return FollowStats(followersCount: 0, followingCount: 0);
+      print('❌ Error getting follow counts: $e');
+      return {'followers': 0, 'following': 0};
     }
   }
+
+  /// Get mutual followers
+  Future<List<User>> getMutualFollowers({required String userId1, required String userId2}) async {
+    try {
+      final user1Following = await getFollowing(userId: userId1);
+      final user2Following = await getFollowing(userId: userId2);
+      
+      final user1Ids = user1Following.map((u) => u.id).toSet();
+      final mutuals = user2Following.where((u) => user1Ids.contains(u.id)).toList();
+      
+      return mutuals;
+    } catch (e) {
+      print('❌ Error getting mutual followers: $e');
+      return [];
+    }
+  }
+
+  /// Remove a follower
+  Future<bool> removeFollower({required String userId, required String followerId}) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        transaction.delete(
+          _firestore.collection('friends').doc(userId).collection('followers').doc(followerId),
+        );
+        transaction.delete(
+          _firestore.collection('friends').doc(followerId).collection('following').doc(userId),
+        );
+      });
+      return true;
+    } catch (e) {
+      print('❌ Error removing follower: $e');
+      return false;
+    }
+  }
+
+  /// Batch follow users
+  Future<Map<String, bool>> batchFollowUsers({required String followerId, required List<String> userIds}) async {
+    final results = <String, bool>{};
+    for (final userId in userIds) {
+      results[userId] = await followUser(followerId: followerId, followingId: userId);
+    }
+    return results;
+  }
+
+  /// Listen to follow counts
+  Stream<Map<String, int>>? listenToFollowCounts(String userId) {
+    return _firestore
+        .collection('friends')
+        .doc(userId)
+        .snapshots()
+        .asyncMap((doc) async {
+      final followersQuery = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('followers')
+          .get();
+      
+      final followingQuery = await _firestore
+          .collection('friends')
+          .doc(userId)
+          .collection('following')
+          .get();
+
+      return {
+        'followers': followersQuery.docs.length,
+        'following': followingQuery.docs.length,
+      };
+    });
+  }
+
+  /// Listen to following changes
+  Stream<List<String>>? listenToFollowing(String userId) {
+    return _firestore
+        .collection('friends')
+        .doc(userId)
+        .collection('following')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.id).toList());
+  }
+
+
 
   /// Send a friend request
   Future<bool> sendFriendRequest({
@@ -452,6 +576,27 @@ class FriendRequestService {
     });
   }
 
+  /// Remove friendship (unfriend)
+  Future<bool> removeFriendship({required String userId, required String friendId}) async {
+    try {
+      return await _firestore.runTransaction((transaction) async {
+        // Remove from both users' friends collections
+        transaction.delete(
+          _firestore.collection('friends').doc(userId).collection('friends').doc(friendId)
+        );
+        transaction.delete(
+          _firestore.collection('friends').doc(friendId).collection('friends').doc(userId)
+        );
+
+        print('✅ Friendship removed successfully');
+        return true;
+      });
+    } catch (e) {
+      print('❌ Error removing friendship: $e');
+      return false;
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     for (final subscription in _subscriptions.values) {
@@ -463,15 +608,4 @@ class FriendRequestService {
     _sentRequestsController.close();
     _statsController.close();
   }
-}
-
-/// Follow statistics model
-class FollowStats {
-  final int followersCount;
-  final int followingCount;
-
-  FollowStats({
-    required this.followersCount,
-    required this.followingCount,
-  });
 }

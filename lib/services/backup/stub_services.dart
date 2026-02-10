@@ -3,8 +3,8 @@
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../models/message_model.dart';
-import '../models/chat_error.dart';
+import '../../models/message_model.dart';
+import '../../models/chat_error.dart';
 
 // Stub Database Service
 class DatabaseService {
@@ -14,7 +14,7 @@ class DatabaseService {
 
   Future<void> initialize() async {
     // Stub implementation
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   Future<void> dispose() async {
@@ -82,29 +82,29 @@ class MeshService implements IMeshService {
 
   @override
   Future<void> initialize(String apiKey) async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> start() async {
     _isConnected = true;
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> stop() async {
     _isConnected = false;
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> sendMessage(String message, String recipientId) async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> sendBroadcastMessage(String message) async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
@@ -140,24 +140,24 @@ class OnlineService implements IOnlineService {
 
   @override
   Future<void> initialize(String supabaseUrl, String supabaseKey) async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> connect() async {
     _isConnected = true;
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> disconnect() async {
     _isConnected = false;
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
   Future<void> sendMessage(Message message) async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
@@ -182,11 +182,11 @@ abstract class INetworkService {
 
 class NetworkService implements INetworkService {
   final StreamController<bool> _connectivityController = StreamController<bool>.broadcast();
-  bool _isConnected = true;
+  final bool _isConnected = true;
 
   @override
   Future<void> initialize() async {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override

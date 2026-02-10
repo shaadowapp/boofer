@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/google_auth_service.dart';
+import '../services/anonymous_auth_service.dart';
+import '../services/local_storage_service.dart';
 
 enum AuthenticationState {
   initial,
@@ -12,15 +12,14 @@ enum AuthenticationState {
 }
 
 class AuthStateProvider with ChangeNotifier {
-  final GoogleAuthService _googleAuthService = GoogleAuthService();
+  final AnonymousAuthService _anonymousAuthService = AnonymousAuthService();
   
   AuthenticationState _state = AuthenticationState.initial;
-  User? _currentUser;
+  String? _currentUserId;
   String? _errorMessage;
-  StreamSubscription<User?>? _authSubscription;
   
   AuthenticationState get state => _state;
-  User? get currentUser => _currentUser;
+  String? get currentUserId => _currentUserId;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _state == AuthenticationState.authenticated;
   bool get isLoading => _state == AuthenticationState.loading;
@@ -30,21 +29,6 @@ class AuthStateProvider with ChangeNotifier {
   }
   
   void _initializeAuthState() {
-    // Listen to Firebase auth state changes
-    _authSubscription = _googleAuthService.authStateChanges.listen(
-      (User? user) {
-        _currentUser = user;
-        if (user != null) {
-          _setState(AuthenticationState.authenticated);
-        } else {
-          _setState(AuthenticationState.unauthenticated);
-        }
-      },
-      onError: (error) {
-        _setError('Authentication state error: $error');
-      },
-    );
-    
     // Check initial auth state
     _checkInitialAuthState();
   }
@@ -53,22 +37,14 @@ class AuthStateProvider with ChangeNotifier {
     _setState(AuthenticationState.loading);
     
     try {
-      // First check if Firebase user exists (automatic persistence)
-      final firebaseUser = _googleAuthService.currentFirebaseUser;
-      if (firebaseUser != null) {
-        _currentUser = firebaseUser;
-        _setState(AuthenticationState.authenticated);
-        print('✅ Firebase user found - auto-login successful');
-        return;
-      }
+      // Check if user is signed in (has local user ID)
+      final isSignedIn = await _anonymousAuthService.isSignedIn();
       
-      // Fallback: check local storage and try to restore session
-      final restoredUser = await _googleAuthService.restoreUserSession();
-      if (restoredUser != null) {
-        // We have local user data, but need to verify Firebase auth
-        final isSignedIn = await _googleAuthService.isSignedIn();
-        if (isSignedIn) {
-          _currentUser = _googleAuthService.currentFirebaseUser;
+      if (isSignedIn) {
+        // Try to restore user session
+        final restoredUser = await _anonymousAuthService.restoreUserSession();
+        if (restoredUser != null) {
+          _currentUserId = restoredUser.id;
           _setState(AuthenticationState.authenticated);
           print('✅ User session restored successfully');
           return;
@@ -77,28 +53,27 @@ class AuthStateProvider with ChangeNotifier {
       
       // No valid session found
       _setState(AuthenticationState.unauthenticated);
-      print('ℹ️ No valid user session - login required');
+      print('ℹ️ No valid user session - onboarding required');
     } catch (e) {
       print('❌ Error checking auth state: $e');
       _setError('Failed to check authentication state: $e');
     }
   }
   
-  Future<void> signInWithGoogle() async {
+  Future<void> createAnonymousUser() async {
     _setState(AuthenticationState.loading);
     _clearError();
     
     try {
-      final user = await _googleAuthService.signInWithGoogle();
+      final user = await _anonymousAuthService.createAnonymousUser();
       if (user != null) {
-        _currentUser = user;
+        _currentUserId = user.id;
         _setState(AuthenticationState.authenticated);
       } else {
-        // User cancelled sign-in
-        _setState(AuthenticationState.unauthenticated);
+        _setError('Failed to create anonymous user');
       }
     } catch (e) {
-      _setError('Google sign-in failed: $e');
+      _setError('Anonymous user creation failed: $e');
     }
   }
   
@@ -107,12 +82,16 @@ class AuthStateProvider with ChangeNotifier {
     _clearError();
     
     try {
-      await _googleAuthService.signOut();
-      _currentUser = null;
+      await _anonymousAuthService.signOut();
+      _currentUserId = null;
       _setState(AuthenticationState.unauthenticated);
     } catch (e) {
       _setError('Sign-out failed: $e');
     }
+  }
+  
+  Future<void> checkAuthState() async {
+    await _checkInitialAuthState();
   }
   
   void _setState(AuthenticationState newState) {
@@ -133,7 +112,7 @@ class AuthStateProvider with ChangeNotifier {
   
   void clearError() {
     _clearError();
-    if (_currentUser != null) {
+    if (_currentUserId != null) {
       _setState(AuthenticationState.authenticated);
     } else {
       _setState(AuthenticationState.unauthenticated);
@@ -142,7 +121,6 @@ class AuthStateProvider with ChangeNotifier {
   
   @override
   void dispose() {
-    _authSubscription?.cancel();
     super.dispose();
   }
 }

@@ -204,7 +204,7 @@ class FirebaseService {
       final handleQuery = await _firestore
           .collection('users')
           .where('handle', isGreaterThanOrEqualTo: query.toLowerCase())
-          .where('handle', isLessThan: query.toLowerCase() + '\uf8ff')
+          .where('handle', isLessThan: '${query.toLowerCase()}\uf8ff')
           .where('isDiscoverable', isEqualTo: true)
           .limit(20)
           .get();
@@ -212,7 +212,7 @@ class FirebaseService {
       final numberQuery = await _firestore
           .collection('users')
           .where('virtualNumber', isGreaterThanOrEqualTo: query)
-          .where('virtualNumber', isLessThan: query + '\uf8ff')
+          .where('virtualNumber', isLessThan: '$query\uf8ff')
           .where('isDiscoverable', isEqualTo: true)
           .limit(20)
           .get();

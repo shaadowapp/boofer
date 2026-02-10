@@ -15,7 +15,7 @@ class LocalStorageService {
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,
     ),
-    iOptions: const IOSOptions(
+    iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
   );

@@ -26,7 +26,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Complete full onboarding flow
-      await _completeOnboardingFlow(tester);
+      await completeOnboardingFlow(tester);
 
       // Should now be on main screen
       expect(find.byType(MainScreen), findsOneWidget);
@@ -117,7 +117,7 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
       
       // Complete onboarding
-      await _completeOnboardingFlow(tester);
+      await completeOnboardingFlow(tester);
       
       // Now on main screen, permission request may occur
       expect(find.byType(MainScreen), findsOneWidget);
@@ -288,7 +288,7 @@ void main() {
   });
 
   // Helper method to complete the full onboarding flow
-  Future<void> _completeOnboardingFlow(WidgetTester tester) async {
+  Future<void> completeOnboardingFlow(WidgetTester tester) async {
     // Step 1: Registration
     final nameField = find.byType(TextFormField);
     await tester.enterText(nameField, 'Integration Test User');

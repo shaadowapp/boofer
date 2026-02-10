@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'package:isar/isar.dart';
-import '../../lib/models/message_model.dart';
-import '../../lib/services/database_service.dart';
+import 'package:boofer/models/message_model.dart';
+import 'package:boofer/services/database_service.dart';
 
 // Generate mocks - simplified to avoid conflicts
 @GenerateMocks([DatabaseService])
@@ -300,7 +300,9 @@ void main() {
             final function = invocation.positionalArguments[0] as Function();
             return await function();
           });
-          when(mockMessagesCollection.clear()).thenAnswer((_) async {});
+          when(mockMessagesCollection.clear()).thenAnswer((_) async {
+            return null;
+          });
 
           // Act
           await databaseService.clearAllMessages();
@@ -391,7 +393,9 @@ void main() {
       test('should close database successfully', () async {
         // Arrange
         DatabaseService._isar = mockIsar;
-        when(mockIsar.close()).thenAnswer((_) async {});
+        when(mockIsar.close()).thenAnswer((_) async {
+          return null;
+        });
 
         // Act
         await databaseService.close();

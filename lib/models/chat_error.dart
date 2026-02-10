@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 /// Severity levels for chat errors
 enum ErrorSeverity {

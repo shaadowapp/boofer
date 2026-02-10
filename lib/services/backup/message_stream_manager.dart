@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:rxdart/rxdart.dart';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'message_repository.dart';
 import 'mesh_service.dart';
 import 'online_service.dart';

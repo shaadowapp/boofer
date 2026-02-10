@@ -160,8 +160,8 @@ class ChatProvider with ChangeNotifier {
   // Demo friends data for UI design
   List<Friend> _demoFriends = [];
   List<Friend> _archivedFriends = [];
-  Set<String> _mutedChats = {};
-  Set<String> _blockedUsers = {};
+  final Set<String> _mutedChats = {};
+  final Set<String> _blockedUsers = {};
 
   // Initialize demo data
   void _initializeDemoData() {

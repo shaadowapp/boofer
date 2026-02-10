@@ -25,7 +25,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FollowProvider>().loadFollowers(widget.userId);
+      context.read<FriendRequestProvider>().loadFollowers(widget.userId);
     });
   }
 
@@ -40,7 +40,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
         ),
         elevation: 0,
       ),
-      body: Consumer<FollowProvider>(
+      body: Consumer<FriendRequestProvider>(
         builder: (context, followProvider, child) {
           final followers = followProvider.getFollowers(widget.userId);
           final isLoading = followProvider.isLoading;
@@ -136,7 +136,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   Widget _buildFollowerItem(
     BuildContext context,
     User user,
-    FollowProvider followProvider,
+    FriendRequestProvider followProvider,
   ) {
     final currentUserId = followProvider.currentUserId;
     final isCurrentUser = user.id == currentUserId;
@@ -237,7 +237,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   void _showRemoveFollowerDialog(
     BuildContext context,
     User user,
-    FollowProvider followProvider,
+    FriendRequestProvider followProvider,
   ) {
     showDialog(
       context: context,

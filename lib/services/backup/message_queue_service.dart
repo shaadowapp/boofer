@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:rxdart/rxdart.dart';
-import '../models/message_model.dart';
+import '../../models/message_model.dart';
 import 'message_repository.dart';
 import 'mesh_service.dart';
 import 'online_service.dart';
@@ -53,7 +53,7 @@ class MessageQueueService {
   final RetryConfig _retryConfig;
 
   // Queue management
-  final Map<int, QueuedMessage> _messageQueue = {};
+  final Map<String, QueuedMessage> _messageQueue = {};
   Timer? _retryTimer;
   Timer? _queueProcessingTimer;
   
@@ -137,8 +137,9 @@ class MessageQueueService {
       print('Queuing message: ${message.text} (ID: ${message.id})');
 
       // Save message to database if not already saved
-      if (message.id == 0) {
-        message.id = await _messageRepository.saveMessage(message);
+      if (message.id.isEmpty) {
+        final savedId = await _messageRepository.saveMessage(message);
+        // Message ID is already set in the model
       }
 
       // Add to queue
@@ -415,12 +416,12 @@ class MessageQueueService {
   }
 
   /// Check if a message is in the queue
-  bool isMessageQueued(int messageId) {
+  bool isMessageQueued(String messageId) {
     return _messageQueue.containsKey(messageId);
   }
 
   /// Remove a message from the queue
-  void removeFromQueue(int messageId) {
+  void removeFromQueue(String messageId) {
     if (_messageQueue.remove(messageId) != null) {
       print('Removed message $messageId from queue');
       _updateQueueStats();

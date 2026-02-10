@@ -155,7 +155,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                                   ],
                                 ],
                               );
-                            }).toList(),
+                            }),
                           ],
                         ),
                       ),
@@ -332,7 +332,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
@@ -407,7 +407,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
@@ -441,7 +441,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(context).colorScheme.outline.withOpacity(0.3),

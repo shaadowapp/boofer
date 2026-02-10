@@ -2,13 +2,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/user_service.dart';
-import '../models/friend_model.dart';
 import '../models/user_model.dart';
-import '../utils/svg_icons.dart';
 import '../providers/username_provider.dart';
-import '../widgets/user_profile_card.dart';
-import '../widgets/contextual_user_profile_card.dart';
-import '../widgets/enhanced_user_profile_card.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
 
@@ -54,58 +49,36 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeWithDemoData();
-    _loadCurrentUserFromDatabase(); // Try to load real user data
+    _loadCurrentUserFromDatabase(); // Load real user data only
   }
 
   Future<void> _loadCurrentUserFromDatabase() async {
     try {
-      // Try to get current user data from UserService
+      // Get current user data from UserService
       final currentUser = await UserService.getCurrentUser();
       if (currentUser != null && mounted) {
         setState(() {
           _currentUser = currentUser;
           _userNumber = currentUser.virtualNumber;
+          // Load real data from Firestore instead of demo data
+          _nearbyUsers = [];
+          _suggestedUsers = [];
+          _feedPosts = [];
+          _isLoading = false;
         });
-        print('Loaded current user: ${currentUser.fullName}');
+        print('✅ Loaded current user: ${currentUser.fullName}');
       } else {
-        print('No current user found in database, using demo user Alex Johnson');
+        print('⚠️ No current user found in database');
+        setState(() {
+          _isLoading = false;
+        });
       }
     } catch (e) {
-      print('Error loading current user: $e, using demo user Alex Johnson');
-      // Keep the demo Alex Johnson user that was set in _initializeWithDemoData
+      print('❌ Error loading current user: $e');
+      setState(() {
+        _isLoading = false;
+      });
     }
-  }
-
-  void _initializeWithDemoData() {
-    // Initialize with demo user and data immediately for UI testing
-    final demoUser = User(
-      id: 'demo_user',
-      email: 'alex.johnson@demo.com',
-      handle: 'alex_johnson',
-      fullName: 'Alex Johnson',
-      virtualNumber: 'VN-2024-001',
-      bio: '🎨 Digital artist & coffee enthusiast',
-      isDiscoverable: true,
-      status: UserStatus.online,
-      createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      updatedAt: DateTime.now(),
-    );
-    
-    final nearbyUsers = _generateNearbyUsers();
-    final suggestedUsers = _generateSuggestedUsers();
-    final feedPosts = _generateFeedPosts();
-    
-    print('Generated ${feedPosts.length} posts'); // Debug print
-    
-    setState(() {
-      _userNumber = demoUser.virtualNumber;
-      _currentUser = demoUser;
-      _nearbyUsers = nearbyUsers;
-      _suggestedUsers = suggestedUsers;
-      _feedPosts = feedPosts;
-      _isLoading = false; // Set loading to false immediately
-    });
   }
 
   @override
@@ -330,8 +303,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
             },
-            child: const Icon(Icons.add),
             tooltip: 'Create Post',
+            child: const Icon(Icons.add),
           ),
         );
       },
@@ -1025,7 +998,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
             icon: const Icon(Icons.person_add),
-            label: const Text('Find Friends'),
+            label: const Text('Discover'),
           ),
         ],
       ),

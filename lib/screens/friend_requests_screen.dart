@@ -13,27 +13,17 @@ class FriendRequestsScreen extends StatefulWidget {
   State<FriendRequestsScreen> createState() => _FriendRequestsScreenState();
 }
 
-class _FriendRequestsScreenState extends State<FriendRequestsScreen>
-    with TickerProviderStateMixin {
-  late TabController _tabController;
+class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
   final Map<String, User?> _userCache = {};
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<FriendRequestProvider>();
       provider.loadReceivedRequests(refresh: true);
-      provider.loadSentRequests(refresh: true);
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   /// Get user by ID with caching to prevent UI freezing
@@ -59,83 +49,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Friend Requests'),
+        title: const Text('Requests'),
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Consumer<FriendRequestProvider>(
-              builder: (context, provider, child) {
-                final count = provider.receivedRequests.length;
-                return Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Received'),
-                      if (count > 0) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            count.toString(),
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
-            Consumer<FriendRequestProvider>(
-              builder: (context, provider, child) {
-                final count = provider.sentRequests.length;
-                return Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Sent'),
-                      if (count > 0) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondary,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            count.toString(),
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildReceivedRequestsTab(),
-          _buildSentRequestsTab(),
-        ],
-      ),
+      body: _buildReceivedRequestsTab(),
     );
   }
 
@@ -159,7 +76,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         if (requests.isEmpty) {
           return _buildEmptyState(
             icon: Icons.inbox_outlined,
-            title: 'No friend requests',
+            title: 'No requests',
             subtitle: 'When people send you friend requests, they\'ll appear here',
           );
         }
@@ -174,48 +91,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             itemBuilder: (context, index) {
               final request = requests[index];
               return _buildReceivedRequestItem(context, request, provider);
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSentRequestsTab() {
-    return Consumer<FriendRequestProvider>(
-      builder: (context, provider, child) {
-        final requests = provider.sentRequests;
-        final isLoading = provider.isLoading;
-        final error = provider.error;
-
-        if (isLoading && requests.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (error != null && requests.isEmpty) {
-          return _buildErrorState(error, () {
-            provider.loadSentRequests(refresh: true);
-          });
-        }
-
-        if (requests.isEmpty) {
-          return _buildEmptyState(
-            icon: Icons.send_outlined,
-            title: 'No sent requests',
-            subtitle: 'Friend requests you send will appear here',
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            await provider.loadSentRequests(refresh: true);
-          },
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              final request = requests[index];
-              return _buildSentRequestItem(context, request, provider);
             },
           ),
         );
@@ -300,7 +175,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -351,116 +226,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                       ),
                     ),
                   ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSentRequestItem(
-    BuildContext context,
-    FriendRequest request,
-    FriendRequestProvider provider,
-  ) {
-    return FutureBuilder<User?>(
-      future: _getUserById(request.toUserId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
-        final user = snapshot.data!;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundImage: user.profilePicture != null
-                      ? NetworkImage(user.profilePicture!)
-                      : null,
-                  child: user.profilePicture == null
-                      ? Text(
-                          user.initials,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.displayName,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        user.formattedHandle,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        'Sent ${_formatTimeAgo(request.sentAt)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Pending',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSecondaryContainer,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(width: 8),
-                
-                IconButton(
-                  onPressed: () async {
-                    final confirmed = await _showCancelConfirmation(context, user.displayName);
-                    if (confirmed) {
-                      final success = await provider.cancelFriendRequest(request.id);
-                      if (success && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Friend request cancelled'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Cancel request',
                 ),
               ],
             ),
@@ -550,28 +315,5 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     } else {
       return '${(difference.inDays / 7).floor()}w ago';
     }
-  }
-
-  Future<bool> _showCancelConfirmation(BuildContext context, String userName) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Friend Request'),
-        content: Text('Cancel friend request to $userName?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Cancel Request'),
-          ),
-        ],
-      ),
-    ) ?? false;
   }
 }

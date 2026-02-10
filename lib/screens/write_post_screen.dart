@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
@@ -216,7 +215,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
               ),
             ),
             filled: true,
-            fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+            fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           ),
           onChanged: (value) {
             setState(() {}); // Rebuild to update preview

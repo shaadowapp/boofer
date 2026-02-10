@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'id_generation_service.dart';
 
@@ -16,11 +15,26 @@ class VirtualNumberService {
     try {
       print('🔄 Generating unique virtual number...');
       
-      // Use the ID generation service for consistent phone number generation
-      final virtualNumber = await _idService.generateVirtualPhoneNumber();
+      int attempts = 0;
+      String virtualNumber;
       
-      print('✅ Generated unique virtual number: $virtualNumber');
-      return virtualNumber;
+      while (attempts < 10) {
+        // Use the ID generation service for consistent phone number generation
+        virtualNumber = await _idService.generateVirtualPhoneNumber();
+        
+        // Check if it's unique
+        if (await _isVirtualNumberUnique(virtualNumber)) {
+          print('✅ Generated unique virtual number: $virtualNumber');
+          return virtualNumber;
+        }
+        
+        print('⚠️ Virtual number collision detected, regenerating... (attempt ${attempts + 1})');
+        attempts++;
+      }
+      
+      // Fallback to timestamp-based number if we couldn't generate unique one
+      print('⚠️ Using timestamp-based fallback for virtual number');
+      return _generateTimestampBasedNumber();
     } catch (e) {
       print('❌ Failed to generate virtual number: $e');
       // Fallback to timestamp-based number

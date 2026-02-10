@@ -43,3 +43,54 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Project Cleanup - Development files not for production
+# Added by cleanup optimization
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Log and temporary files
+*.txt
+*.log
+*.pid
+analyze_output.*
+
+# Demo and test entry points
+lib/main_demo.dart
+lib/main_*_test.dart
+lib/main_simple.dart
+lib/main_android.dart
+
+# Example files
+lib/examples/
+
+# Migration scripts
+lib/scripts/migrate_*.dart
+scripts/migrate_*.dart
+
+# Development specs
+.kiro/specs/
+
+# Test helper scripts
+fix_emulator*.bat
+test_emulator*.bat
+install_on_all_devices.bat
+check_build_status.bat
+wait_and_run.bat
+open_apk_folder.bat
+cleanup_project*.bat
+
+# Firebase temporary files
+firebase_rules_temp_testing.js
+
+# Build helper scripts (optional - uncomment if you want to keep these)
+# build_debug_fast.bat
+# build_release.bat
+# build_release_optimized.bat

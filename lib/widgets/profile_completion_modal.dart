@@ -1,10 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../models/user_model.dart';
-import '../services/google_auth_service.dart';
 import '../services/user_service.dart';
 import '../services/user_profile_sync_service.dart';
 import '../services/virtual_number_service.dart';
@@ -252,17 +249,17 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                const Row(
                   children: [
                     Icon(Icons.check_circle, color: Colors.white),
                     SizedBox(width: 8),
                     Text('Profile completed successfully! 🎉'),
                   ],
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Your Boofer ID: $virtualNumber',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Colors.white70,
@@ -271,7 +268,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
               ],
             ),
             backgroundColor: AppColors.trustBlue,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -303,13 +300,13 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: Colors.white),
-            SizedBox(width: 8),
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
         ),
         backgroundColor: AppColors.danger,
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -369,7 +366,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                             Container(
                               width: 60,
                               height: 60,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: LinearGradient(
                                   colors: [
@@ -380,13 +377,13 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                   end: Alignment.bottomRight,
                                 ),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 Icons.person_add,
                                 size: 30,
                                 color: Colors.white,
                               ),
                             ),
-                            SizedBox(width: 16),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,8 +396,8 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                       color: AppColors.primaryText(isDark),
                                     ),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
+                                  const SizedBox(height: 4),
+                                  const Text(
                                     'Let\'s set up your Boofer profile',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -413,7 +410,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           ],
                         ),
                         
-                        SizedBox(height: 32),
+                        const SizedBox(height: 32),
                         
                         // Profile picture placeholder
                         Center(
@@ -433,7 +430,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                             .take(2)
                                             .join()
                                             .toUpperCase(),
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 24,
                                           fontWeight: FontWeight.bold,
                                           color: AppColors.trustBlue,
@@ -455,7 +452,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                       width: 2,
                                     ),
                                   ),
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.camera_alt,
                                     size: 16,
                                     color: Colors.white,
@@ -466,7 +463,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           ),
                         ),
                         
-                        SizedBox(height: 32),
+                        const SizedBox(height: 32),
                         
                         // Name field
                         _buildTextField(
@@ -476,7 +473,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           icon: Icons.person,
                         ),
                         
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         
                         // Username field
                         _buildTextField(
@@ -486,7 +483,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           icon: Icons.alternate_email,
                           errorText: _usernameError,
                           suffix: _isCheckingUsername
-                              ? SizedBox(
+                              ? const SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
@@ -497,7 +494,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                   ),
                                 )
                               : _usernameError == null && _usernameController.text.isNotEmpty
-                                  ? Icon(
+                                  ? const Icon(
                                       Icons.check_circle,
                                       color: AppColors.trustBlue,
                                       size: 20,
@@ -505,7 +502,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                   : null,
                         ),
                         
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         
                         // Bio field
                         _buildTextField(
@@ -516,7 +513,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           maxLines: 3,
                         ),
                         
-                        SizedBox(height: 24),
+                        const SizedBox(height: 24),
                         
                         // Features info
                         Container(
@@ -548,7 +545,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           ),
                         ),
                         
-                        SizedBox(height: 32),
+                        const SizedBox(height: 32),
                         
                         // Save button
                         ElevatedButton(
@@ -556,14 +553,14 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.trustBlue,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),
                           child: _isLoading
-                              ? Row(
+                              ? const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -578,7 +575,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                     Text('Generating Boofer ID...'),
                                   ],
                                 )
-                              : Text(
+                              : const Text(
                                   'Complete Profile',
                                   style: TextStyle(
                                     fontSize: 16,
@@ -587,7 +584,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                 ),
                         ),
                         
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         
                         // Skip button (subtle)
                         TextButton(
@@ -596,7 +593,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                             await LocalStorageService.setString('profile_modal_last_dismissed', DateTime.now().toIso8601String());
                             widget.onCompleted();
                           },
-                          child: Text(
+                          child: const Text(
                             'Skip for now',
                             style: TextStyle(
                               color: AppColors.lightSecondaryText,
@@ -622,7 +619,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Text(emoji, style: TextStyle(fontSize: 14)),
+          Text(emoji, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -660,13 +657,13 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
             color: AppColors.primaryText(isDark),
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         TextField(
           controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
+            hintStyle: const TextStyle(
               color: AppColors.lightSecondaryText,
             ),
             prefixIcon: Icon(
@@ -691,14 +688,14 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
+              borderSide: const BorderSide(
                 color: AppColors.trustBlue,
                 width: 2,
               ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
+              borderSide: const BorderSide(
                 color: AppColors.danger,
               ),
             ),

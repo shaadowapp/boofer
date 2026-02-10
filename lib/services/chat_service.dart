@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import '../core/database/database_manager.dart';
 import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
 import '../models/message_model.dart';
+import '../models/network_state.dart';
 import 'friendship_service.dart';
 
 /// Privacy-focused chat service for local message management
@@ -14,14 +14,22 @@ class ChatService {
   final Map<String, List<Message>> _messageCache = {};
   final StreamController<List<Message>> _messagesController = StreamController<List<Message>>.broadcast();
   final StreamController<Message> _newMessageController = StreamController<Message>.broadcast();
+  final StreamController<NetworkState> _networkStateController = StreamController<NetworkState>.broadcast();
   
   Stream<List<Message>> get messagesStream => _messagesController.stream;
   Stream<Message> get newMessageStream => _newMessageController.stream;
+  Stream<NetworkState> get networkState => _networkStateController.stream;
   
   ChatService({
     required DatabaseManager database,
     required ErrorHandler errorHandler,
-  }) : _database = database, _errorHandler = errorHandler;
+  }) : _database = database, _errorHandler = errorHandler {
+    // Initialize with default network state
+    _networkStateController.add(NetworkState.initial().copyWith(
+      hasInternetConnection: true,
+      isOnlineServiceActive: true,
+    ));
+  }
   
   /// Load messages for a conversation
   Future<void> loadMessages(String conversationId, String userId) async {
@@ -215,7 +223,7 @@ class ChatService {
         SELECT * FROM messages 
         WHERE text LIKE ?
       ''';
-      List<dynamic> args = ['%$query%'];
+      final List<dynamic> args = ['%$query%'];
       
       if (conversationId != null) {
         sql += ' AND conversation_id = ?';
@@ -313,5 +321,6 @@ class ChatService {
   void dispose() {
     _messagesController.close();
     _newMessageController.close();
+    _networkStateController.close();
   }
 }

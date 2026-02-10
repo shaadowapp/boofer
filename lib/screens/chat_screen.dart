@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import '../models/message_model.dart';
 import '../models/network_state.dart';
 import '../services/chat_service.dart';
+import '../core/database/database_manager.dart';
+import '../core/error/error_handler.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/chat_input.dart';
 import '../providers/theme_provider.dart';
+import '../providers/appearance_provider.dart';
 
 /// Main chat screen that displays messages and handles user input
 class ChatScreen extends StatefulWidget {
@@ -23,7 +26,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  late final IChatService _chatService;
+  late final ChatService _chatService;
   final ScrollController _scrollController = ScrollController();
   bool _isInitialized = false;
   String _initializationError = '';
@@ -31,7 +34,10 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chatService = ChatService.getInstance();
+    _chatService = ChatService(
+      database: DatabaseManager.instance,
+      errorHandler: ErrorHandler(),
+    );
     _initializeChatService();
   }
 
@@ -44,22 +50,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Initialize the chat service
   Future<void> _initializeChatService() async {
     try {
-      // Check if already initialized
-      if (_chatService.currentUserId != null) {
-        setState(() {
-          _isInitialized = true;
-        });
-        return;
-      }
-
-      // Initialize with placeholder credentials
-      // In a real app, these would come from secure storage or environment
-      await _chatService.initialize(widget.userId);
-
+      // Chat service is ready to use immediately
       setState(() {
         _isInitialized = true;
       });
-
     } catch (e) {
       setState(() {
         _initializationError = e.toString();
@@ -220,13 +214,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Build main chat body
   Widget _buildChatBody(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: _buildMessagesList(context),
-        ),
-        _buildChatInput(context),
-      ],
+    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
+    
+    return Container(
+      decoration: wallpaperDecoration,
+      child: Column(
+        children: [
+          Expanded(
+            child: _buildMessagesList(context),
+          ),
+          _buildChatInput(context),
+        ],
+      ),
     );
   }
 
@@ -380,7 +380,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!_isInitialized || text.trim().isEmpty) return;
 
     try {
-      await _chatService.sendMessage(text.trim());
+      await _chatService.sendMessage(
+        conversationId: widget.conversationId ?? 'default',
+        senderId: widget.userId,
+        content: text.trim(),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -397,45 +401,18 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Handle mode toggle
+  /// Handle mode toggle (deprecated - chat service doesn't support mode switching)
   Future<void> _handleModeToggle() async {
     if (!_isInitialized) return;
 
-    try {
-      final currentMode = _chatService.currentMode;
-      NetworkMode newMode;
-
-      switch (currentMode) {
-        case NetworkMode.auto:
-          newMode = NetworkMode.online;
-          break;
-        case NetworkMode.online:
-          newMode = NetworkMode.offline;
-          break;
-        case NetworkMode.offline:
-          newMode = NetworkMode.auto;
-          break;
-      }
-
-      await _chatService.switchMode(newMode);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Switched to ${newMode.name} mode'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to switch mode: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+    // Mode switching is not supported in current ChatService implementation
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mode switching is not available'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -471,15 +448,16 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.pop(context);
             },
           ),
-          if (isOwnMessage && message.status == MessageStatus.failed)
-            ListTile(
-              leading: const Icon(Icons.refresh),
-              title: const Text('Retry sending'),
-              onTap: () {
-                Navigator.pop(context);
-                _chatService.retryFailedMessages();
-              },
-            ),
+          // Retry functionality not yet implemented
+          // if (isOwnMessage && message.status == MessageStatus.failed)
+          //   ListTile(
+          //     leading: const Icon(Icons.refresh),
+          //     title: const Text('Retry sending'),
+          //     onTap: () {
+          //       Navigator.pop(context);
+          //       // _chatService.retryFailedMessages();
+          //     },
+          //   ),
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Message info'),
