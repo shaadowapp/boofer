@@ -25,13 +25,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
   final List<Map<String, dynamic>> _wallpapers = [
     {'id': 'none', 'name': 'None', 'type': 'none'},
-    // Doodles
-    {'id': 'doodle1', 'name': 'Doodle 1', 'type': 'doodle', 'color': const Color(0xFFF3F4F6)},
-    {'id': 'doodle2', 'name': 'Doodle 2', 'type': 'doodle', 'color': const Color(0xFFDCFCE7)},
-    {'id': 'doodle3', 'name': 'Doodle 3', 'type': 'doodle', 'color': const Color(0xFFDEEDFF)},
-    {'id': 'doodle4', 'name': 'Doodle 4', 'type': 'doodle', 'color': const Color(0xFFFFF4E6)},
-    {'id': 'doodle5', 'name': 'Doodle 5', 'type': 'doodle', 'color': const Color(0xFFF3E5F5)},
-    {'id': 'doodle6', 'name': 'Doodle 6', 'type': 'doodle', 'color': const Color(0xFFFFEBEE)},
+    // Doodles - inspired by Telegram/WhatsApp patterns
+    {'id': 'doodle1', 'name': 'Geometric', 'type': 'doodle', 'color': const Color(0xFFF3F4F6)},
+    {'id': 'doodle2', 'name': 'Leaves', 'type': 'doodle', 'color': const Color(0xFFDCFCE7)},
+    {'id': 'doodle3', 'name': 'Stars', 'type': 'doodle', 'color': const Color(0xFFDEEDFF)},
+    {'id': 'doodle4', 'name': 'Curves', 'type': 'doodle', 'color': const Color(0xFFFFF4E6)},
+    {'id': 'doodle5', 'name': 'Hearts', 'type': 'doodle', 'color': const Color(0xFFF3E5F5)},
+    {'id': 'doodle6', 'name': 'Waves', 'type': 'doodle', 'color': const Color(0xFFFFEBEE)},
+    {'id': 'doodle7', 'name': 'Dots', 'type': 'doodle', 'color': const Color(0xFFE8F5E9)},
+    {'id': 'doodle8', 'name': 'Lines', 'type': 'doodle', 'color': const Color(0xFFFFF9C4)},
     // Solid colors
     {'id': 'solid1', 'name': 'Soft White', 'type': 'solid', 'color': const Color(0xFFF5F5F5)},
     {'id': 'solid2', 'name': 'Soft Green', 'type': 'solid', 'color': const Color(0xFFE8F5E9)},
@@ -39,6 +41,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     {'id': 'solid4', 'name': 'Soft Orange', 'type': 'solid', 'color': const Color(0xFFFFF3E0)},
     {'id': 'solid5', 'name': 'Soft Purple', 'type': 'solid', 'color': const Color(0xFFF3E5F5)},
     {'id': 'solid6', 'name': 'Soft Pink', 'type': 'solid', 'color': const Color(0xFFFCE4EC)},
+    {'id': 'solid7', 'name': 'Soft Yellow', 'type': 'solid', 'color': const Color(0xFFFFFDE7)},
+    {'id': 'solid8', 'name': 'Soft Teal', 'type': 'solid', 'color': const Color(0xFFE0F2F1)},
+    {'id': 'solid9', 'name': 'Soft Indigo', 'type': 'solid', 'color': const Color(0xFFE8EAF6)},
+    {'id': 'solid10', 'name': 'Soft Amber', 'type': 'solid', 'color': const Color(0xFFFFF8E1)},
     // Modern gradients
     {'id': 'gradient1', 'name': 'Warm Yellow', 'type': 'gradient'},
     {'id': 'gradient2', 'name': 'Soft Pink', 'type': 'gradient'},
@@ -52,6 +58,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     {'id': 'gradient10', 'name': 'Ocean Blue', 'type': 'gradient'},
     {'id': 'gradient11', 'name': 'Sunset', 'type': 'gradient'},
     {'id': 'gradient12', 'name': 'Cotton Candy', 'type': 'gradient'},
+    {'id': 'gradient13', 'name': 'Forest', 'type': 'gradient'},
+    {'id': 'gradient14', 'name': 'Rose Gold', 'type': 'gradient'},
+    {'id': 'gradient15', 'name': 'Northern Lights', 'type': 'gradient'},
   ];
 
   @override
@@ -247,104 +256,52 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             title: 'CHAT WALLPAPER',
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Choose a background for your chats',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.8,
-                      ),
-                      itemCount: _wallpapers.length,
-                      itemBuilder: (context, index) {
-                        final wallpaper = _wallpapers[index];
-                        final isSelected = appearanceProvider.selectedWallpaper == wallpaper['id'];
-                        final type = wallpaper['type'] as String;
-
-                        return GestureDetector(
-                          onTap: () => appearanceProvider.setWallpaper(wallpaper['id']),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: type == 'solid' ? wallpaper['color'] as Color? : null,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.outline.withValues(alpha: 0.2),
-                                width: isSelected ? 3 : 1,
-                              ),
-                            ),
-                            child: Stack(
-                              children: [
-                                if (wallpaper['id'] != 'none')
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: _buildWallpaperPreview(wallpaper['id']),
-                                  ),
-                                if (wallpaper['id'] == 'none')
-                                  const Center(
-                                    child: Icon(Icons.block, size: 32),
-                                  ),
-                                if (isSelected)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                Positioned(
-                                  bottom: 8,
-                                  left: 8,
-                                  right: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.6),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      wallpaper['name'],
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Choose a background for your chats',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
+              ),
+              
+              // None option
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: _buildWallpaperOption(
+                  context,
+                  'none',
+                  'None',
+                  appearanceProvider,
+                  theme,
+                ),
+              ),
+              
+              // Doodles Section
+              _buildWallpaperSubSection(
+                context,
+                title: 'Doodles',
+                wallpapers: _wallpapers.where((w) => w['type'] == 'doodle').toList(),
+                appearanceProvider: appearanceProvider,
+                theme: theme,
+              ),
+              
+              // Solid Colors Section
+              _buildWallpaperSubSection(
+                context,
+                title: 'Solid Colors',
+                wallpapers: _wallpapers.where((w) => w['type'] == 'solid').toList(),
+                appearanceProvider: appearanceProvider,
+                theme: theme,
+              ),
+              
+              // Gradients Section
+              _buildWallpaperSubSection(
+                context,
+                title: 'Gradients',
+                wallpapers: _wallpapers.where((w) => w['type'] == 'gradient').toList(),
+                appearanceProvider: appearanceProvider,
+                theme: theme,
               ),
             ],
           ),
@@ -355,12 +312,160 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
+  // Build wallpaper subsection with horizontal scroll
+  Widget _buildWallpaperSubSection(
+    BuildContext context, {
+    required String title,
+    required List<Map<String, dynamic>> wallpapers,
+    required AppearanceProvider appearanceProvider,
+    required ThemeData theme,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: wallpapers.length,
+            itemBuilder: (context, index) {
+              final wallpaper = wallpapers[index];
+              return Padding(
+                padding: EdgeInsets.only(right: index < wallpapers.length - 1 ? 12 : 0),
+                child: _buildWallpaperOption(
+                  context,
+                  wallpaper['id'],
+                  wallpaper['name'],
+                  appearanceProvider,
+                  theme,
+                  width: 100,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Build individual wallpaper option
+  Widget _buildWallpaperOption(
+    BuildContext context,
+    String id,
+    String name,
+    AppearanceProvider appearanceProvider,
+    ThemeData theme, {
+    double? width,
+  }) {
+    final isSelected = appearanceProvider.selectedWallpaper == id;
+    
+    return GestureDetector(
+      onTap: () => appearanceProvider.setWallpaper(id),
+      child: Container(
+        width: width,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withValues(alpha: 0.2),
+            width: isSelected ? 3 : 1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            if (id != 'none')
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _buildWallpaperPreview(id),
+              ),
+            if (id == 'none')
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.block,
+                      size: 32,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (isSelected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            if (id != 'none')
+              Positioned(
+                bottom: 8,
+                left: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWallpaperPreview(String wallpaperId) {
     final wallpaper = _wallpapers.firstWhere((w) => w['id'] == wallpaperId);
     final type = wallpaper['type'] as String;
 
     if (type == 'doodle') {
-      return SizedBox.expand(
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: wallpaper['color'] as Color,
         child: CustomPaint(
           painter: DoodlePainter(wallpaperId),
         ),
@@ -417,6 +522,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         return [const Color(0xFFFFD89B), const Color(0xFF19547B)];
       case 'gradient12':
         return [const Color(0xFFFF6E7F), const Color(0xFFBFE9FF)];
+      case 'gradient13':
+        return [const Color(0xFF134E5E), const Color(0xFF71B280)];
+      case 'gradient14':
+        return [const Color(0xFFEEA4CE), const Color(0xFFC58BF2)];
+      case 'gradient15':
+        return [const Color(0xFF00C9FF), const Color(0xFF92FE9D)];
       default:
         return [Colors.grey.shade200, Colors.grey.shade300];
     }
@@ -503,7 +614,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   }
 }
 
-// Custom painter for doodle patterns
+// Custom painter for doodle patterns inspired by Telegram/WhatsApp
 class DoodlePainter extends CustomPainter {
   final String doodleId;
 
@@ -512,131 +623,247 @@ class DoodlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.15)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
+      ..color = Colors.black.withValues(alpha: 0.12)
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     switch (doodleId) {
       case 'doodle1':
-        // Circles pattern - Light gray background
-        _drawCirclesPattern(canvas, size, paint);
+        // Geometric circles and dots pattern
+        _drawGeometricPattern(canvas, size, paint);
         break;
       case 'doodle2':
-        // Waves pattern - Light green background
-        _drawWavesPattern(canvas, size, paint);
+        // Nature-inspired leaves pattern
+        _drawLeavesPattern(canvas, size, paint);
         break;
       case 'doodle3':
-        // Stars pattern - Light blue background
+        // Stars and sparkles pattern
         _drawStarsPattern(canvas, size, paint);
         break;
       case 'doodle4':
-        // Dots pattern - Light orange background
-        _drawDotsPattern(canvas, size, paint);
+        // Abstract curves pattern
+        _drawCurvesPattern(canvas, size, paint);
         break;
       case 'doodle5':
-        // Hearts pattern - Light purple background
+        // Hearts and flowers pattern
         _drawHeartsPattern(canvas, size, paint);
         break;
       case 'doodle6':
-        // Zigzag pattern - Light pink background
-        _drawZigzagPattern(canvas, size, paint);
+        // Waves and lines pattern
+        _drawWavesPattern(canvas, size, paint);
+        break;
+      case 'doodle7':
+        // Simple dots pattern
+        _drawSimpleDotsPattern(canvas, size, paint);
+        break;
+      case 'doodle8':
+        // Diagonal lines pattern
+        _drawDiagonalLinesPattern(canvas, size, paint);
         break;
     }
   }
 
-  void _drawCirclesPattern(Canvas canvas, Size size, Paint paint) {
-    for (var i = 0; i < 4; i++) {
-      for (var j = 0; j < 4; j++) {
-        canvas.drawCircle(
-          Offset(size.width * (i / 4) + size.width / 8, size.height * (j / 4) + size.height / 8),
-          size.width / 12,
-          paint,
-        );
+  void _drawGeometricPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 5;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    // Draw circles
+    for (var i = 0; i < 5; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        // Alternating circles and dots
+        if ((i + j) % 2 == 0) {
+          canvas.drawCircle(Offset(x, y), spacing / 4, paint);
+        } else {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x, y), 2, paint);
+          paint.style = PaintingStyle.stroke;
+        }
       }
     }
   }
 
-  void _drawWavesPattern(Canvas canvas, Size size, Paint paint) {
-    for (var row = 0; row < 4; row++) {
-      final path = Path();
-      final y = size.height * (row / 4) + size.height / 8;
-      path.moveTo(0, y);
-      for (var i = 0; i < size.width; i += 20) {
+  void _drawLeavesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        // Draw leaf shape
+        final path = Path();
+        path.moveTo(x, y - spacing / 3);
         path.quadraticBezierTo(
-          i + 10,
-          y - 10,
-          i + 20,
-          y,
+          x + spacing / 4, y - spacing / 6,
+          x, y + spacing / 3,
+        );
+        path.quadraticBezierTo(
+          x - spacing / 4, y - spacing / 6,
+          x, y - spacing / 3,
+        );
+        canvas.drawPath(path, paint);
+        
+        // Add vein
+        canvas.drawLine(
+          Offset(x, y - spacing / 3),
+          Offset(x, y + spacing / 3),
+          paint,
         );
       }
-      canvas.drawPath(path, paint);
     }
   }
 
   void _drawStarsPattern(Canvas canvas, Size size, Paint paint) {
-    for (var i = 0; i < 3; i++) {
-      for (var j = 0; j < 3; j++) {
-        _drawStar(
-          canvas,
-          paint,
-          Offset(size.width * (i / 3) + size.width / 6, size.height * (j / 3) + size.height / 6),
-          size.width / 15,
-        );
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        // Draw 4-point star
+        _drawStar(canvas, paint, Offset(x, y), spacing / 4, 4);
+        
+        // Add small sparkles
+        if ((i + j) % 2 == 0) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x + spacing / 3, y - spacing / 4), 1.5, paint);
+          canvas.drawCircle(Offset(x - spacing / 3, y + spacing / 4), 1.5, paint);
+          paint.style = PaintingStyle.stroke;
+        }
       }
     }
   }
 
-  void _drawDotsPattern(Canvas canvas, Size size, Paint paint) {
-    paint.style = PaintingStyle.fill;
-    for (var i = 0; i < 6; i++) {
-      for (var j = 0; j < 6; j++) {
-        canvas.drawCircle(
-          Offset(size.width * (i / 6) + size.width / 12, size.height * (j / 6) + size.height / 12),
-          3,
-          paint,
+  void _drawCurvesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 5;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 5; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        // Draw curved lines
+        final path = Path();
+        path.moveTo(x - spacing / 3, y);
+        path.quadraticBezierTo(
+          x, y - spacing / 3,
+          x + spacing / 3, y,
         );
+        path.quadraticBezierTo(
+          x, y + spacing / 3,
+          x - spacing / 3, y,
+        );
+        canvas.drawPath(path, paint);
       }
     }
   }
 
   void _drawHeartsPattern(Canvas canvas, Size size, Paint paint) {
-    paint.style = PaintingStyle.fill;
-    for (var i = 0; i < 3; i++) {
-      for (var j = 0; j < 3; j++) {
-        _drawHeart(
-          canvas,
-          paint,
-          Offset(size.width * (i / 3) + size.width / 6, size.height * (j / 3) + size.height / 6),
-          size.width / 20,
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        // Draw heart
+        _drawHeart(canvas, paint, Offset(x, y), spacing / 5);
+        
+        // Add small dots around
+        if ((i + j) % 2 == 0) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x + spacing / 3, y), 1.5, paint);
+          canvas.drawCircle(Offset(x - spacing / 3, y), 1.5, paint);
+          paint.style = PaintingStyle.stroke;
+        }
+      }
+    }
+  }
+
+  void _drawWavesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.height / 8;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var row = 0; row < rows; row++) {
+      final path = Path();
+      final y = row * spacing;
+      path.moveTo(0, y);
+      
+      for (var i = 0.0; i < size.width + spacing; i += spacing) {
+        path.quadraticBezierTo(
+          i + spacing / 2, y + spacing / 3,
+          i + spacing, y,
         );
       }
-    }
-  }
-
-  void _drawZigzagPattern(Canvas canvas, Size size, Paint paint) {
-    for (var row = 0; row < 5; row++) {
-      final path = Path();
-      final y = size.height * (row / 5);
-      path.moveTo(0, y);
-      for (var i = 0; i < size.width; i += 15) {
-        path.lineTo(i + 7.5, y + (i % 30 == 0 ? 10 : -10));
-        path.lineTo(i + 15, y);
-      }
       canvas.drawPath(path, paint);
+      
+      // Add dots between waves
+      if (row % 2 == 0) {
+        paint.style = PaintingStyle.fill;
+        for (var i = spacing / 2; i < size.width; i += spacing) {
+          canvas.drawCircle(Offset(i, y + spacing / 2), 1.5, paint);
+        }
+        paint.style = PaintingStyle.stroke;
+      }
     }
   }
 
-  void _drawStar(Canvas canvas, Paint paint, Offset center, double radius) {
+  void _drawSimpleDotsPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 8;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    paint.style = PaintingStyle.fill;
+    for (var i = 0; i < 8; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        canvas.drawCircle(Offset(x, y), 2.5, paint);
+      }
+    }
+    paint.style = PaintingStyle.stroke;
+  }
+
+  void _drawDiagonalLinesPattern(Canvas canvas, Size size, Paint paint) {
+    const spacing = 20.0;
+    
+    for (var i = -size.height; i < size.width + size.height; i += spacing) {
+      canvas.drawLine(
+        Offset(i.toDouble(), 0),
+        Offset(i + size.height, size.height),
+        paint,
+      );
+    }
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, Offset center, double radius, int points) {
     final path = Path();
-    for (var i = 0; i < 5; i++) {
-      final angle = (i * 4 * math.pi) / 5 - math.pi / 2;
-      final x = center.dx + radius * (i % 2 == 0 ? 1 : 0.5) * math.cos(angle);
-      final y = center.dy + radius * (i % 2 == 0 ? 1 : 0.5) * math.sin(angle);
+    final angleStep = (2 * math.pi) / points;
+    
+    for (var i = 0; i < points; i++) {
+      final angle = i * angleStep - math.pi / 2;
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+      
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
+      
+      // Add inner point
+      final innerAngle = angle + angleStep / 2;
+      final innerX = center.dx + (radius * 0.4) * math.cos(innerAngle);
+      final innerY = center.dy + (radius * 0.4) * math.sin(innerAngle);
+      path.lineTo(innerX, innerY);
     }
     path.close();
     canvas.drawPath(path, paint);
@@ -645,16 +872,21 @@ class DoodlePainter extends CustomPainter {
   void _drawHeart(Canvas canvas, Paint paint, Offset center, double size) {
     final path = Path();
     path.moveTo(center.dx, center.dy + size);
+    
+    // Left curve
     path.cubicTo(
-      center.dx - size * 2, center.dy - size,
-      center.dx - size, center.dy - size * 1.5,
-      center.dx, center.dy - size * 0.5,
+      center.dx - size * 2, center.dy - size * 0.5,
+      center.dx - size, center.dy - size * 1.2,
+      center.dx, center.dy - size * 0.3,
     );
+    
+    // Right curve
     path.cubicTo(
-      center.dx + size, center.dy - size * 1.5,
-      center.dx + size * 2, center.dy - size,
+      center.dx + size, center.dy - size * 1.2,
+      center.dx + size * 2, center.dy - size * 0.5,
       center.dx, center.dy + size,
     );
+    
     canvas.drawPath(path, paint);
   }
 

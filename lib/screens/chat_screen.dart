@@ -215,10 +215,17 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Build main chat body
   Widget _buildChatBody(BuildContext context) {
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
-    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
     
-    return Container(
-      decoration: wallpaperDecoration,
+    return appearanceProvider.getWallpaperWidget(
+      child: Column(
+        children: [
+          Expanded(
+            child: _buildMessagesList(context),
+          ),
+          _buildChatInput(context),
+        ],
+      ),
+    ) ?? Container(
       child: Column(
         children: [
           Expanded(

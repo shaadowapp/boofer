@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/unified_storage_service.dart';
 import 'theme_provider.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 class AppearanceProvider extends ChangeNotifier {
   Color _accentColor = const Color(0xFF3B82F6);
@@ -93,6 +94,8 @@ class AppearanceProvider extends ChangeNotifier {
     if (_selectedWallpaper == 'none') return null;
 
     if (_selectedWallpaper.startsWith('doodle')) {
+      // For doodles, we only return the background color
+      // The pattern will be drawn by CustomPaint in getWallpaperWidget
       return BoxDecoration(
         color: _getWallpaperColor(_selectedWallpaper),
       );
@@ -114,6 +117,39 @@ class AppearanceProvider extends ChangeNotifier {
     );
   }
 
+  // Get wallpaper widget (for doodle patterns that need CustomPaint)
+  Widget? getWallpaperWidget({required Widget child}) {
+    if (_selectedWallpaper == 'none') {
+      return child;
+    }
+
+    if (_selectedWallpaper.startsWith('doodle')) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: _getWallpaperColor(_selectedWallpaper),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Doodle pattern - fills entire space
+            CustomPaint(
+              painter: _DoodlePainter(_selectedWallpaper),
+              size: Size.infinite,
+            ),
+            // Content on top
+            child,
+          ],
+        ),
+      );
+    }
+
+    // For solid and gradient, just use decoration
+    return Container(
+      decoration: getWallpaperDecoration(),
+      child: child,
+    );
+  }
+
   Color _getWallpaperColor(String wallpaperId) {
     switch (wallpaperId) {
       case 'doodle1':
@@ -128,6 +164,10 @@ class AppearanceProvider extends ChangeNotifier {
         return const Color(0xFFF3E5F5); // Light purple
       case 'doodle6':
         return const Color(0xFFFFEBEE); // Light pink
+      case 'doodle7':
+        return const Color(0xFFE8F5E9); // Light green
+      case 'doodle8':
+        return const Color(0xFFFFF9C4); // Light yellow
       default:
         return Colors.transparent;
     }
@@ -147,6 +187,14 @@ class AppearanceProvider extends ChangeNotifier {
         return const Color(0xFFF3E5F5); // Soft purple
       case 'solid6':
         return const Color(0xFFFCE4EC); // Soft pink
+      case 'solid7':
+        return const Color(0xFFFFFDE7); // Soft yellow
+      case 'solid8':
+        return const Color(0xFFE0F2F1); // Soft teal
+      case 'solid9':
+        return const Color(0xFFE8EAF6); // Soft indigo
+      case 'solid10':
+        return const Color(0xFFFFF8E1); // Soft amber
       default:
         return const Color(0xFFF5F5F5);
     }
@@ -181,6 +229,12 @@ class AppearanceProvider extends ChangeNotifier {
         return [const Color(0xFFFFD89B), const Color(0xFF19547B)]; // Sunset
       case 'gradient12':
         return [const Color(0xFFFF6E7F), const Color(0xFFBFE9FF)]; // Cotton candy
+      case 'gradient13':
+        return [const Color(0xFF134E5E), const Color(0xFF71B280)]; // Forest
+      case 'gradient14':
+        return [const Color(0xFFEEA4CE), const Color(0xFFC58BF2)]; // Rose gold
+      case 'gradient15':
+        return [const Color(0xFF00C9FF), const Color(0xFF92FE9D)]; // Northern lights
       default:
         return [Colors.grey.shade200, Colors.grey.shade300];
     }
@@ -201,4 +255,263 @@ class AppearanceProvider extends ChangeNotifier {
 
     notifyListeners();
   }
+}
+
+// Custom painter for doodle patterns (same as in appearance_settings_screen.dart)
+class _DoodlePainter extends CustomPainter {
+  final String doodleId;
+
+  _DoodlePainter(this.doodleId);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.12)
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    switch (doodleId) {
+      case 'doodle1':
+        _drawGeometricPattern(canvas, size, paint);
+        break;
+      case 'doodle2':
+        _drawLeavesPattern(canvas, size, paint);
+        break;
+      case 'doodle3':
+        _drawStarsPattern(canvas, size, paint);
+        break;
+      case 'doodle4':
+        _drawCurvesPattern(canvas, size, paint);
+        break;
+      case 'doodle5':
+        _drawHeartsPattern(canvas, size, paint);
+        break;
+      case 'doodle6':
+        _drawWavesPattern(canvas, size, paint);
+        break;
+      case 'doodle7':
+        _drawSimpleDotsPattern(canvas, size, paint);
+        break;
+      case 'doodle8':
+        _drawDiagonalLinesPattern(canvas, size, paint);
+        break;
+    }
+  }
+
+  void _drawGeometricPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 5;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 5; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        if ((i + j) % 2 == 0) {
+          canvas.drawCircle(Offset(x, y), spacing / 4, paint);
+        } else {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x, y), 2, paint);
+          paint.style = PaintingStyle.stroke;
+        }
+      }
+    }
+  }
+
+  void _drawLeavesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        final path = Path();
+        path.moveTo(x, y - spacing / 3);
+        path.quadraticBezierTo(
+          x + spacing / 4, y - spacing / 6,
+          x, y + spacing / 3,
+        );
+        path.quadraticBezierTo(
+          x - spacing / 4, y - spacing / 6,
+          x, y - spacing / 3,
+        );
+        canvas.drawPath(path, paint);
+        
+        canvas.drawLine(
+          Offset(x, y - spacing / 3),
+          Offset(x, y + spacing / 3),
+          paint,
+        );
+      }
+    }
+  }
+
+  void _drawStarsPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        _drawStar(canvas, paint, Offset(x, y), spacing / 4, 4);
+        
+        if ((i + j) % 2 == 0) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x + spacing / 3, y - spacing / 4), 1.5, paint);
+          canvas.drawCircle(Offset(x - spacing / 3, y + spacing / 4), 1.5, paint);
+          paint.style = PaintingStyle.stroke;
+        }
+      }
+    }
+  }
+
+  void _drawCurvesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 5;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 5; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        final path = Path();
+        path.moveTo(x - spacing / 3, y);
+        path.quadraticBezierTo(
+          x, y - spacing / 3,
+          x + spacing / 3, y,
+        );
+        path.quadraticBezierTo(
+          x, y + spacing / 3,
+          x - spacing / 3, y,
+        );
+        canvas.drawPath(path, paint);
+      }
+    }
+  }
+
+  void _drawHeartsPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 4;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        
+        _drawHeart(canvas, paint, Offset(x, y), spacing / 5);
+        
+        if ((i + j) % 2 == 0) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x + spacing / 3, y), 1.5, paint);
+          canvas.drawCircle(Offset(x - spacing / 3, y), 1.5, paint);
+          paint.style = PaintingStyle.stroke;
+        }
+      }
+    }
+  }
+
+  void _drawWavesPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.height / 8;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    for (var row = 0; row < rows; row++) {
+      final path = Path();
+      final y = row * spacing;
+      path.moveTo(0, y);
+      
+      for (var i = 0.0; i < size.width + spacing; i += spacing) {
+        path.quadraticBezierTo(
+          i + spacing / 2, y + spacing / 3,
+          i + spacing, y,
+        );
+      }
+      canvas.drawPath(path, paint);
+      
+      if (row % 2 == 0) {
+        paint.style = PaintingStyle.fill;
+        for (var i = spacing / 2; i < size.width; i += spacing) {
+          canvas.drawCircle(Offset(i, y + spacing / 2), 1.5, paint);
+        }
+        paint.style = PaintingStyle.stroke;
+      }
+    }
+  }
+
+  void _drawSimpleDotsPattern(Canvas canvas, Size size, Paint paint) {
+    final spacing = size.width / 8;
+    final rows = (size.height / spacing).ceil() + 1;
+    
+    paint.style = PaintingStyle.fill;
+    for (var i = 0; i < 8; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+        canvas.drawCircle(Offset(x, y), 2.5, paint);
+      }
+    }
+    paint.style = PaintingStyle.stroke;
+  }
+
+  void _drawDiagonalLinesPattern(Canvas canvas, Size size, Paint paint) {
+    const spacing = 20.0;
+    
+    for (var i = -size.height; i < size.width + size.height; i += spacing) {
+      canvas.drawLine(
+        Offset(i.toDouble(), 0),
+        Offset(i + size.height, size.height),
+        paint,
+      );
+    }
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, Offset center, double radius, int points) {
+    final path = Path();
+    final angleStep = (2 * math.pi) / points;
+    
+    for (var i = 0; i < points; i++) {
+      final angle = i * angleStep - math.pi / 2;
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+      
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+      
+      final innerAngle = angle + angleStep / 2;
+      final innerX = center.dx + (radius * 0.4) * math.cos(innerAngle);
+      final innerY = center.dy + (radius * 0.4) * math.sin(innerAngle);
+      path.lineTo(innerX, innerY);
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawHeart(Canvas canvas, Paint paint, Offset center, double size) {
+    final path = Path();
+    path.moveTo(center.dx, center.dy + size);
+    
+    path.cubicTo(
+      center.dx - size * 2, center.dy - size * 0.5,
+      center.dx - size, center.dy - size * 1.2,
+      center.dx, center.dy - size * 0.3,
+    );
+    
+    path.cubicTo(
+      center.dx + size, center.dy - size * 1.2,
+      center.dx + size * 2, center.dy - size * 0.5,
+      center.dx, center.dy + size,
+    );
+    
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -13,6 +13,7 @@ class User {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? profilePicture; // Google photo URL
+  final String? avatar; // Emoji avatar for profile
   final UserStatus status;
   final DateTime? lastSeen;
   final String? location;
@@ -34,6 +35,7 @@ class User {
     required this.createdAt,
     required this.updatedAt,
     this.profilePicture,
+    this.avatar,
     this.status = UserStatus.offline,
     this.lastSeen,
     this.location,
@@ -114,6 +116,7 @@ class User {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? profilePicture,
+    String? avatar,
     UserStatus? status,
     DateTime? lastSeen,
     String? location,
@@ -135,6 +138,7 @@ class User {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       profilePicture: profilePicture ?? this.profilePicture,
+      avatar: avatar ?? this.avatar,
       status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
       location: location ?? this.location,
@@ -160,6 +164,7 @@ class User {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'profilePicture': profilePicture,
+      'avatar': avatar,
       'status': status.name,
       'lastSeen': lastSeen?.toIso8601String(),
       'location': location,
@@ -185,6 +190,7 @@ class User {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'profile_picture': profilePicture,
+      'avatar': avatar,
       'status': status.name,
       'last_seen': lastSeen?.toIso8601String(),
       'location': location,
@@ -215,6 +221,7 @@ class User {
       createdAt: DateTime.parse(json['createdAt'] ?? json['created_at']),
       updatedAt: DateTime.parse(json['updatedAt'] ?? json['updated_at']),
       profilePicture: json['profilePicture'] ?? json['profile_picture'],
+      avatar: json['avatar'],
       status: UserStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => UserStatus.offline,
@@ -275,6 +282,7 @@ class User {
           ? DateTime.parse(data['updatedAt']) 
           : DateTime.now(),
       profilePicture: data['profilePicture'],
+      avatar: data['avatar'],
       status: UserStatus.values.firstWhere(
         (e) => e.toString() == 'UserStatus.${data['status'] ?? 'offline'}',
         orElse: () => UserStatus.offline,
@@ -304,6 +312,7 @@ class User {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'profilePicture': profilePicture,
+      'avatar': avatar,
       'status': status.toString().split('.').last,
       'lastSeen': lastSeen?.toIso8601String(),
       'location': location,

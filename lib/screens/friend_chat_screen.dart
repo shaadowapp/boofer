@@ -274,9 +274,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final appearanceProvider = Provider.of<AppearanceProvider>(context);
-    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
-    
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
@@ -340,11 +337,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   Widget _buildBody() {
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
-    final wallpaperDecoration = appearanceProvider.getWallpaperDecoration();
     
     if (_loading) {
-      return Container(
-        decoration: wallpaperDecoration,
+      return appearanceProvider.getWallpaperWidget(
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      ) ?? Container(
         child: const Center(
           child: CircularProgressIndicator(),
         ),
@@ -352,14 +351,23 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
 
     if (!_canChat) {
-      return Container(
-        decoration: wallpaperDecoration,
+      return appearanceProvider.getWallpaperWidget(
+        child: _buildFriendOnlyScreen(),
+      ) ?? Container(
         child: _buildFriendOnlyScreen(),
       );
     }
 
-    return Container(
-      decoration: wallpaperDecoration,
+    return appearanceProvider.getWallpaperWidget(
+      child: Column(
+        children: [
+          Expanded(
+            child: _buildMessagesList(),
+          ),
+          _buildChatInput(),
+        ],
+      ),
+    ) ?? Container(
       child: Column(
         children: [
           Expanded(
