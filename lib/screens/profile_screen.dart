@@ -433,21 +433,24 @@ Download Boofer for secure messaging!
       ),
       body: _isLoading && !_isEditing
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 24),
-                  
-                  // Profile Header with Avatar
-                  _buildProfileHeader(theme),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Name and Bio Section
-                  _buildNameBioSection(theme),
-                  
-                  const SizedBox(height: 20),
-                  
+          : RefreshIndicator(
+              onRefresh: _loadUserData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    
+                    // Profile Header with Avatar
+                    _buildProfileHeader(theme),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Name and Bio Section
+                    _buildNameBioSection(theme),
+                    
+                    const SizedBox(height: 20),
+                    
                   // Action Buttons
                   _buildActionButtons(theme),
                   
@@ -465,6 +468,7 @@ Download Boofer for secure messaging!
                 ],
               ),
             ),
+          ),
     );
   }
 
@@ -697,21 +701,9 @@ Download Boofer for secure messaging!
               ),
             ),
           
-          const SizedBox(height: 8),
-          
-          // Handle
-          if (!_isEditing)
-            Text(
-              _currentUser?.formattedHandle ?? '',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          
           const SizedBox(height: 12),
           
-          // Bio
+          // Bio (removed handle from here since it's in navbar)
           if (!_isEditing)
             Text(
               _currentUser?.bio ?? '',
@@ -742,41 +734,19 @@ Download Boofer for secure messaging!
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: ElevatedButton.icon(
-              onPressed: () => setState(() => _isEditing = true),
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Edit Profile'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+      child: ElevatedButton.icon(
+        onPressed: () => setState(() => _isEditing = true),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: const Text('Edit Profile'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: theme.colorScheme.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30), // Pill shape
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: OutlinedButton.icon(
-              onPressed: _shareProfile,
-              icon: const Icon(Icons.share_outlined, size: 18),
-              label: const Text('Share'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1029,7 +999,11 @@ Download Boofer for secure messaging!
                                 setState(() {
                                   _selectedAvatar = selectedEmoji;
                                 });
-                                Navigator.pop(context);
+                                
+                                // Close the bottom sheet first
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                }
                                 
                                 // Save immediately to Firestore
                                 if (_currentUser != null) {
@@ -1055,13 +1029,13 @@ Download Boofer for secure messaging!
                                     
                                     await UserService.setCurrentUser(updatedUser);
                                     
-                                    setState(() {
-                                      _currentUser = updatedUser;
-                                    });
-                                    
-                                    print('✅ Emoji avatar saved with color!');
-                                    
                                     if (mounted) {
+                                      setState(() {
+                                        _currentUser = updatedUser;
+                                      });
+                                      
+                                      print('✅ Emoji avatar saved with color!');
+                                      
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
                                           content: Text('Avatar updated!'),

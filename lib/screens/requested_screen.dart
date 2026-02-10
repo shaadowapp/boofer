@@ -4,6 +4,7 @@ import '../providers/friend_request_provider.dart';
 import '../models/friend_request_model.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
+import '../widgets/unified_friend_card.dart';
 
 /// Screen showing sent friend requests (renamed from "Sent" to "Requested")
 class RequestedScreen extends StatefulWidget {
@@ -79,30 +80,39 @@ class _RequestedScreenState extends State<RequestedScreen> {
           final sentRequests = provider.sentRequests;
 
           if (sentRequests.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.person_add_outlined,
-                    size: 64,
-                    color: theme.colorScheme.onSurface.withOpacity(0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Pending Requests',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+            return RefreshIndicator(
+              onRefresh: _loadSentRequests,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height - 200,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person_add_outlined,
+                          size: 64,
+                          color: theme.colorScheme.onSurface.withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Pending Requests',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Friend requests you send will appear here',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Friend requests you send will appear here',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           }
@@ -132,78 +142,47 @@ class _RequestedScreenState extends State<RequestedScreen> {
     final user = _userCache[request.toUserId];
     final isLoadingUser = !_userCache.containsKey(request.toUserId);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          radius: 28,
-          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-          child: isLoadingUser
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : user?.profilePicture != null
-                  ? ClipOval(
-                      child: Image.network(
-                        user!.profilePicture!,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.person,
-                            size: 28,
-                            color: theme.colorScheme.primary,
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(
-                      Icons.person,
-                      size: 28,
-                      color: theme.colorScheme.primary,
-                    ),
+    if (isLoadingUser || user == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
         ),
-        title: Text(
-          user?.fullName ?? 'Loading...',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+      );
+    }
+
+    return Column(
+      children: [
+        UnifiedFriendCard(
+          user: user,
+          onStatusChanged: () {
+            provider.loadSentRequests(refresh: true);
+          },
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (user?.handle != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
               Text(
-                '@${user!.handle}',
+                'Sent ${_formatTimestamp(request.sentAt)}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  fontSize: 12,
                 ),
               ),
-            const SizedBox(height: 4),
-            Text(
-              'Sent ${_formatTimestamp(request.sentAt)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-                fontSize: 12,
+              const Spacer(),
+              TextButton(
+                onPressed: () => _showCancelConfirmation(context, request, provider),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                child: const Text('Cancel Request'),
               ),
-            ),
-          ],
-        ),
-        trailing: TextButton(
-          onPressed: () => _showCancelConfirmation(context, request, provider),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.red,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ],
           ),
-          child: const Text('Cancel'),
         ),
-      ),
+      ],
     );
   }
 

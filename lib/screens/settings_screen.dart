@@ -484,9 +484,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) {
                   Navigator.pop(context); // Close loading dialog
                   
-                  // Navigate to sign-in screen
+                  // Navigate to onboarding screen
                   Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/google-signin',
+                    '/onboarding',
                     (route) => false,
                   );
                   

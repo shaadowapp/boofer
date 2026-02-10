@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/friend_model.dart';
+import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
 import '../services/anonymous_auth_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/unified_friend_card.dart';
 import 'archived_chats_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
@@ -68,32 +70,74 @@ class _LobbyScreenState extends State<LobbyScreen> {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
           
-          return activeChats.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgIcons.sized(
-                        SvgIcons.peopleOutline,
-                        64,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No friends found',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          if (activeChats.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                await chatProvider.refreshFriends();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height - 200,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgIcons.sized(
+                          SvgIcons.peopleOutline,
+                          64,
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Text(
+                          'No friends yet',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Start connecting with people',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            // Switch to discover tab (index 1)
+                            DefaultTabController.of(context).animateTo(1);
+                          },
+                          icon: const Icon(Icons.explore_outlined),
+                          label: const Text('Explore Users'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _calculateTotalItems(activeChats, archivedChats, archiveSettings),
-                  itemBuilder: (context, index) {
-                    return _buildListItem(context, index, activeChats, archivedChats, archiveSettings, chatProvider, l10n);
-                  },
-                );
+                ),
+              ),
+            );
+          }
+          
+          return RefreshIndicator(
+            onRefresh: () async {
+              await chatProvider.refreshFriends();
+            },
+            child: ListView.builder(
+              itemCount: _calculateTotalItems(activeChats, archivedChats, archiveSettings),
+              itemBuilder: (context, index) {
+                return _buildListItem(context, index, activeChats, archivedChats, archiveSettings, chatProvider, l10n);
+              },
+            ),
+          );
         },
       ),
     );
@@ -228,175 +272,29 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   Widget _buildFriendTile(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
-    return InkWell(
-      onTap: () {
-        // Navigate to FriendChatScreen immediately
-        Navigator.pushNamed(
-          context, 
-          '/chat', 
-          arguments: friend,
-        );
-      },
+    // Convert Friend to User for UnifiedFriendCard
+    final user = User(
+      id: friend.id,
+      email: '', // Friend model doesn't have email
+      fullName: friend.name,
+      handle: friend.virtualNumber.replaceAll('+', '').replaceAll(' ', ''),
+      virtualNumber: friend.virtualNumber,
+      profilePicture: friend.avatar,
+      status: friend.isOnline ? UserStatus.online : UserStatus.offline,
+      bio: '',
+      isDiscoverable: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    return GestureDetector(
       onLongPress: () {
         _showChatOptionsBottomSheet(friend, chatProvider, l10n);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3), 
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: friend.avatar != null
-                      ? ClipOval(
-                          child: Image.network(
-                            friend.avatar!,
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Text(
-                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                ),
-                // Online indicator - moved to top
-                if (friend.isOnline)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor, 
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            
-            const SizedBox(width: 16),
-            
-            // Friend Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Text(
-                              friend.name,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            // Unread eye indicator after name
-                            if (friend.unreadCount > 0) ...[
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.visibility_off,
-                                size: 16,
-                                color: chatProvider.isChatMuted(friend.id) 
-                                    ? Colors.orange 
-                                    : Theme.of(context).colorScheme.primary,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Text(
-                        _formatTime(friend.lastMessageTime),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: friend.unreadCount > 0 
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                          fontWeight: friend.unreadCount > 0 
-                              ? FontWeight.w600 
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            // Mute indicator
-                            if (chatProvider.isChatMuted(friend.id)) ...[
-                              Icon(
-                                Icons.volume_off,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Expanded(
-                              child: Text(
-                                friend.lastMessage,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (friend.unreadCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: chatProvider.isChatMuted(friend.id)
-                                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
-                                : Theme.of(context).colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            friend.unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      child: UnifiedFriendCard(
+        user: user,
+        showOnlineStatus: true,
+        showActionButton: false, // Hide action button in lobby (they're already friends)
       ),
     );
   }

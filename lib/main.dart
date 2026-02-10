@@ -23,7 +23,7 @@ import 'screens/friend_chat_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/appearance_settings_screen.dart';
-import 'screens/auth/google_sign_in_screen.dart';
+import 'screens/user_profile_screen.dart';
 import 'models/friend_model.dart';
 import 'l10n/app_localizations.dart';
 import 'services/notification_service.dart';
@@ -128,7 +128,6 @@ class BooferApp extends StatelessWidget {
             routes: {
               '/onboarding': (context) => const OnboardingScreen(),
               '/main': (context) => const MainScreen(),
-              '/google-signin': (context) => const GoogleSignInScreen(),
               '/notification-settings': (context) => const NotificationSettingsScreen(),
               '/appearance-settings': (context) => const AppearanceSettingsScreen(),
               '/chat': (context) {
@@ -142,6 +141,13 @@ class BooferApp extends StatelessWidget {
                   );
                 }
                 return const MainScreen(); // Fallback if no friend provided
+              },
+              '/profile': (context) {
+                final userId = ModalRoute.of(context)?.settings.arguments as String?;
+                if (userId != null) {
+                  return UserProfileScreen(userId: userId);
+                }
+                return const MainScreen(); // Fallback if no userId provided
               },
             },
             debugShowCheckedModeBanner: false,
