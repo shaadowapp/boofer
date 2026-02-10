@@ -31,7 +31,16 @@ class ArchiveSettingsProvider extends ChangeNotifier {
       final positionIndex = prefs.getInt(_archiveButtonPositionKey) ?? 0;
       _archiveButtonPosition = ArchiveButtonPosition.values[positionIndex];
       _keepChatsArchived = prefs.getBool(_keepChatsArchivedKey) ?? false;
-      _archiveSearchTrigger = prefs.getString(_archiveSearchTriggerKey) ?? 'archive';
+      
+      // Load archive search trigger and ensure it's not empty
+      final savedTrigger = prefs.getString(_archiveSearchTriggerKey) ?? 'archive';
+      _archiveSearchTrigger = savedTrigger.trim().isEmpty ? 'archive' : savedTrigger;
+      
+      // If the saved trigger was empty, save the default
+      if (savedTrigger.trim().isEmpty) {
+        await prefs.setString(_archiveSearchTriggerKey, 'archive');
+      }
+      
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading archive settings: $e');
@@ -62,9 +71,16 @@ class ArchiveSettingsProvider extends ChangeNotifier {
   
   Future<void> setArchiveSearchTrigger(String trigger) async {
     try {
-      _archiveSearchTrigger = trigger;
+      // Prevent empty string - use default if empty
+      final trimmedTrigger = trigger.trim();
+      if (trimmedTrigger.isEmpty) {
+        debugPrint('⚠️ Archive search trigger cannot be empty, using default');
+        return; // Don't save empty string
+      }
+      
+      _archiveSearchTrigger = trimmedTrigger;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_archiveSearchTriggerKey, trigger);
+      await prefs.setString(_archiveSearchTriggerKey, trimmedTrigger);
       notifyListeners();
     } catch (e) {
       debugPrint('Error saving archive search trigger: $e');

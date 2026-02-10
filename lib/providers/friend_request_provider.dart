@@ -40,6 +40,7 @@ class FriendRequestProvider extends ChangeNotifier {
     _startListening();
     loadReceivedRequests();
     loadSentRequests();
+    loadFriends();
   }
 
   /// Start real-time listeners
@@ -107,6 +108,30 @@ class FriendRequestProvider extends ChangeNotifier {
     }
   }
 
+  /// Load friends list
+  Future<void> loadFriends({bool refresh = false}) async {
+    if (_currentUserId == null) return;
+    
+    if (refresh || _friends.isEmpty) {
+      try {
+        final friendsList = await _friendRequestService.getFriends(
+          userId: _currentUserId!,
+        );
+        _friends.clear();
+        _friends.addAll(friendsList);
+        
+        // Update friendship status map
+        for (final friend in friendsList) {
+          _friendshipStatus[friend.id] = true;
+        }
+        
+        notifyListeners();
+      } catch (e) {
+        print('❌ Error loading friends: $e');
+      }
+    }
+  }
+
   /// Send a friend request
   Future<bool> sendFriendRequest(String toUserId, {String? message}) async {
     if (_currentUserId == null) return false;
@@ -146,8 +171,9 @@ class FriendRequestProvider extends ChangeNotifier {
       );
       
       if (success) {
-        // Refresh received requests
+        // Refresh received requests and friends list
         await loadReceivedRequests(refresh: true);
+        await loadFriends(refresh: true);
       }
       
       _setError(null);
@@ -292,13 +318,29 @@ class FriendRequestProvider extends ChangeNotifier {
     if (userId == _currentUserId) return 'self';
     if (_friendshipStatus[userId] == true) return 'friends';
     
-    final sentRequest = _sentRequests.where((r) => r.toUserId == userId).firstOrNull;
-    if (sentRequest != null) return 'pending_sent';
+    final sentRequest = _sentRequests.where((r) => r.toUserId == userId && r.isPending).firstOrNull;
+    if (sentRequest != null) return 'request_sent';
     
-    final receivedRequest = _receivedRequests.where((r) => r.fromUserId == userId).firstOrNull;
-    if (receivedRequest != null) return 'pending_received';
+    final receivedRequest = _receivedRequests.where((r) => r.fromUserId == userId && r.isPending).firstOrNull;
+    if (receivedRequest != null) return 'request_received';
     
     return 'none';
+  }
+
+  /// Check friendship status for a specific user
+  Future<void> checkFriendshipStatus(String userId) async {
+    if (_currentUserId == null) return;
+    
+    try {
+      final isFriend = await _friendRequestService.areFriends(
+        userId1: _currentUserId!,
+        userId2: userId,
+      );
+      _friendshipStatus[userId] = isFriend;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error checking friendship status: $e');
+    }
   }
 }
 

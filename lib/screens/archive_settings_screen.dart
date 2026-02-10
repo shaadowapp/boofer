@@ -135,6 +135,9 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                                             decoration: InputDecoration(
                                               hintText: 'Enter trigger text (e.g., archive, 📁, a/b/d)',
                                               helperText: 'Type this in the search bar to open archived chats',
+                                              errorText: _searchTriggerController.text.trim().isEmpty 
+                                                  ? 'Trigger cannot be empty' 
+                                                  : null,
                                               border: OutlineInputBorder(
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
@@ -144,11 +147,47 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                                               ),
                                             ),
                                             onChanged: (value) {
-                                              if (value.isNotEmpty) {
-                                                archiveSettings.setArchiveSearchTrigger(value);
+                                              setState(() {}); // Trigger rebuild to show/hide error
+                                              final trimmedValue = value.trim();
+                                              if (trimmedValue.isNotEmpty) {
+                                                archiveSettings.setArchiveSearchTrigger(trimmedValue);
                                               }
                                             },
                                           ),
+                                          if (_searchTriggerController.text.trim().isEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange.shade50,
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Colors.orange.shade300,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    color: Colors.orange.shade700,
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Without a trigger, you won\'t be able to access archived chats!',
+                                                      style: TextStyle(
+                                                        color: Colors.orange.shade900,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),

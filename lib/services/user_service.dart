@@ -5,6 +5,7 @@ import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
 import '../models/user_model.dart';
 import 'local_storage_service.dart';
+import 'profile_picture_service.dart';
 
 /// Privacy-focused user service for local user management
 class UserService {
@@ -195,6 +196,12 @@ class UserService {
   /// Store current user data
   static Future<void> setCurrentUser(User user) async {
     await LocalStorageService.setString('current_user', user.toJsonString());
+    
+    // Also update profile picture service and dedicated storage key
+    final ProfilePictureService profilePictureService = ProfilePictureService.instance;
+    await profilePictureService.updateProfilePicture(user.profilePicture);
+    
+    print('✅ User stored with profile picture: ${user.profilePicture}');
   }
 
   /// Clear user data

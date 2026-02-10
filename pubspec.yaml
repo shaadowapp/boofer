@@ -39,6 +39,9 @@ dependencies:
   google_sign_in: ^6.2.1
   # Local notifications
   flutter_local_notifications: ^17.2.3
+  # Image picker for profile picture
+  image_picker: ^1.0.7
+  firebase_storage: ^11.7.6
 
   http: ^1.1.0
   crypto: ^3.0.3

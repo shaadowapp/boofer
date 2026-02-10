@@ -3,12 +3,15 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 import 'requested_screen.dart';
+import 'archived_chats_screen.dart';
+import 'archive_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -109,6 +112,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: 'Customize notification types and preferences',
                   icon: Icons.tune,
                   onTap: () => Navigator.pushNamed(context, '/notification-settings'),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Archive Section
+            _buildSection(
+              context,
+              title: 'Archive',
+              children: [
+                Consumer<ChatProvider>(
+                  builder: (context, chatProvider, child) {
+                    final archivedCount = chatProvider.archivedChats.length;
+                    return _buildSettingsTile(
+                      context,
+                      title: 'Archived Chats',
+                      subtitle: archivedCount > 0 
+                          ? '$archivedCount archived ${archivedCount == 1 ? 'chat' : 'chats'}'
+                          : 'No archived chats',
+                      icon: Icons.archive,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ArchivedChatsScreen(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildSettingsTile(
+                  context,
+                  title: 'Archive Settings',
+                  subtitle: 'Configure archive button position and behavior',
+                  icon: Icons.settings,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ArchiveSettingsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),

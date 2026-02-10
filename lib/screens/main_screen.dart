@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
 import 'home_screen.dart';
@@ -16,6 +19,7 @@ import '../providers/firestore_user_provider.dart';
 import '../providers/friend_request_provider.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/profile_picture_service.dart';
 import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
@@ -41,11 +45,17 @@ class _MainScreenState extends State<MainScreen> {
   List<User> _allUsers = [];
   final ConnectionService _connectionService = ConnectionService.instance;
   int _pendingRequestsCount = 0;
+  User? _currentUser; // Store current user for profile picture
+  StreamSubscription<String?>? _profilePictureSubscription; // Listen to profile picture changes
+  String? _currentAvatar; // Store emoji avatar
+  String? _currentAvatarColor; // Store emoji avatar color
+  StreamSubscription<DocumentSnapshot>? _userDocSubscription; // Listen to Firestore user changes
 
   final List<Widget> _screens = [
     const HomeScreen(),
     const LobbyScreen(), // This is the chat screen
     const CallsScreen(),
+    const ProfileScreen(), // Profile screen as 4th tab
   ];
 
   @override
@@ -60,6 +70,57 @@ class _MainScreenState extends State<MainScreen> {
       if (mounted) {
         setState(() {
           _pendingRequestsCount = _connectionService.getPendingRequests().length;
+        });
+      }
+    });
+
+    // Listen to profile picture updates (broadcast)
+    _profilePictureSubscription = ProfilePictureService.instance.profilePictureStream.listen((profilePictureUrl) {
+      if (mounted) {
+        print('🔄 Profile picture stream update: $profilePictureUrl');
+        setState(() {});
+      }
+    });
+    
+    // Listen directly to Firestore for real-time user updates
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final customUserId = await LocalStorageService.getString('custom_user_id');
+      if (customUserId != null && mounted) {
+        _userDocSubscription = FirebaseFirestore.instance
+            .collection('users')
+            .doc(customUserId)
+            .snapshots()
+            .listen((snapshot) {
+          if (snapshot.exists && mounted) {
+            final userData = snapshot.data()!;
+            final updatedUser = User.fromJson(userData);
+            final avatarColor = userData['avatarColor'] as String?;
+            
+            print('🔥 Real-time Firestore update: ${updatedUser.handle}, avatar: ${updatedUser.avatar}, color: $avatarColor');
+            
+            setState(() {
+              _currentUser = updatedUser;
+              _currentAvatar = updatedUser.avatar;
+              _currentAvatarColor = avatarColor;
+            });
+            
+            // Update local storage with avatar color
+            UserService.setCurrentUser(updatedUser).then((_) async {
+              if (avatarColor != null) {
+                final storedUserData = await LocalStorageService.getString('current_user');
+                if (storedUserData != null) {
+                  try {
+                    final userJson = jsonDecode(storedUserData);
+                    userJson['avatarColor'] = avatarColor;
+                    await LocalStorageService.setString('current_user', jsonEncode(userJson));
+                    print('🎨 Avatar color saved to local storage: $avatarColor');
+                  } catch (e) {
+                    print('❌ Error saving avatar color: $e');
+                  }
+                }
+              }
+            });
+          }
         });
       }
     });
@@ -79,21 +140,50 @@ class _MainScreenState extends State<MainScreen> {
       if (authProvider.isAuthenticated) {
         final userProfile = await UserService.getCurrentUser();
         
-        // Initialize FriendRequestProvider with current user ID
+        if (mounted && userProfile != null) {
+          setState(() {
+            _currentUser = userProfile;
+            _currentAvatar = userProfile.avatar;
+          });
+          print('✅ User data loaded: ${userProfile.fullName}');
+          print('📸 Profile picture: ${userProfile.profilePicture}');
+          print('😊 Avatar: ${userProfile.avatar}');
+          
+          // Load avatar color from local storage
+          final storedUserData = await LocalStorageService.getString('current_user');
+          if (storedUserData != null) {
+            try {
+              final userJson = jsonDecode(storedUserData);
+              final avatarColor = userJson['avatarColor'] as String?;
+              if (mounted && avatarColor != null) {
+                setState(() {
+                  _currentAvatarColor = avatarColor;
+                });
+                print('🎨 Avatar color loaded: $avatarColor');
+              }
+            } catch (e) {
+              print('❌ Error parsing avatar color: $e');
+            }
+          }
+        }
+        
+        // Get from FirestoreUserProvider
+        final firestoreUserProvider = context.read<FirestoreUserProvider>();
+        if (firestoreUserProvider.currentUser != null) {
+          if (mounted) {
+            setState(() {
+              _currentUser = firestoreUserProvider.currentUser;
+              _currentAvatar = firestoreUserProvider.currentUser!.avatar;
+            });
+          }
+          print('📸 Firestore profile picture: ${firestoreUserProvider.currentUser!.profilePicture}');
+          print('😊 Firestore avatar: ${firestoreUserProvider.currentUser!.avatar}');
+        }
+        
+        // Initialize FriendRequestProvider
         if (userProfile != null) {
           final friendRequestProvider = context.read<FriendRequestProvider>();
           friendRequestProvider.initialize(userProfile.id);
-          print('✅ FriendRequestProvider initialized with user ID: ${userProfile.id}');
-        }
-        
-        if (userProfile != null) {
-          print('✅ User data loaded: ${userProfile.fullName} (ID: ${userProfile.id})');
-          
-          // Ensure profile is marked as completed for Google Auth users
-          await LocalStorageService.setString('profile_completed', 'true');
-          await LocalStorageService.setString('user_type', 'completed_user');
-        } else {
-          print('⚠️ No user profile found');
         }
       }
     } catch (e) {
@@ -110,6 +200,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _profilePictureSubscription?.cancel(); // Cancel profile picture subscription
+    _userDocSubscription?.cancel(); // Cancel Firestore subscription
     super.dispose();
   }
 
@@ -234,20 +326,7 @@ class _MainScreenState extends State<MainScreen> {
                     );
                   },
                 ),
-                // Profile button
-                ListTile(
-                  leading: SvgIcons.medium(SvgIcons.profile, color: Theme.of(context).colorScheme.onSurface),
-                  title: const Text('Profile'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProfileScreen(),
-                      ),
-                    );
-                  },
-                ),
+                // Settings button
                 ListTile(
                   leading: SvgIcons.medium(SvgIcons.settings, color: Theme.of(context).colorScheme.onSurface),
                   title: const Text('Settings'),
@@ -365,6 +444,8 @@ class _MainScreenState extends State<MainScreen> {
         return 'Search chats...';
       case 2:
         return 'Search contacts...';
+      case 3:
+        return 'Search profile...';
       default:
         return 'Search...';
     }
@@ -374,10 +455,16 @@ class _MainScreenState extends State<MainScreen> {
     final archiveSettings = Provider.of<ArchiveSettingsProvider>(context, listen: false);
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     
+    // Get the trigger and ensure it's not empty
+    final trigger = archiveSettings.archiveSearchTrigger.trim();
+    if (trigger.isEmpty) {
+      return false; // Don't trigger if the trigger string is empty
+    }
+    
     // Only check trigger if archive button is hidden and there are archived chats
     if (archiveSettings.archiveButtonPosition == ArchiveButtonPosition.hidden &&
         chatProvider.archivedChats.isNotEmpty &&
-        searchText.trim().toLowerCase() == archiveSettings.archiveSearchTrigger.trim().toLowerCase()) {
+        searchText.trim().toLowerCase() == trigger.toLowerCase()) {
       
       // Clear search field and navigate to archived chats
       _searchController.clear();
@@ -705,139 +792,239 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Widget _buildProfileIcon(bool isActive, String? profilePictureUrl) {
+    final size = 24.0;
+    final borderWidth = isActive ? 2.0 : 0.0;
+    
+    // Check if it's a real uploaded image (not UI-avatars generated)
+    final hasRealProfilePicture = profilePictureUrl != null && 
+        profilePictureUrl.isNotEmpty &&
+        !profilePictureUrl.contains('ui-avatars.com');
+    
+    // Check if we have an emoji avatar
+    final hasEmojiAvatar = _currentAvatar != null && _currentAvatar!.isNotEmpty;
+    
+    // Parse avatar color
+    Color avatarBgColor = Theme.of(context).colorScheme.primary.withOpacity(0.2);
+    if (_currentAvatarColor != null && _currentAvatarColor!.isNotEmpty) {
+      try {
+        avatarBgColor = Color(int.parse(_currentAvatarColor!, radix: 16));
+      } catch (e) {
+        print('❌ Error parsing avatar color: $e');
+      }
+    }
+    
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: isActive 
+            ? Border.all(
+                color: Theme.of(context).colorScheme.primary,
+                width: borderWidth,
+              )
+            : null,
+      ),
+      child: ClipOval(
+        child: hasRealProfilePicture
+            ? Image.network(
+                profilePictureUrl,
+                key: ValueKey(profilePictureUrl),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildDefaultProfileIcon(isActive, size);
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return _buildDefaultProfileIcon(isActive, size);
+                },
+              )
+            : hasEmojiAvatar
+                ? Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          avatarBgColor,
+                          avatarBgColor.withOpacity(0.7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _currentAvatar!,
+                        style: TextStyle(fontSize: size * 0.5),
+                      ),
+                    ),
+                  )
+                : _buildDefaultProfileIcon(isActive, size),
+      ),
+    );
+  }
+
+  Widget _buildDefaultProfileIcon(bool isActive, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isActive 
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+      ),
+      child: Icon(
+        Icons.person,
+        size: size * 0.6,
+        color: isActive 
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: 0,
-        automaticallyImplyLeading: false, // Remove default back button
-        title: Align(
-          alignment: Alignment.centerLeft,
-          child: SvgPicture.asset(
-            'assets/images/logo/boofer-logo.svg', // Your SVG logo file
-            height: 40, // Increased from 32 to 40
-            width: 150, // Increased from 120 to 150
-            // Removed colorFilter to show original logo colors
-          ),
-        ),
-        titleSpacing: 16, // Add some padding from the left edge
-        actions: [
-          // Friends button - combines all friend-related functionality
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/find_users.svg',
-                    width: 24,
-                    height: 24,
-                    colorFilter: ColorFilter.mode(
-                      Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const UserSearchScreen(),
-                      ),
-                    );
-                  },
-                  tooltip: 'Discover',
+      appBar: _currentIndex == 3 
+          ? null // Hide app bar on profile tab
+          : AppBar(
+              backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+              elevation: 0,
+              automaticallyImplyLeading: false, // Remove default back button
+              title: Align(
+                alignment: Alignment.centerLeft,
+                child: SvgPicture.asset(
+                  'assets/images/logo/boofer-logo.svg', // Your SVG logo file
+                  height: 40, // Increased from 32 to 40
+                  width: 150, // Increased from 120 to 150
+                  // Removed colorFilter to show original logo colors
                 ),
-                if (_pendingRequestsCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        '$_pendingRequestsCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+              ),
+              titleSpacing: 16, // Add some padding from the left edge
+              actions: [
+                // Friends button - combines all friend-related functionality
+                Container(
+                  width: 48,
+                  height: 48,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Stack(
+                    children: [
+                      IconButton(
+                        icon: SvgPicture.asset(
+                          'assets/icons/find_users.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: ColorFilter.mode(
+                            Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                            BlendMode.srcIn,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserSearchScreen(),
+                            ),
+                          );
+                        },
+                        tooltip: 'Discover',
                       ),
-                    ),
+                      if (_pendingRequestsCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$_pendingRequestsCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
+                ),
+                // More options button
+                Container(
+                  width: 48,
+                  height: 48,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  child: IconButton(
+                    icon: SvgIcons.more(
+                      horizontal: false,
+                      color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                    ),
+                    onPressed: _showMoreOptions,
+                    tooltip: 'More options',
+                  ),
+                ),
+                const SizedBox(width: 4), // Reduced padding from the right edge
               ],
             ),
-          ),
-          // More options button
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            child: IconButton(
-              icon: SvgIcons.more(
-                horizontal: false,
-                color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-              ),
-              onPressed: _showMoreOptions,
-              tooltip: 'More options',
-            ),
-          ),
-          const SizedBox(width: 4), // Reduced padding from the right edge
-        ],
-      ),
       body: Column(
         children: [
-          // Search bar below navbar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Theme.of(context).appBarTheme.backgroundColor,
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: _getSearchPlaceholder(),
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                        onPressed: _clearSearch,
-                      )
-                    : null,
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
+          // Search bar below navbar (hide on profile tab)
+          if (_currentIndex != 3)
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Theme.of(context).appBarTheme.backgroundColor,
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: _getSearchPlaceholder(),
+                  hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                  prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                          onPressed: _clearSearch,
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-              onChanged: (value) {
-                setState(() {});
-                // Don't perform search automatically - only show/hide clear button
-              },
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  // Check for archive trigger first
-                  if (_checkArchiveTrigger(value)) {
-                    return; // Archive screen opened, don't proceed with normal search
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                onChanged: (value) {
+                  setState(() {});
+                  // Don't perform search automatically - only show/hide clear button
+                },
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    // Check for archive trigger first
+                    if (_checkArchiveTrigger(value)) {
+                      return; // Archive screen opened, don't proceed with normal search
+                    }
+                    // Perform contact search
+                    _performSearch(value);
                   }
-                  // Perform contact search
-                  _performSearch(value);
-                }
-              },
+                },
+              ),
             ),
-          ),
           // Main content
           Expanded(
             child: _isSearching 
@@ -912,36 +1099,56 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 label: 'Calls',
               ),
+              BottomNavigationBarItem(
+                icon: StreamBuilder<String?>(
+                  stream: ProfilePictureService.instance.profilePictureStream,
+                  initialData: ProfilePictureService.instance.currentProfilePicture,
+                  builder: (context, snapshot) {
+                    print('📸 Bottom nav stream update: ${snapshot.data}');
+                    return _buildProfileIcon(false, snapshot.data);
+                  },
+                ),
+                activeIcon: StreamBuilder<String?>(
+                  stream: ProfilePictureService.instance.profilePictureStream,
+                  initialData: ProfilePictureService.instance.currentProfilePicture,
+                  builder: (context, snapshot) {
+                    return _buildProfileIcon(true, snapshot.data);
+                  },
+                ),
+                label: 'You',
+              ),
             ],
           );
         },
       ),
-      floatingActionButton: _currentIndex == 2 
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Dialpad FAB (smaller)
-                FloatingActionButton.small(
-                  onPressed: _onDialpadPressed,
-                  heroTag: 'dialpad',
-                  backgroundColor: Theme.of(context).colorScheme.secondary,
-                  child: SvgIcons.sized(SvgIcons.dialpad, 20, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                // Main FAB (same size as other tabs)
-                FloatingActionButton(
+      floatingActionButton: _currentIndex == 3 
+          ? null // No FAB on profile tab
+          : _currentIndex == 2 
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Dialpad FAB (smaller)
+                    FloatingActionButton.small(
+                      onPressed: _onDialpadPressed,
+                      heroTag: 'dialpad',
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      child: SvgIcons.sized(SvgIcons.dialpad, 20, color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    // Main FAB (same size as other tabs)
+                    FloatingActionButton(
+                      onPressed: _onAddPressed,
+                      heroTag: 'add',
+                      child: SvgIcons.sized(SvgIcons.addCall, 24, color: Colors.white),
+                    ),
+                  ],
+                )
+              : FloatingActionButton(
                   onPressed: _onAddPressed,
-                  heroTag: 'add',
-                  child: SvgIcons.sized(SvgIcons.addCall, 24, color: Colors.white),
+                  child: _currentIndex == 1 
+                      ? SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white)
+                      : SvgIcons.sized(SvgIcons.add, 24, color: Colors.white),
                 ),
-              ],
-            )
-          : FloatingActionButton(
-              onPressed: _onAddPressed,
-              child: _currentIndex == 1 
-                  ? SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white)
-                  : SvgIcons.sized(SvgIcons.add, 24, color: Colors.white),
-            ),
     );
   }
 }

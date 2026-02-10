@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/profile_picture_service.dart';
 import '../models/user_model.dart';
-import '../utils/svg_icons.dart';
+import 'settings_screen.dart';
+import 'archived_chats_screen.dart';
+import 'help_screen.dart';
+import 'friends_screen.dart';
+import 'user_search_screen.dart';
+import 'appearance_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   User? _currentUser;
   String _selectedAvatar = '';
+  StreamSubscription<String?>? _profilePictureSubscription;
 
   // Modern diverse avatar options - gender inclusive
   final List<Map<String, dynamic>> _avatarOptions = [
@@ -98,6 +106,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+    
+    // Listen to profile picture updates
+    _profilePictureSubscription = ProfilePictureService.instance.profilePictureStream.listen((url) {
+      if (mounted && _currentUser != null && url != _currentUser!.profilePicture) {
+        print('📸 Profile screen received update: $url');
+        setState(() {
+          _currentUser = _currentUser!.copyWith(profilePicture: url);
+        });
+      }
+    });
   }
 
   @override
@@ -105,6 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _fullNameController.dispose();
     _handleController.dispose();
     _bioController.dispose();
+    _profilePictureSubscription?.cancel();
     super.dispose();
   }
 
@@ -128,9 +147,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (doc.exists) {
             user = User.fromJson(doc.data()!);
             await UserService.setCurrentUser(user);
+            print('📸 Loaded user from Firestore - Profile picture: ${user.profilePicture}');
           }
         }
       } else {
+        // Refresh from Firestore to get latest data
         final doc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.id)
@@ -140,6 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final freshUser = User.fromJson(doc.data()!);
           await UserService.setCurrentUser(freshUser);
           user = freshUser;
+          print('📸 Refreshed user from Firestore - Profile picture: ${user.profilePicture}');
         }
       }
       
@@ -151,6 +173,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _selectedAvatar = user?.avatar ?? '';
         _isLoading = false;
       });
+      
+      print('✅ Profile loaded - Name: ${user?.fullName}, Picture: ${user?.profilePicture}');
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -190,7 +214,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'updatedAt': updatedUser.updatedAt.toIso8601String(),
       });
 
-      await UserService.updateUser(updatedUser);
+      // Update local storage and broadcast profile picture change
+      await UserService.setCurrentUser(updatedUser);
+      
+      // Also update ProfilePictureService to broadcast the change
+      // Note: ProfilePictureService stores the profilePicture URL, not avatar emoji
+      // But we still need to trigger a refresh for the UI
+      await ProfilePictureService.instance.updateProfilePicture(updatedUser.profilePicture);
       
       setState(() {
         _currentUser = updatedUser;
@@ -233,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildAvatarPicker(),
+      builder: (context) => _buildAvatarPickerSheet(),
     );
   }
 
@@ -298,24 +328,61 @@ Download Boofer for secure messaging!
               onSelected: (value) {
                 switch (value) {
                   case 'settings':
-                    Navigator.pushNamed(context, '/settings');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                    );
                     break;
                   case 'archive':
-                    Navigator.pushNamed(context, '/archived-chats');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
+                    );
                     break;
                   case 'help':
-                    Navigator.pushNamed(context, '/help');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HelpScreen()),
+                    );
+                    break;
+                  case 'friends':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const FriendsScreen()),
+                    );
+                    break;
+                  case 'discover':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UserSearchScreen()),
+                    );
+                    break;
+                  case 'appearance':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AppearanceSettingsScreen()),
+                    );
                     break;
                 }
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(
-                  value: 'settings',
+                  value: 'friends',
                   child: Row(
                     children: [
-                      Icon(Icons.settings_outlined),
+                      Icon(Icons.people_outline),
                       SizedBox(width: 12),
-                      Text('Settings'),
+                      Text('Friends'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'discover',
+                  child: Row(
+                    children: [
+                      Icon(Icons.explore_outlined),
+                      SizedBox(width: 12),
+                      Text('Discover Users'),
                     ],
                   ),
                 ),
@@ -326,6 +393,26 @@ Download Boofer for secure messaging!
                       Icon(Icons.archive_outlined),
                       SizedBox(width: 12),
                       Text('Archived Chats'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'appearance',
+                  child: Row(
+                    children: [
+                      Icon(Icons.palette_outlined),
+                      SizedBox(width: 12),
+                      Text('Appearance'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_outlined),
+                      SizedBox(width: 12),
+                      Text('Settings'),
                     ],
                   ),
                 ),
@@ -384,7 +471,6 @@ Download Boofer for secure messaging!
   Widget _buildProfileHeader(ThemeData theme) {
     return Column(
       children: [
-        // Avatar with direct tap to change
         GestureDetector(
           onTap: _showAvatarPicker,
           child: Stack(
@@ -416,7 +502,7 @@ Download Boofer for secure messaging!
                     ),
                   ),
                   child: const Icon(
-                    Icons.camera_alt,
+                    Icons.edit,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -432,6 +518,56 @@ Download Boofer for secure messaging!
   Widget _buildAvatar({double size = 90}) {
     final theme = Theme.of(context);
     
+    // Check if profile picture is a real uploaded image (not UI-avatars generated)
+    final hasRealProfilePicture = _currentUser?.profilePicture != null && 
+        _currentUser!.profilePicture!.isNotEmpty &&
+        !_currentUser!.profilePicture!.contains('ui-avatars.com');
+    
+    // First priority: Show actual uploaded profile picture
+    if (hasRealProfilePicture) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: theme.colorScheme.outline.withOpacity(0.2),
+            width: 2,
+          ),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            _currentUser!.profilePicture!,
+            key: ValueKey(_currentUser!.profilePicture), // Force rebuild on URL change
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              print('❌ Error loading profile picture: $error');
+              // Fallback to emoji avatar if image fails to load
+              return _buildEmojiOrInitialsAvatar(size, theme);
+            },
+          ),
+        ),
+      );
+    }
+    
+    // Second priority: Show emoji avatar or initials
+    return _buildEmojiOrInitialsAvatar(size, theme);
+  }
+
+  Widget _buildEmojiOrInitialsAvatar(double size, ThemeData theme) {
+    // Show emoji avatar if selected
     if (_selectedAvatar.isNotEmpty) {
       final avatarData = _avatarOptions.firstWhere(
         (a) => a['emoji'] == _selectedAvatar,
@@ -465,6 +601,7 @@ Download Boofer for secure messaging!
       );
     }
     
+    // Fallback: Show initials
     return Container(
       width: size,
       height: size,
@@ -798,7 +935,7 @@ Download Boofer for secure messaging!
     return '${months[date.month - 1]} ${date.year}';
   }
 
-  Widget _buildAvatarPicker() {
+  Widget _buildAvatarPickerSheet() {
     final theme = Theme.of(context);
     final categories = ['People', 'Expressions', 'Animals', 'Fantasy'];
     
@@ -887,11 +1024,61 @@ Download Boofer for secure messaging!
                             final isSelected = _selectedAvatar == avatar['emoji'];
                             
                             return GestureDetector(
-                              onTap: () {
+                              onTap: () async {
+                                final selectedEmoji = avatar['emoji'] as String;
                                 setState(() {
-                                  _selectedAvatar = avatar['emoji'] as String;
+                                  _selectedAvatar = selectedEmoji;
                                 });
                                 Navigator.pop(context);
+                                
+                                // Save immediately to Firestore
+                                if (_currentUser != null) {
+                                  try {
+                                    final selectedEmoji = avatar['emoji'] as String;
+                                    final selectedColor = (avatar['color'] as Color).value.toRadixString(16).padLeft(8, '0');
+                                    
+                                    print('📸 Saving emoji avatar: $selectedEmoji with color: $selectedColor');
+                                    
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(_currentUser!.id)
+                                        .update({
+                                      'avatar': selectedEmoji,
+                                      'avatarColor': selectedColor,
+                                      'updatedAt': DateTime.now().toIso8601String(),
+                                    });
+                                    
+                                    final updatedUser = _currentUser!.copyWith(
+                                      avatar: selectedEmoji,
+                                      updatedAt: DateTime.now(),
+                                    );
+                                    
+                                    await UserService.setCurrentUser(updatedUser);
+                                    
+                                    setState(() {
+                                      _currentUser = updatedUser;
+                                    });
+                                    
+                                    print('✅ Emoji avatar saved with color!');
+                                    
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Avatar updated!'),
+                                          backgroundColor: Colors.green,
+                                          duration: Duration(seconds: 1),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    print('❌ Error saving avatar: $e');
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Error: $e')),
+                                      );
+                                    }
+                                  }
+                                }
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),

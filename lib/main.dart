@@ -15,6 +15,7 @@ import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
 import 'services/user_service.dart';
 import 'services/sync_service.dart';
+import 'services/profile_picture_service.dart';
 import 'core/database/database_manager.dart';
 import 'core/error/error_handler.dart';
 import 'screens/main_screen.dart';
@@ -69,6 +70,11 @@ void main() async {
   
   // Initialize notification service with channels
   await NotificationService.instance.initialize();
+  
+  // Initialize profile picture service BEFORE app starts
+  // This ensures profile picture is loaded from storage before UI renders
+  await ProfilePictureService.instance.initialize();
+  print('📸 Profile picture service initialized');
   
   print('Starting beautiful Boofer app with real-time capabilities...');
   

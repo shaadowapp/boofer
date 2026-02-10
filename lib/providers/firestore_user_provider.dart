@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/anonymous_auth_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/profile_picture_service.dart';
 
 /// Provider that manages real user data from Firestore
 class FirestoreUserProvider with ChangeNotifier {
@@ -29,6 +30,9 @@ class FirestoreUserProvider with ChangeNotifier {
   Future<void> initialize() async {
     try {
       _setLoading(true);
+      
+      // Initialize profile picture service
+      await ProfilePictureService.instance.initialize();
       
       // Get current user ID from local storage (anonymous auth)
       final customUserId = await LocalStorageService.getString('custom_user_id');
@@ -57,6 +61,9 @@ class FirestoreUserProvider with ChangeNotifier {
         await LocalStorageService.setString('current_user', _currentUser!.toJsonString());
         await LocalStorageService.setString('custom_user_id', customUserId);
         
+        // Update profile picture service
+        await ProfilePictureService.instance.updateProfilePicture(_currentUser!.profilePicture);
+        
         notifyListeners();
         print('✅ Current user loaded: ${_currentUser!.fullName} (ID: $customUserId)');
       }
@@ -76,10 +83,20 @@ class FirestoreUserProvider with ChangeNotifier {
         .listen(
       (snapshot) {
         if (snapshot.exists) {
-          _currentUser = User.fromJson(snapshot.data()!);
+          final newUser = User.fromJson(snapshot.data()!);
+          final oldProfilePicture = _currentUser?.profilePicture;
+          final newProfilePicture = newUser.profilePicture;
+          
+          _currentUser = newUser;
           
           // Update local storage
           LocalStorageService.setString('current_user', _currentUser!.toJsonString());
+          
+          // Only broadcast if profile picture actually changed
+          if (oldProfilePicture != newProfilePicture) {
+            print('📸 Profile picture changed: $oldProfilePicture -> $newProfilePicture');
+            ProfilePictureService.instance.updateProfilePicture(newProfilePicture);
+          }
           
           notifyListeners();
           print('🔄 Current user updated: ${_currentUser!.fullName}');
@@ -136,7 +153,11 @@ class FirestoreUserProvider with ChangeNotifier {
       if (fullName != null) updateData['fullName'] = fullName;
       if (handle != null) updateData['handle'] = handle;
       if (bio != null) updateData['bio'] = bio;
-      if (profilePicture != null) updateData['profilePicture'] = profilePicture;
+      if (profilePicture != null) {
+        updateData['profilePicture'] = profilePicture;
+        // Broadcast profile picture update immediately
+        await ProfilePictureService.instance.updateProfilePicture(profilePicture);
+      }
       if (isDiscoverable != null) updateData['isDiscoverable'] = isDiscoverable;
       
       // Use the custom user ID (which is stored in _currentUser.id)
