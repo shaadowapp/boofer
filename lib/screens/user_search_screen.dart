@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
@@ -8,7 +7,6 @@ import '../services/user_service.dart';
 import '../providers/firestore_user_provider.dart';
 import '../providers/friend_request_provider.dart';
 import '../widgets/unified_friend_card.dart';
-import 'friend_chat_screen.dart';
 import 'friend_requests_screen.dart';
 
 class UserSearchScreen extends StatefulWidget {

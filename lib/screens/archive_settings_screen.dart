@@ -13,14 +13,18 @@ class ArchiveSettingsScreen extends StatefulWidget {
 class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
   bool _isPositionSectionExpanded = false;
   bool _isBehaviorSectionExpanded = false;
-  final TextEditingController _searchTriggerController = TextEditingController();
+  final TextEditingController _searchTriggerController =
+      TextEditingController();
 
   @override
   void initState() {
     super.initState();
     // Initialize the search trigger controller with current value
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final archiveSettings = Provider.of<ArchiveSettingsProvider>(context, listen: false);
+      final archiveSettings = Provider.of<ArchiveSettingsProvider>(
+        context,
+        listen: false,
+      );
       _searchTriggerController.text = archiveSettings.archiveSearchTrigger;
     });
   }
@@ -34,260 +38,203 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 0,
-        title: const Text('Archive Settings'),
-        centerTitle: true,
-      ),
       body: Consumer<ArchiveSettingsProvider>(
         builder: (context, archiveSettings, child) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Archive Button Position Section (Collapsible)
-              Card(
-                child: Column(
-                  children: [
-                    InkWell(
-                      onTap: () {
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar.large(
+                title: const Text('Archive Settings'),
+                centerTitle: true,
+                backgroundColor: theme.colorScheme.surface,
+                scrolledUnderElevation: 0,
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // Archive Button Position Section
+                    _buildSectionCard(
+                      context,
+                      title: 'Archive Button Position',
+                      icon: Icons.archive_outlined,
+                      color: Colors.orange,
+                      isExpanded: _isPositionSectionExpanded,
+                      onToggle: () {
                         setState(() {
-                          _isPositionSectionExpanded = !_isPositionSectionExpanded;
+                          _isPositionSectionExpanded =
+                              !_isPositionSectionExpanded;
                         });
                       },
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.archive,
-                              color: Theme.of(context).colorScheme.primary,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Text(
+                            'Choose where the archive button appears in the chat list',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Archive Button Position',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              _isPositionSectionExpanded 
-                                  ? Icons.keyboard_arrow_up 
-                                  : Icons.keyboard_arrow_down,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                    if (_isPositionSectionExpanded) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Choose where the archive button appears in the chat list',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // Position Options
-                            ...ArchiveButtonPosition.values.map((position) {
-                              return Column(
-                                children: [
-                                  RadioListTile<ArchiveButtonPosition>(
-                                    title: Text(archiveSettings.getPositionDisplayName(position)),
-                                    subtitle: Text(_getPositionDescription(position)),
-                                    value: position,
-                                    groupValue: archiveSettings.archiveButtonPosition,
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        archiveSettings.setArchiveButtonPosition(value);
-                                      }
-                                    },
-                                    contentPadding: EdgeInsets.zero,
+                        ...ArchiveButtonPosition.values.map((position) {
+                          return Column(
+                            children: [
+                              RadioListTile<ArchiveButtonPosition>(
+                                title: Text(
+                                  archiveSettings.getPositionDisplayName(
+                                    position,
                                   ),
-                                  // Show search trigger input for hidden option
-                                  if (position == ArchiveButtonPosition.hidden && 
-                                      archiveSettings.archiveButtonPosition == ArchiveButtonPosition.hidden) ...[
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 32, right: 16, bottom: 16),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Search Trigger',
-                                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: _searchTriggerController,
-                                            decoration: InputDecoration(
-                                              hintText: 'Enter trigger text (e.g., archive, 📁, a/b/d)',
-                                              helperText: 'Type this in the search bar to open archived chats',
-                                              errorText: _searchTriggerController.text.trim().isEmpty 
-                                                  ? 'Trigger cannot be empty' 
-                                                  : null,
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              contentPadding: const EdgeInsets.symmetric(
-                                                horizontal: 12, 
-                                                vertical: 8,
-                                              ),
-                                            ),
-                                            onChanged: (value) {
-                                              setState(() {}); // Trigger rebuild to show/hide error
-                                              final trimmedValue = value.trim();
-                                              if (trimmedValue.isNotEmpty) {
-                                                archiveSettings.setArchiveSearchTrigger(trimmedValue);
-                                              }
-                                            },
-                                          ),
-                                          if (_searchTriggerController.text.trim().isEmpty) ...[
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: Colors.orange.shade50,
-                                                borderRadius: BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: Colors.orange.shade300,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.warning_amber_rounded,
-                                                    color: Colors.orange.shade700,
-                                                    size: 20,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      'Without a trigger, you won\'t be able to access archived chats!',
-                                                      style: TextStyle(
-                                                        color: Colors.orange.shade900,
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  _getPositionDescription(position),
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                value: position,
+                                groupValue:
+                                    archiveSettings.archiveButtonPosition,
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    archiveSettings.setArchiveButtonPosition(
+                                      value,
+                                    );
+                                  }
+                                },
+                                contentPadding: EdgeInsets.zero,
+                                activeColor: theme.colorScheme.primary,
+                              ),
+                              if (position == ArchiveButtonPosition.hidden &&
+                                  archiveSettings.archiveButtonPosition ==
+                                      ArchiveButtonPosition.hidden) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 16,
+                                    right: 16,
+                                    bottom: 16,
+                                  ),
+                                  child: TextField(
+                                    controller: _searchTriggerController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Search Trigger',
+                                      hintText: 'e.g., archive',
+                                      helperText:
+                                          'Type to find hidden archives',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
-                                  ],
-                                ],
-                              );
-                            }),
-                          ],
+                                    onChanged: (value) {
+                                      setState(() {});
+                                      final trimmedValue = value.trim();
+                                      if (trimmedValue.isNotEmpty) {
+                                        archiveSettings.setArchiveSearchTrigger(
+                                          trimmedValue,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Preview Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow.withValues(
+                          alpha: 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.05,
+                          ),
                         ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Preview Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.preview,
-                            color: Theme.of(context).colorScheme.primary,
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.preview_outlined,
+                                  color: Colors.blue,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                'Preview',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Preview',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                          const SizedBox(height: 16),
+                          _buildPreview(
+                            context,
+                            archiveSettings.archiveButtonPosition,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      _buildPreview(context, archiveSettings.archiveButtonPosition),
-                    ],
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Archive Behavior Section (Collapsible)
-              Card(
-                child: Column(
-                  children: [
-                    InkWell(
-                      onTap: () {
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Archive Behavior Section
+                    _buildSectionCard(
+                      context,
+                      title: 'Archive Behavior',
+                      icon: Icons.lock_outline,
+                      color: Colors.purple,
+                      isExpanded: _isBehaviorSectionExpanded,
+                      onToggle: () {
                         setState(() {
-                          _isBehaviorSectionExpanded = !_isBehaviorSectionExpanded;
+                          _isBehaviorSectionExpanded =
+                              !_isBehaviorSectionExpanded;
                         });
                       },
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.lock,
-                              color: Theme.of(context).colorScheme.primary,
+                      children: [
+                        SwitchListTile(
+                          title: const Text(
+                            'Keep chats archived',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Text(
+                            'Archived chats remain archived when receiving new messages',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Archive Behavior',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              _isBehaviorSectionExpanded 
-                                  ? Icons.keyboard_arrow_up 
-                                  : Icons.keyboard_arrow_down,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_isBehaviorSectionExpanded) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: SwitchListTile(
-                          title: const Text('Keep chats archived'),
-                          subtitle: const Text('Archived chats remain archived when receiving new messages'),
+                          ),
                           value: archiveSettings.keepChatsArchived,
                           onChanged: (value) {
                             archiveSettings.setKeepChatsArchived(value);
                           },
                           contentPadding: EdgeInsets.zero,
+                          activeColor: theme.colorScheme.primary,
                         ),
-                      ),
-                    ],
-                  ],
+                      ],
+                    ),
+                  ]),
                 ),
               ),
             ],
@@ -296,7 +243,75 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
       ),
     );
   }
-  
+
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   String _getPositionDescription(ArchiveButtonPosition position) {
     switch (position) {
       case ArchiveButtonPosition.topOfChats:
@@ -309,7 +324,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
         return 'Archive button hidden, accessible via search trigger';
     }
   }
-  
+
   Widget _buildPreview(BuildContext context, ArchiveButtonPosition position) {
     return Container(
       decoration: BoxDecoration(
@@ -325,7 +340,9 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
             ),
             child: Row(
               children: [
@@ -351,15 +368,11 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     ),
                   )
                 else
-                  const Icon(
-                    Icons.more_vert,
-                    color: Colors.white,
-                    size: 16,
-                  ),
+                  const Icon(Icons.more_vert, color: Colors.white, size: 16),
               ],
             ),
           ),
-          
+
           // Mock chat list
           Container(
             padding: const EdgeInsets.all(8),
@@ -371,10 +384,14 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
@@ -385,71 +402,84 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           size: 16,
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Archived',
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        const Text('Archived', style: TextStyle(fontSize: 12)),
                         const Spacer(),
                         Icon(
                           Icons.chevron_right,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
                           size: 16,
                         ),
                       ],
                     ),
                   ),
-                
+
                 // Mock chat items
-                ...List.generate(3, (index) => Container(
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(fontSize: 10),
+                ...List.generate(
+                  3,
+                  (index) => Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.2),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(fontSize: 10),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Friend ${index + 1}',
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
-                            ),
-                            Text(
-                              'Last message...',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Friend ${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                          ],
+                              Text(
+                                'Last message...',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                )),
-                
+                ),
+
                 // Bottom archive button
                 if (position == ArchiveButtonPosition.bottomOfChats)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
@@ -460,30 +490,33 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           size: 16,
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Archived',
-                          style: TextStyle(fontSize: 12),
-                        ),
+                        const Text('Archived', style: TextStyle(fontSize: 12)),
                         const Spacer(),
                         Icon(
                           Icons.chevron_right,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
                           size: 16,
                         ),
                       ],
                     ),
                   ),
-                
+
                 // Hidden option preview
                 if (position == ArchiveButtonPosition.hidden)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.3),
                         style: BorderStyle.solid,
                       ),
                     ),
@@ -491,7 +524,9 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                       children: [
                         Icon(
                           Icons.search,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
                           size: 16,
                         ),
                         const SizedBox(width: 8),
@@ -500,7 +535,9 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           style: TextStyle(
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_service_screen.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -7,131 +9,181 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 0,
-        title: const Text('About Boofer'),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // App Logo and Info
-            _buildAppHeader(context),
-            
-            const SizedBox(height: 32),
-            
-            // App Information
-            _buildSection(
-              context,
-              title: 'App Information',
-              children: [
-                _buildInfoTile('Version', '1.0.0'),
-                _buildInfoTile('Build Number', '100'),
-                _buildInfoTile('Release Date', 'January 2025'),
-                _buildInfoTile('Platform', 'Flutter'),
-                _buildInfoTile('Minimum OS', 'Android 6.0 / iOS 12.0'),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Company Information
-            _buildSection(
-              context,
-              title: 'Company',
-              children: [
-                _buildInfoTile('Developer', 'Boofer Technologies'),
-                _buildInfoTile('Website', 'www.boofer.com'),
-                _buildInfoTile('Support Email', 'support@boofer.com'),
-                _buildInfoTile('Location', 'San Francisco, CA'),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Features
-            _buildSection(
-              context,
-              title: 'Key Features',
-              children: [
-                _buildFeatureTile('Virtual Numbers', 'Protect your real phone number'),
-                _buildFeatureTile('End-to-End Encryption', 'Secure messaging and calls'),
-                _buildFeatureTile('Link Tree', 'Share your products and services'),
-                _buildFeatureTile('Cross-Platform', 'Available on Android and iOS'),
-                _buildFeatureTile('Privacy First', 'Your data stays private'),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Legal and Links
-            _buildSection(
-              context,
-              title: 'Legal & Links',
-              children: [
-                _buildActionTile(
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: const Text('About Boofer'),
+            centerTitle: true,
+            backgroundColor: theme.colorScheme.surface,
+            scrolledUnderElevation: 0,
+          ),
+          SliverToBoxAdapter(child: _buildAppHeader(context)),
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // App Information
+                _buildSectionContainer(
                   context,
-                  title: 'Privacy Policy',
-                  icon: Icons.privacy_tip,
-                  onTap: () => _showPrivacyPolicy(context),
+                  title: 'App Information',
+                  icon: Icons.info_outline,
+                  color: Colors.blue,
+                  children: [
+                    _buildInfoTile(context, 'Version', '1.0.0'),
+                    _buildInfoTile(context, 'Build Number', '100'),
+                    _buildInfoTile(context, 'Release Date', 'January 2025'),
+                    _buildInfoTile(context, 'Platform', 'Flutter'),
+                    _buildInfoTile(
+                      context,
+                      'Minimum OS',
+                      'Android 6.0 / iOS 12.0',
+                    ),
+                  ],
                 ),
-                _buildActionTile(
+
+                const SizedBox(height: 24),
+
+                // Company Information
+                _buildSectionContainer(
                   context,
-                  title: 'Terms of Service',
-                  icon: Icons.description,
-                  onTap: () => _showTermsOfService(context),
+                  title: 'Company',
+                  icon: Icons.business_outlined,
+                  color: Colors.indigo,
+                  children: [
+                    _buildInfoTile(context, 'Developer', 'Boofer Team'),
+                    _buildInfoTile(context, 'Website', 'boofer.app'),
+                    _buildInfoTile(
+                      context,
+                      'Support Email',
+                      'support@boofer.app',
+                    ),
+                    _buildInfoTile(context, 'Location', 'Global'),
+                  ],
                 ),
-                _buildActionTile(
+
+                const SizedBox(height: 24),
+
+                // Features
+                _buildSectionContainer(
                   context,
-                  title: 'Open Source Licenses',
-                  icon: Icons.code,
-                  onTap: () => _showOpenSourceLicenses(context),
+                  title: 'Key Features',
+                  icon: Icons.star_outline,
+                  color: Colors.amber,
+                  children: [
+                    _buildFeatureTile(
+                      context,
+                      'Virtual Identity',
+                      'Anonymous profile with virtual number',
+                      Colors.purple,
+                    ),
+                    _buildFeatureTile(
+                      context,
+                      'Private Messaging',
+                      'Secure, end-to-end encrypted chats',
+                      Colors.green,
+                    ),
+                    _buildFeatureTile(
+                      context,
+                      'Friend Discovery',
+                      'Find friends via username or QR',
+                      Colors.blue,
+                    ),
+                    _buildFeatureTile(
+                      context,
+                      'Media Sharing',
+                      'Share photos, videos, and files',
+                      Colors.orange,
+                    ),
+                    _buildFeatureTile(
+                      context,
+                      'No Data Tracking',
+                      'Your conversations belong to you',
+                      Colors.red,
+                    ),
+                  ],
                 ),
-                _buildActionTile(
+
+                const SizedBox(height: 24),
+
+                // Legal and Links
+                _buildSectionContainer(
                   context,
-                  title: 'Rate the App',
-                  icon: Icons.star,
-                  onTap: () => _showRateApp(context),
+                  title: 'Legal & Links',
+                  icon: Icons.gavel_outlined,
+                  color: Colors.blueGrey,
+                  children: [
+                    _buildActionTile(
+                      context,
+                      title: 'Privacy Policy',
+                      icon: Icons.privacy_tip_outlined,
+                      color: Colors.teal,
+                      onTap: () => _showPrivacyPolicy(context),
+                    ),
+                    _buildActionTile(
+                      context,
+                      title: 'Terms of Service',
+                      icon: Icons.description_outlined,
+                      color: Colors.deepPurple,
+                      onTap: () => _showTermsOfService(context),
+                    ),
+                    _buildActionTile(
+                      context,
+                      title: 'Open Source Licenses',
+                      icon: Icons.code_outlined,
+                      color: Colors.black87,
+                      onTap: () => _showOpenSourceLicenses(context),
+                    ),
+                    _buildActionTile(
+                      context,
+                      title: 'Rate the App',
+                      icon: Icons.star_rate_rounded,
+                      color: Colors.amber,
+                      onTap: () => _showRateApp(context),
+                    ),
+                  ],
                 ),
-              ],
+
+                const SizedBox(height: 32),
+
+                // Footer
+                _buildFooter(context),
+                const SizedBox(height: 32),
+              ]),
             ),
-            
-            const SizedBox(height: 32),
-            
-            // Footer
-            _buildFooter(context),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildAppHeader(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Column(
       children: [
+        const SizedBox(height: 16),
         Container(
           width: 100,
           height: 100,
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: theme.colorScheme.primary.withOpacity(0.3),
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
             ],
           ),
           child: const Icon(
-            Icons.message,
+            Icons.message_rounded,
             color: Colors.white,
             size: 50,
           ),
@@ -142,13 +194,14 @@ class AboutScreen extends StatelessWidget {
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: theme.colorScheme.primary,
+            letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Secure messaging with virtual numbers',
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
         ),
@@ -156,8 +209,11 @@ class AboutScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+            ),
           ),
           child: Text(
             'Version 1.0.0',
@@ -171,75 +227,123 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(
+  Widget _buildSectionContainer(
     BuildContext context, {
     required String title,
+    required IconData icon,
+    required Color color,
     required List<Widget> children,
   }) {
     final theme = Theme.of(context);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, bottom: 8),
-          child: Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: theme.colorScheme.onSurface,
             ),
           ),
-        ),
-        Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-          child: Column(children: children),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoTile(String label, String value) {
-    return ListTile(
-      title: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
-      trailing: Text(
-        value,
-        style: TextStyle(
-          color: Colors.grey.shade600,
-          fontWeight: FontWeight.w400,
-        ),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildFeatureTile(String title, String description) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Icon(
-          Icons.check,
-          color: Colors.green,
-          size: 16,
-        ),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        description,
-        style: TextStyle(
-          color: Colors.grey.shade600,
-          fontSize: 13,
-        ),
+  Widget _buildFeatureTile(
+    BuildContext context,
+    String title,
+    String description,
+    Color color,
+  ) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.check_rounded, color: color, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -248,30 +352,30 @@ class AboutScreen extends StatelessWidget {
     BuildContext context, {
     required String title,
     required IconData icon,
+    required Color color,
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
-    
+
     return ListTile(
+      contentPadding: EdgeInsets.zero,
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(
-          icon,
-          color: theme.colorScheme.primary,
-          size: 20,
-        ),
+        child: Icon(icon, color: color, size: 20),
       ),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
+        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
       ),
       trailing: Icon(
         Icons.chevron_right,
-        color: theme.colorScheme.onSurface.withOpacity(0.5),
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+        size: 20,
       ),
       onTap: onTap,
     );
@@ -279,13 +383,13 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildFooter(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Column(
       children: [
         Text(
           'Made with ❤️ by Boofer Technologies',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
         ),
@@ -293,11 +397,11 @@ class AboutScreen extends StatelessWidget {
         Text(
           '© 2025 Boofer Technologies. All rights reserved.',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -305,14 +409,16 @@ class AboutScreen extends StatelessWidget {
               context,
               icon: Icons.language,
               label: 'Website',
-              onTap: () => _copyToClipboard(context, 'www.boofer.com', 'Website URL'),
+              onTap: () =>
+                  _copyToClipboard(context, 'www.boofer.com', 'Website URL'),
             ),
             const SizedBox(width: 16),
             _buildSocialButton(
               context,
-              icon: Icons.email,
+              icon: Icons.email_outlined,
               label: 'Email',
-              onTap: () => _copyToClipboard(context, 'support@boofer.com', 'Email'),
+              onTap: () =>
+                  _copyToClipboard(context, 'support@boofer.com', 'Email'),
             ),
           ],
         ),
@@ -327,32 +433,30 @@ class AboutScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
-    
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           border: Border.all(
-            color: theme.colorScheme.outline.withOpacity(0.3),
+            color: theme.colorScheme.outline.withValues(alpha: 0.2),
           ),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.surface,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
             ),
           ],
@@ -363,72 +467,22 @@ class AboutScreen extends StatelessWidget {
 
   void _copyToClipboard(BuildContext context, String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label copied to clipboard')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$label copied to clipboard')));
   }
 
   void _showPrivacyPolicy(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Policy'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPolicySection('Data Collection', 'We collect minimal data necessary for app functionality. Your messages are encrypted and stored locally.'),
-                _buildPolicySection('Virtual Numbers', 'Virtual numbers are generated randomly and not linked to your real phone number.'),
-                _buildPolicySection('Message Encryption', 'All messages use end-to-end encryption. We cannot read your messages.'),
-                _buildPolicySection('Data Sharing', 'We do not share your personal data with third parties.'),
-                _buildPolicySection('Data Retention', 'Messages are stored locally on your device. We do not store messages on our servers.'),
-                _buildPolicySection('Account Deletion', 'You can delete your account and all associated data at any time.'),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
     );
   }
 
   void _showTermsOfService(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms of Service'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPolicySection('Acceptance', 'By using Boofer, you agree to these terms and conditions.'),
-                _buildPolicySection('Service Usage', 'Use Boofer responsibly and in accordance with applicable laws.'),
-                _buildPolicySection('Prohibited Activities', 'Do not use Boofer for spam, harassment, or illegal activities.'),
-                _buildPolicySection('Account Responsibility', 'You are responsible for maintaining the security of your account.'),
-                _buildPolicySection('Service Availability', 'We strive to maintain service availability but cannot guarantee 100% uptime.'),
-                _buildPolicySection('Modifications', 'We may update these terms from time to time. Continued use constitutes acceptance.'),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsOfServiceScreen()),
     );
   }
 
@@ -442,11 +496,36 @@ class AboutScreen extends StatelessWidget {
           height: 400,
           child: ListView(
             children: [
-              _buildLicenseTile(context, 'Flutter', 'BSD 3-Clause License', 'https://flutter.dev'),
-              _buildLicenseTile(context, 'Provider', 'MIT License', 'https://pub.dev/packages/provider'),
-              _buildLicenseTile(context, 'Shared Preferences', 'BSD 3-Clause License', 'https://pub.dev/packages/shared_preferences'),
-              _buildLicenseTile(context, 'Flutter SVG', 'MIT License', 'https://pub.dev/packages/flutter_svg'),
-              _buildLicenseTile(context, 'Path Provider', 'BSD 3-Clause License', 'https://pub.dev/packages/path_provider'),
+              _buildLicenseTile(
+                context,
+                'Flutter',
+                'BSD 3-Clause License',
+                'https://flutter.dev',
+              ),
+              _buildLicenseTile(
+                context,
+                'Provider',
+                'MIT License',
+                'https://pub.dev/packages/provider',
+              ),
+              _buildLicenseTile(
+                context,
+                'Shared Preferences',
+                'BSD 3-Clause License',
+                'https://pub.dev/packages/shared_preferences',
+              ),
+              _buildLicenseTile(
+                context,
+                'Flutter SVG',
+                'MIT License',
+                'https://pub.dev/packages/flutter_svg',
+              ),
+              _buildLicenseTile(
+                context,
+                'Path Provider',
+                'BSD 3-Clause License',
+                'https://pub.dev/packages/path_provider',
+              ),
             ],
           ),
         ),
@@ -472,9 +551,10 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) => 
-                const Icon(
-                  Icons.star,
+              children: List.generate(
+                5,
+                (index) => const Icon(
+                  Icons.star_rounded,
                   color: Colors.amber,
                   size: 32,
                 ),
@@ -503,45 +583,32 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPolicySection(String title, String content) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            content,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildLicenseTile(
+    BuildContext context,
+    String name,
+    String license,
+    String url,
+  ) {
+    final theme = Theme.of(context);
 
-  Widget _buildLicenseTile(BuildContext context, String name, String license, String url) {
     return ListTile(
-      title: Text(
-        name,
-        style: const TextStyle(fontWeight: FontWeight.w500),
+      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(
+        license,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
-      subtitle: Text(license),
-      trailing: const Icon(Icons.open_in_new, size: 16),
+      trailing: Icon(
+        Icons.open_in_new,
+        size: 16,
+        color: theme.colorScheme.primary,
+      ),
       onTap: () {
         // In a real app, this would open the URL
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Would open: $url')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Would open: $url')));
       },
     );
   }

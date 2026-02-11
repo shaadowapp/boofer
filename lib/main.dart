@@ -24,9 +24,11 @@ import 'screens/onboarding_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/appearance_settings_screen.dart';
 import 'screens/user_profile_screen.dart';
+import 'screens/legal_acceptance_screen.dart';
 import 'models/friend_model.dart';
 import 'l10n/app_localizations.dart';
 import 'services/notification_service.dart';
+import 'services/local_storage_service.dart';
 
 /// Background message handler for Firebase Messaging
 /// This must be a top-level function
@@ -34,50 +36,49 @@ import 'services/notification_service.dart';
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Initialize Firebase if not already initialized
   await Firebase.initializeApp();
-  
+
   print('📬 Background message received: ${message.notification?.title}');
-  
+
   // Handle the message (notification is automatically shown by the system)
   // You can add custom logic here if needed
 }
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase for real-time functionality
   await Firebase.initializeApp();
-  
+
   // Set up background message handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  
+
   // Configure Firestore for offline support and reduce network spam
   try {
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    
+
     // Disable network temporarily to prevent spam during initialization
     // It will auto-enable when network is available
     print('📱 Firestore configured with offline persistence');
   } catch (e) {
     print('⚠️ Firestore settings error (non-critical): $e');
   }
-  
+
   // Initialize sync service for hybrid online/offline functionality
   await SyncService.instance.initialize();
-  
+
   // Initialize notification service with channels
   await NotificationService.instance.initialize();
-  
+
   // Initialize profile picture service BEFORE app starts
   // This ensures profile picture is loaded from storage before UI renders
   await ProfilePictureService.instance.initialize();
   print('📸 Profile picture service initialized');
-  
+
   print('Starting beautiful Boofer app with real-time capabilities...');
-  
+
   runApp(const BooferApp());
 }
 
@@ -107,10 +108,12 @@ class BooferApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthStateProvider()),
         ChangeNotifierProvider(create: (_) => FirestoreUserProvider()),
         ChangeNotifierProvider(create: (_) => FriendRequestProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider(
-          chatService: chatService,
-          errorHandler: errorHandler,
-        )),
+        ChangeNotifierProvider(
+          create: (_) => ChatProvider(
+            chatService: chatService,
+            errorHandler: errorHandler,
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => ArchiveSettingsProvider()),
         ChangeNotifierProvider(create: (_) => UsernameProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
@@ -121,17 +124,22 @@ class BooferApp extends StatelessWidget {
             title: 'Boofer - Privacy First Chat',
             theme: themeProvider.lightTheme,
             darkTheme: themeProvider.darkTheme,
-            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            themeMode: themeProvider.isDarkMode
+                ? ThemeMode.dark
+                : ThemeMode.light,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SplashScreen(),
             routes: {
               '/onboarding': (context) => const OnboardingScreen(),
               '/main': (context) => const MainScreen(),
-              '/notification-settings': (context) => const NotificationSettingsScreen(),
-              '/appearance-settings': (context) => const AppearanceSettingsScreen(),
+              '/notification-settings': (context) =>
+                  const NotificationSettingsScreen(),
+              '/appearance-settings': (context) =>
+                  const AppearanceSettingsScreen(),
               '/chat': (context) {
-                final friend = ModalRoute.of(context)?.settings.arguments as Friend?;
+                final friend =
+                    ModalRoute.of(context)?.settings.arguments as Friend?;
                 if (friend != null) {
                   return FriendChatScreen(
                     recipientId: friend.id,
@@ -143,12 +151,14 @@ class BooferApp extends StatelessWidget {
                 return const MainScreen(); // Fallback if no friend provided
               },
               '/profile': (context) {
-                final userId = ModalRoute.of(context)?.settings.arguments as String?;
+                final userId =
+                    ModalRoute.of(context)?.settings.arguments as String?;
                 if (userId != null) {
                   return UserProfileScreen(userId: userId);
                 }
                 return const MainScreen(); // Fallback if no userId provided
               },
+              '/legal-acceptance': (context) => const LegalAcceptanceScreen(),
             },
             debugShowCheckedModeBanner: false,
           );
@@ -183,7 +193,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       // Test Firebase connection first
       await _testFirebaseConnection();
-      
+
       setState(() {
         _statusMessage = 'Checking authentication...';
       });
@@ -193,36 +203,51 @@ class _SplashScreenState extends State<SplashScreen> {
       await appearanceProvider.initialize();
 
       await Future.delayed(const Duration(seconds: 1));
-      
+
       // Check if user is authenticated with Google
       final authProvider = context.read<AuthStateProvider>();
       // AuthStateProvider initializes automatically, just wait a moment for it to complete
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       if (authProvider.isAuthenticated) {
         setState(() {
-          _statusMessage = 'User authenticated ✅';
+          // _statusMessage = 'User authenticated ✅';
         });
-        
+
         // Initialize Firestore user provider
-        setState(() {
-          _statusMessage = 'Loading user profile...';
-        });
-        
+        // Minimal status updates to avoid "onboarding" confusion
+        // _statusMessage = 'Loading user profile...';
+
         final userProvider = context.read<FirestoreUserProvider>();
         await userProvider.initialize();
-        
+
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/main');
+          final userId = authProvider.currentUserId;
+
+          if (userId != null) {
+            // Check if terms accepted for this specific user
+            final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
+              userId,
+            );
+
+            if (hasAcceptedTerms) {
+              Navigator.pushReplacementNamed(context, '/main');
+            } else {
+              Navigator.pushReplacementNamed(context, '/legal-acceptance');
+            }
+          } else {
+            // Should not happen if authenticated, but fallback
+            Navigator.pushReplacementNamed(context, '/onboarding');
+          }
         }
       } else {
         setState(() {
           _statusMessage = 'Authentication required...';
         });
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/onboarding');
         }
@@ -232,7 +257,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _statusMessage = 'Error: $e';
         _hasError = true;
       });
-      
+
       // Still proceed to onboarding after showing error
       await Future.delayed(const Duration(seconds: 3));
       if (mounted) {
@@ -252,8 +277,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
       // Test Firestore connection and verify user exists
       final firestore = FirebaseFirestore.instance;
-      final userDoc = await firestore.collection('users').doc(userData.id).get();
-      
+      final userDoc = await firestore
+          .collection('users')
+          .doc(userData.id)
+          .get();
+
       if (userDoc.exists) {
         print('✅ User verified in Firebase: ${userData.id}');
         return true;
@@ -270,27 +298,26 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _testFirebaseConnection() async {
     try {
       print('🔥 Testing Firebase connection...');
-      
+
       // Simple Firebase initialization test - no write operation
       final firestore = FirebaseFirestore.instance;
-      
+
       // Just test if we can access Firestore settings (doesn't require auth)
       firestore.settings;
-      
+
       print('✅ Firebase connection successful!');
       setState(() {
         _statusMessage = 'Firebase connected ✅';
       });
-      
+
       await Future.delayed(const Duration(milliseconds: 500));
-      
     } catch (e) {
       print('❌ Firebase connection failed: $e');
       setState(() {
         _statusMessage = 'Offline mode (Firebase unavailable)';
         _hasError = true;
       });
-      
+
       await Future.delayed(const Duration(seconds: 1));
     }
   }
@@ -303,11 +330,7 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF3B82F6),
-              Color(0xFF60A5FA),
-            ],
+            colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF60A5FA)],
           ),
         ),
         child: SafeArea(
@@ -327,12 +350,14 @@ class _SplashScreenState extends State<SplashScreen> {
                         ),
                         child: IconButton(
                           icon: Icon(
-                            themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                            themeProvider.isDarkMode
+                                ? Icons.light_mode
+                                : Icons.dark_mode,
                             color: Colors.white,
                           ),
                           onPressed: () => themeProvider.toggleTheme(),
-                          tooltip: themeProvider.isDarkMode 
-                              ? 'Switch to Light Mode' 
+                          tooltip: themeProvider.isDarkMode
+                              ? 'Switch to Light Mode'
                               : 'Switch to Dark Mode',
                         ),
                       );
@@ -364,15 +389,14 @@ class _SplashScreenState extends State<SplashScreen> {
                       const SizedBox(height: 8),
                       const Text(
                         'Privacy-first messaging',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.white70),
                       ),
                       const SizedBox(height: 40),
                       if (!_hasError) ...[
                         const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -380,8 +404,12 @@ class _SplashScreenState extends State<SplashScreen> {
                         _statusMessage,
                         style: TextStyle(
                           fontSize: 14,
-                          color: _hasError ? Colors.orange[200] : Colors.white70,
-                          fontWeight: _hasError ? FontWeight.w500 : FontWeight.normal,
+                          color: _hasError
+                              ? Colors.orange[200]
+                              : Colors.white70,
+                          fontWeight: _hasError
+                              ? FontWeight.w500
+                              : FontWeight.normal,
                         ),
                         textAlign: TextAlign.center,
                       ),

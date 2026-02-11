@@ -219,6 +219,7 @@ class MessageRepository implements IMessageRepository {
   /// Additional utility methods for the repository
 
   /// Get recent messages (last 24 hours)
+  @override
   Future<List<Message>> getRecentMessages() async {
     final yesterday = DateTime.now().subtract(const Duration(days: 1));
     try {
@@ -236,6 +237,7 @@ class MessageRepository implements IMessageRepository {
   }
 
   /// Get failed messages that need retry
+  @override
   Future<List<Message>> getFailedMessages() async {
     return await getMessagesByStatus(MessageStatus.failed);
   }
@@ -251,6 +253,7 @@ class MessageRepository implements IMessageRepository {
   }
 
   /// Get statistics about messages
+  @override
   Future<Map<String, int>> getMessageStatistics() async {
     try {
       final total = await getMessageCount();

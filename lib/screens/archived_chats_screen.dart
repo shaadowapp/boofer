@@ -11,75 +11,90 @@ class ArchivedChatsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 0,
-        title: Text(l10n.archivedChats),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_horiz),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ArchiveSettingsScreen(),
-                ),
-              );
-            },
-            tooltip: 'Archive Settings',
-          ),
-        ],
-      ),
       body: Consumer<ChatProvider>(
         builder: (context, chatProvider, child) {
           final archivedChats = chatProvider.archivedChats;
-          
-          if (archivedChats.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.archive,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.noArchivedChats,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                    ),
+
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar.large(
+                title: Text(l10n.archivedChats),
+                centerTitle: true,
+                backgroundColor: theme.colorScheme.surface,
+                scrolledUnderElevation: 0,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ArchiveSettingsScreen(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Archive Settings',
                   ),
                 ],
               ),
-            );
-          }
-          
-          return ListView.builder(
-            itemCount: archivedChats.length,
-            itemBuilder: (context, index) {
-              final friend = archivedChats[index];
-              return _buildArchivedFriendTile(context, friend, chatProvider, l10n);
-            },
+              if (archivedChats.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.archive_outlined,
+                          size: 64,
+                          color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                            0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          l10n.noArchivedChats,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final friend = archivedChats[index];
+                    return _buildArchivedFriendTile(
+                      context,
+                      friend,
+                      chatProvider,
+                      l10n,
+                    );
+                  }, childCount: archivedChats.length),
+                ),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildArchivedFriendTile(BuildContext context, Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  Widget _buildArchivedFriendTile(
+    BuildContext context,
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
+    final theme = Theme.of(context);
+
     return InkWell(
       onTap: () {
-        Navigator.pushNamed(
-          context, 
-          '/chat', 
-          arguments: friend,
-        );
+        Navigator.pushNamed(context, '/chat', arguments: friend);
       },
       onLongPress: () {
         _showUnarchiveDialog(context, friend, chatProvider, l10n);
@@ -89,7 +104,7 @@ class ArchivedChatsScreen extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3), 
+              color: theme.dividerColor.withOpacity(0.1),
               width: 0.5,
             ),
           ),
@@ -101,7 +116,7 @@ class ArchivedChatsScreen extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
                   child: friend.avatar != null
                       ? ClipOval(
                           child: Image.network(
@@ -112,11 +127,15 @@ class ArchivedChatsScreen extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
+                          friend.name
+                              .split(' ')
+                              .map((e) => e[0])
+                              .take(2)
+                              .join(),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                 ),
@@ -131,7 +150,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                         color: const Color(0xFF4CAF50),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor, 
+                          color: theme.scaffoldBackgroundColor,
                           width: 2,
                         ),
                       ),
@@ -139,9 +158,9 @@ class ArchivedChatsScreen extends StatelessWidget {
                   ),
               ],
             ),
-            
+
             const SizedBox(width: 16),
-            
+
             // Friend Info
             Expanded(
               child: Column(
@@ -152,14 +171,14 @@ class ArchivedChatsScreen extends StatelessWidget {
                     children: [
                       Text(
                         friend.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         _formatTime(friend.lastMessageTime),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -171,17 +190,19 @@ class ArchivedChatsScreen extends StatelessWidget {
                       Expanded(
                         child: Text(
                           friend.lastMessage,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Icon(
-                        Icons.archive,
+                        Icons.archive_outlined,
                         size: 16,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                          0.5,
+                        ),
                       ),
                     ],
                   ),
@@ -211,7 +232,12 @@ class ArchivedChatsScreen extends StatelessWidget {
     }
   }
 
-  void _showUnarchiveDialog(BuildContext context, Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  void _showUnarchiveDialog(
+    BuildContext context,
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -225,13 +251,15 @@ class ArchivedChatsScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               await chatProvider.unarchiveChat(friend.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.chatUnarchived),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.chatUnarchived),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             },
             child: Text(l10n.unarchiveChat),
           ),

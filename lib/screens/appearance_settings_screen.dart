@@ -8,7 +8,8 @@ class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({super.key});
 
   @override
-  State<AppearanceSettingsScreen> createState() => _AppearanceSettingsScreenState();
+  State<AppearanceSettingsScreen> createState() =>
+      _AppearanceSettingsScreenState();
 }
 
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
@@ -26,25 +27,115 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   final List<Map<String, dynamic>> _wallpapers = [
     {'id': 'none', 'name': 'None', 'type': 'none'},
     // Doodles - inspired by Telegram/WhatsApp patterns
-    {'id': 'doodle1', 'name': 'Geometric', 'type': 'doodle', 'color': const Color(0xFFF3F4F6)},
-    {'id': 'doodle2', 'name': 'Leaves', 'type': 'doodle', 'color': const Color(0xFFDCFCE7)},
-    {'id': 'doodle3', 'name': 'Stars', 'type': 'doodle', 'color': const Color(0xFFDEEDFF)},
-    {'id': 'doodle4', 'name': 'Curves', 'type': 'doodle', 'color': const Color(0xFFFFF4E6)},
-    {'id': 'doodle5', 'name': 'Hearts', 'type': 'doodle', 'color': const Color(0xFFF3E5F5)},
-    {'id': 'doodle6', 'name': 'Waves', 'type': 'doodle', 'color': const Color(0xFFFFEBEE)},
-    {'id': 'doodle7', 'name': 'Dots', 'type': 'doodle', 'color': const Color(0xFFE8F5E9)},
-    {'id': 'doodle8', 'name': 'Lines', 'type': 'doodle', 'color': const Color(0xFFFFF9C4)},
+    {
+      'id': 'doodle1',
+      'name': 'Geometric',
+      'type': 'doodle',
+      'color': const Color(0xFFF3F4F6),
+    },
+    {
+      'id': 'doodle2',
+      'name': 'Leaves',
+      'type': 'doodle',
+      'color': const Color(0xFFDCFCE7),
+    },
+    {
+      'id': 'doodle3',
+      'name': 'Stars',
+      'type': 'doodle',
+      'color': const Color(0xFFDEEDFF),
+    },
+    {
+      'id': 'doodle4',
+      'name': 'Curves',
+      'type': 'doodle',
+      'color': const Color(0xFFFFF4E6),
+    },
+    {
+      'id': 'doodle5',
+      'name': 'Hearts',
+      'type': 'doodle',
+      'color': const Color(0xFFF3E5F5),
+    },
+    {
+      'id': 'doodle6',
+      'name': 'Waves',
+      'type': 'doodle',
+      'color': const Color(0xFFFFEBEE),
+    },
+    {
+      'id': 'doodle7',
+      'name': 'Dots',
+      'type': 'doodle',
+      'color': const Color(0xFFE8F5E9),
+    },
+    {
+      'id': 'doodle8',
+      'name': 'Lines',
+      'type': 'doodle',
+      'color': const Color(0xFFFFF9C4),
+    },
     // Solid colors
-    {'id': 'solid1', 'name': 'Soft White', 'type': 'solid', 'color': const Color(0xFFF5F5F5)},
-    {'id': 'solid2', 'name': 'Soft Green', 'type': 'solid', 'color': const Color(0xFFE8F5E9)},
-    {'id': 'solid3', 'name': 'Soft Blue', 'type': 'solid', 'color': const Color(0xFFE3F2FD)},
-    {'id': 'solid4', 'name': 'Soft Orange', 'type': 'solid', 'color': const Color(0xFFFFF3E0)},
-    {'id': 'solid5', 'name': 'Soft Purple', 'type': 'solid', 'color': const Color(0xFFF3E5F5)},
-    {'id': 'solid6', 'name': 'Soft Pink', 'type': 'solid', 'color': const Color(0xFFFCE4EC)},
-    {'id': 'solid7', 'name': 'Soft Yellow', 'type': 'solid', 'color': const Color(0xFFFFFDE7)},
-    {'id': 'solid8', 'name': 'Soft Teal', 'type': 'solid', 'color': const Color(0xFFE0F2F1)},
-    {'id': 'solid9', 'name': 'Soft Indigo', 'type': 'solid', 'color': const Color(0xFFE8EAF6)},
-    {'id': 'solid10', 'name': 'Soft Amber', 'type': 'solid', 'color': const Color(0xFFFFF8E1)},
+    {
+      'id': 'solid1',
+      'name': 'Soft White',
+      'type': 'solid',
+      'color': const Color(0xFFF5F5F5),
+    },
+    {
+      'id': 'solid2',
+      'name': 'Soft Green',
+      'type': 'solid',
+      'color': const Color(0xFFE8F5E9),
+    },
+    {
+      'id': 'solid3',
+      'name': 'Soft Blue',
+      'type': 'solid',
+      'color': const Color(0xFFE3F2FD),
+    },
+    {
+      'id': 'solid4',
+      'name': 'Soft Orange',
+      'type': 'solid',
+      'color': const Color(0xFFFFF3E0),
+    },
+    {
+      'id': 'solid5',
+      'name': 'Soft Purple',
+      'type': 'solid',
+      'color': const Color(0xFFF3E5F5),
+    },
+    {
+      'id': 'solid6',
+      'name': 'Soft Pink',
+      'type': 'solid',
+      'color': const Color(0xFFFCE4EC),
+    },
+    {
+      'id': 'solid7',
+      'name': 'Soft Yellow',
+      'type': 'solid',
+      'color': const Color(0xFFFFFDE7),
+    },
+    {
+      'id': 'solid8',
+      'name': 'Soft Teal',
+      'type': 'solid',
+      'color': const Color(0xFFE0F2F1),
+    },
+    {
+      'id': 'solid9',
+      'name': 'Soft Indigo',
+      'type': 'solid',
+      'color': const Color(0xFFE8EAF6),
+    },
+    {
+      'id': 'solid10',
+      'name': 'Soft Amber',
+      'type': 'solid',
+      'color': const Color(0xFFFFF8E1),
+    },
     // Modern gradients
     {'id': 'gradient1', 'name': 'Warm Yellow', 'type': 'gradient'},
     {'id': 'gradient2', 'name': 'Soft Pink', 'type': 'gradient'},
@@ -70,84 +161,114 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 0,
-        title: const Text('Appearance'),
-      ),
-      body: ListView(
-        children: [
-          // Theme Section
-          _buildSection(
-            context,
-            title: 'THEME',
-            children: [
-              ListTile(
-                leading: Icon(
-                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                  color: theme.colorScheme.onSurface,
-                ),
-                title: const Text('Theme Mode'),
-                subtitle: Text(themeProvider.themeModeString),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                ),
-                onTap: () => _showThemeDialog(context, themeProvider),
-              ),
-            ],
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: const Text('Appearance'),
+            centerTitle: true,
+            backgroundColor: theme.colorScheme.surface,
+            scrolledUnderElevation: 0,
           ),
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // Theme Section
+                _buildSectionContainer(
+                  context,
+                  title: 'Theme',
+                  icon: Icons.brightness_6_outlined,
+                  color: Colors.indigo,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          themeProvider.isDarkMode
+                              ? Icons.dark_mode_outlined
+                              : Icons.light_mode_outlined,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      title: const Text(
+                        'Theme Mode',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(themeProvider.themeModeString),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.3,
+                        ),
+                      ),
+                      onTap: () => _showThemeDialog(context, themeProvider),
+                    ),
+                  ],
+                ),
 
-          // Brand Color Section
-          _buildSection(
-            context,
-            title: 'ACCENT COLOR',
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 24),
+
+                // Brand Color Section
+                _buildSectionContainer(
+                  context,
+                  title: 'Accent Color',
+                  icon: Icons.palette_outlined,
+                  color: Colors.pink,
                   children: [
                     Text(
                       'Choose your accent color',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                      spacing: 16,
+                      runSpacing: 16,
+                      alignment: WrapAlignment.center,
                       children: _brandColors.map((color) {
-                        final isSelected = appearanceProvider.accentColor.value == color.value;
+                        final isSelected =
+                            appearanceProvider.accentColor.value == color.value;
                         return GestureDetector(
                           onTap: () => appearanceProvider.setAccentColor(color),
                           child: Container(
-                            width: 56,
-                            height: 56,
+                            width: 50,
+                            height: 50,
                             decoration: BoxDecoration(
                               color: color,
                               shape: BoxShape.circle,
                               border: isSelected
                                   ? Border.all(
-                                      color: theme.colorScheme.onSurface,
-                                      width: 3,
+                                      color: theme.colorScheme.surface,
+                                      width: 4,
                                     )
                                   : null,
                               boxShadow: [
                                 BoxShadow(
-                                  color: color.withValues(alpha: 0.3),
+                                  color: color.withValues(alpha: 0.4),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  offset: const Offset(0, 4),
                                 ),
+                                if (isSelected)
+                                  BoxShadow(
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.2),
+                                    blurRadius: 2,
+                                    spreadRadius: 1,
+                                  ),
                               ],
                             ),
                             child: isSelected
                                 ? const Icon(
-                                    Icons.check,
+                                    Icons.check_rounded,
                                     color: Colors.white,
-                                    size: 28,
+                                    size: 32,
                                   )
                                 : null,
                           ),
@@ -156,157 +277,231 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
 
-          // Font Size Section
-          _buildSection(
-            context,
-            title: 'FONT SIZE',
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 24),
+
+                // Font Size Section
+                _buildSectionContainer(
+                  context,
+                  title: 'Typography',
+                  icon: Icons.text_fields_rounded,
+                  color: Colors.teal,
                   children: [
                     Text(
                       'Adjust text size across the entire app',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Text(
-                          'A',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.1,
                           ),
                         ),
-                        Expanded(
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 4.0,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.0),
-                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'A',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    trackHeight: 6.0,
+                                    activeTrackColor: theme.colorScheme.primary,
+                                    inactiveTrackColor: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    thumbShape: const RoundSliderThumbShape(
+                                      enabledThumbRadius: 10.0,
+                                    ),
+                                    overlayShape: const RoundSliderOverlayShape(
+                                      overlayRadius: 20.0,
+                                    ),
+                                  ),
+                                  child: Slider(
+                                    value: appearanceProvider.fontSize,
+                                    min: 14.0,
+                                    max: 20.0,
+                                    divisions: 3,
+                                    label: _getFontSizeLabel(
+                                      appearanceProvider.fontSize,
+                                    ),
+                                    onChanged: (value) {
+                                      appearanceProvider.setFontSize(value);
+                                    },
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                'A',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeInOut,
+                            style: TextStyle(
+                              fontSize: appearanceProvider.fontSize,
+                              color: theme.colorScheme.onSurface,
+                              height: 1.5,
                             ),
-                            child: Slider(
-                              value: appearanceProvider.fontSize,
-                              min: 14.0,
-                              max: 20.0,
-                              divisions: 3,
-                              label: _getFontSizeLabel(appearanceProvider.fontSize),
-                              onChanged: (value) {
-                                appearanceProvider.setFontSize(value);
-                              },
+                            child: const Text(
+                              'The quick brown fox jumps over the lazy dog',
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
-                        Text(
-                          'A',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut,
-                        style: TextStyle(
-                          fontSize: appearanceProvider.fontSize,
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.primary,
-                        ),
-                        child: Text(
-                          'Preview: ${_getFontSizeLabel(appearanceProvider.fontSize)}',
-                        ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 8),
                     Center(
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut,
-                        style: TextStyle(
-                          fontSize: appearanceProvider.fontSize,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        child: const Text(
-                          'The quick brown fox jumps over the lazy dog',
+                      child: Text(
+                        'Preview: ${_getFontSizeLabel(appearanceProvider.fontSize)}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
 
-          // Chat Wallpaper Section
-          _buildSection(
-            context,
-            title: 'CHAT WALLPAPER',
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  'Choose a background for your chats',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-              
-              // None option
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: _buildWallpaperOption(
+                const SizedBox(height: 24),
+
+                // Chat Wallpaper Section
+                _buildSectionContainer(
                   context,
-                  'none',
-                  'None',
-                  appearanceProvider,
-                  theme,
+                  title: 'Chat Wallpaper',
+                  icon: Icons.wallpaper_rounded,
+                  color: Colors.deepPurple,
+                  children: [
+                    Text(
+                      'Choose a background for your chats',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // None option
+                    _buildWallpaperOption(
+                      context,
+                      'none',
+                      'Default',
+                      appearanceProvider,
+                      theme,
+                      height: 60,
+                      width: double.infinity,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Doodles Section
+                    _buildWallpaperSubSection(
+                      context,
+                      title: 'Doodles',
+                      wallpapers: _wallpapers
+                          .where((w) => w['type'] == 'doodle')
+                          .toList(),
+                      appearanceProvider: appearanceProvider,
+                      theme: theme,
+                    ),
+
+                    // Solid Colors Section
+                    _buildWallpaperSubSection(
+                      context,
+                      title: 'Solid Colors',
+                      wallpapers: _wallpapers
+                          .where((w) => w['type'] == 'solid')
+                          .toList(),
+                      appearanceProvider: appearanceProvider,
+                      theme: theme,
+                    ),
+
+                    // Gradients Section
+                    _buildWallpaperSubSection(
+                      context,
+                      title: 'Gradients',
+                      wallpapers: _wallpapers
+                          .where((w) => w['type'] == 'gradient')
+                          .toList(),
+                      appearanceProvider: appearanceProvider,
+                      theme: theme,
+                    ),
+                  ],
                 ),
+
+                const SizedBox(height: 32),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionContainer(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
               ),
-              
-              // Doodles Section
-              _buildWallpaperSubSection(
-                context,
-                title: 'Doodles',
-                wallpapers: _wallpapers.where((w) => w['type'] == 'doodle').toList(),
-                appearanceProvider: appearanceProvider,
-                theme: theme,
-              ),
-              
-              // Solid Colors Section
-              _buildWallpaperSubSection(
-                context,
-                title: 'Solid Colors',
-                wallpapers: _wallpapers.where((w) => w['type'] == 'solid').toList(),
-                appearanceProvider: appearanceProvider,
-                theme: theme,
-              ),
-              
-              // Gradients Section
-              _buildWallpaperSubSection(
-                context,
-                title: 'Gradients',
-                wallpapers: _wallpapers.where((w) => w['type'] == 'gradient').toList(),
-                appearanceProvider: appearanceProvider,
-                theme: theme,
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+          ...children,
         ],
       ),
     );
@@ -324,32 +519,34 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.only(top: 16, bottom: 12),
           child: Text(
             title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+              letterSpacing: 0.5,
             ),
           ),
         ),
         SizedBox(
-          height: 140,
+          height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: wallpapers.length,
             itemBuilder: (context, index) {
               final wallpaper = wallpapers[index];
               return Padding(
-                padding: EdgeInsets.only(right: index < wallpapers.length - 1 ? 12 : 0),
+                padding: EdgeInsets.only(
+                  right: index < wallpapers.length - 1 ? 12 : 0,
+                ),
                 child: _buildWallpaperOption(
                   context,
                   wallpaper['id'],
                   wallpaper['name'],
                   appearanceProvider,
                   theme,
-                  width: 100,
+                  width: 90,
                 ),
               );
             },
@@ -367,76 +564,100 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     AppearanceProvider appearanceProvider,
     ThemeData theme, {
     double? width,
+    double? height,
   }) {
     final isSelected = appearanceProvider.selectedWallpaper == id;
-    
+
     return GestureDetector(
       onTap: () => appearanceProvider.setWallpaper(id),
       child: Container(
         width: width,
+        height: height,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
                 ? theme.colorScheme.primary
-                : theme.colorScheme.outline.withValues(alpha: 0.2),
+                : theme.colorScheme.outline.withValues(alpha: 0.1),
             width: isSelected ? 3 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Stack(
           children: [
             if (id != 'none')
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(
+                  14,
+                ), // slightly less than container for border
                 child: _buildWallpaperPreview(id),
               ),
             if (id == 'none')
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.block,
-                      size: 32,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      name,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.do_not_disturb_alt_rounded,
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        name,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             if (isSelected)
               Positioned(
-                top: 8,
-                right: 8,
+                top: 6,
+                right: 6,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 16,
-                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 14),
                 ),
               ),
             if (id != 'none')
               Positioned(
-                bottom: 8,
-                left: 8,
-                right: 8,
+                bottom: 6,
+                left: 6,
+                right: 6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(8),
+                    backgroundBlendMode: BlendMode.darken,
                   ),
                   child: Text(
                     name,
@@ -466,9 +687,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         width: double.infinity,
         height: double.infinity,
         color: wallpaper['color'] as Color,
-        child: CustomPaint(
-          painter: DoodlePainter(wallpaperId),
-        ),
+        child: CustomPaint(painter: DoodlePainter(wallpaperId)),
       );
     }
 
@@ -476,9 +695,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       return Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          color: wallpaper['color'] as Color,
-        ),
+        decoration: BoxDecoration(color: wallpaper['color'] as Color),
       );
     }
 
@@ -538,32 +755,6 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     if (fontSize <= 16.0) return 'Medium';
     if (fontSize <= 18.0) return 'Large';
     return 'Extra Large';
-  }
-
-  Widget _buildSection(
-    BuildContext context, {
-    required String title,
-    required List<Widget> children,
-  }) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            title,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        ...children,
-      ],
-    );
   }
 
   void _showThemeDialog(BuildContext context, ThemeProvider themeProvider) {
@@ -667,13 +858,13 @@ class DoodlePainter extends CustomPainter {
   void _drawGeometricPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 5;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     // Draw circles
     for (var i = 0; i < 5; i++) {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
-        
+
         // Alternating circles and dots
         if ((i + j) % 2 == 0) {
           canvas.drawCircle(Offset(x, y), spacing / 4, paint);
@@ -689,25 +880,29 @@ class DoodlePainter extends CustomPainter {
   void _drawLeavesPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 4;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     for (var i = 0; i < 4; i++) {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
-        
+
         // Draw leaf shape
         final path = Path();
         path.moveTo(x, y - spacing / 3);
         path.quadraticBezierTo(
-          x + spacing / 4, y - spacing / 6,
-          x, y + spacing / 3,
+          x + spacing / 4,
+          y - spacing / 6,
+          x,
+          y + spacing / 3,
         );
         path.quadraticBezierTo(
-          x - spacing / 4, y - spacing / 6,
-          x, y - spacing / 3,
+          x - spacing / 4,
+          y - spacing / 6,
+          x,
+          y - spacing / 3,
         );
         canvas.drawPath(path, paint);
-        
+
         // Add vein
         canvas.drawLine(
           Offset(x, y - spacing / 3),
@@ -721,20 +916,28 @@ class DoodlePainter extends CustomPainter {
   void _drawStarsPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 4;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     for (var i = 0; i < 4; i++) {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
-        
+
         // Draw 4-point star
         _drawStar(canvas, paint, Offset(x, y), spacing / 4, 4);
-        
+
         // Add small sparkles
         if ((i + j) % 2 == 0) {
           paint.style = PaintingStyle.fill;
-          canvas.drawCircle(Offset(x + spacing / 3, y - spacing / 4), 1.5, paint);
-          canvas.drawCircle(Offset(x - spacing / 3, y + spacing / 4), 1.5, paint);
+          canvas.drawCircle(
+            Offset(x + spacing / 3, y - spacing / 4),
+            1.5,
+            paint,
+          );
+          canvas.drawCircle(
+            Offset(x - spacing / 3, y + spacing / 4),
+            1.5,
+            paint,
+          );
           paint.style = PaintingStyle.stroke;
         }
       }
@@ -744,23 +947,17 @@ class DoodlePainter extends CustomPainter {
   void _drawCurvesPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 5;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     for (var i = 0; i < 5; i++) {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
-        
+
         // Draw curved lines
         final path = Path();
         path.moveTo(x - spacing / 3, y);
-        path.quadraticBezierTo(
-          x, y - spacing / 3,
-          x + spacing / 3, y,
-        );
-        path.quadraticBezierTo(
-          x, y + spacing / 3,
-          x - spacing / 3, y,
-        );
+        path.quadraticBezierTo(x, y - spacing / 3, x + spacing / 3, y);
+        path.quadraticBezierTo(x, y + spacing / 3, x - spacing / 3, y);
         canvas.drawPath(path, paint);
       }
     }
@@ -769,15 +966,15 @@ class DoodlePainter extends CustomPainter {
   void _drawHeartsPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 4;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     for (var i = 0; i < 4; i++) {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
-        
+
         // Draw heart
         _drawHeart(canvas, paint, Offset(x, y), spacing / 5);
-        
+
         // Add small dots around
         if ((i + j) % 2 == 0) {
           paint.style = PaintingStyle.fill;
@@ -792,20 +989,22 @@ class DoodlePainter extends CustomPainter {
   void _drawWavesPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.height / 8;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     for (var row = 0; row < rows; row++) {
       final path = Path();
       final y = row * spacing;
       path.moveTo(0, y);
-      
+
       for (var i = 0.0; i < size.width + spacing; i += spacing) {
         path.quadraticBezierTo(
-          i + spacing / 2, y + spacing / 3,
-          i + spacing, y,
+          i + spacing / 2,
+          y + spacing / 3,
+          i + spacing,
+          y,
         );
       }
       canvas.drawPath(path, paint);
-      
+
       // Add dots between waves
       if (row % 2 == 0) {
         paint.style = PaintingStyle.fill;
@@ -820,7 +1019,7 @@ class DoodlePainter extends CustomPainter {
   void _drawSimpleDotsPattern(Canvas canvas, Size size, Paint paint) {
     final spacing = size.width / 8;
     final rows = (size.height / spacing).ceil() + 1;
-    
+
     paint.style = PaintingStyle.fill;
     for (var i = 0; i < 8; i++) {
       for (var j = 0; j < rows; j++) {
@@ -834,7 +1033,7 @@ class DoodlePainter extends CustomPainter {
 
   void _drawDiagonalLinesPattern(Canvas canvas, Size size, Paint paint) {
     const spacing = 20.0;
-    
+
     for (var i = -size.height; i < size.width + size.height; i += spacing) {
       canvas.drawLine(
         Offset(i.toDouble(), 0),
@@ -844,21 +1043,27 @@ class DoodlePainter extends CustomPainter {
     }
   }
 
-  void _drawStar(Canvas canvas, Paint paint, Offset center, double radius, int points) {
+  void _drawStar(
+    Canvas canvas,
+    Paint paint,
+    Offset center,
+    double radius,
+    int points,
+  ) {
     final path = Path();
     final angleStep = (2 * math.pi) / points;
-    
+
     for (var i = 0; i < points; i++) {
       final angle = i * angleStep - math.pi / 2;
       final x = center.dx + radius * math.cos(angle);
       final y = center.dy + radius * math.sin(angle);
-      
+
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
-      
+
       // Add inner point
       final innerAngle = angle + angleStep / 2;
       final innerX = center.dx + (radius * 0.4) * math.cos(innerAngle);
@@ -872,21 +1077,27 @@ class DoodlePainter extends CustomPainter {
   void _drawHeart(Canvas canvas, Paint paint, Offset center, double size) {
     final path = Path();
     path.moveTo(center.dx, center.dy + size);
-    
+
     // Left curve
     path.cubicTo(
-      center.dx - size * 2, center.dy - size * 0.5,
-      center.dx - size, center.dy - size * 1.2,
-      center.dx, center.dy - size * 0.3,
+      center.dx - size * 2,
+      center.dy - size * 0.5,
+      center.dx - size,
+      center.dy - size * 1.2,
+      center.dx,
+      center.dy - size * 0.3,
     );
-    
+
     // Right curve
     path.cubicTo(
-      center.dx + size, center.dy - size * 1.2,
-      center.dx + size * 2, center.dy - size * 0.5,
-      center.dx, center.dy + size,
+      center.dx + size,
+      center.dy - size * 1.2,
+      center.dx + size * 2,
+      center.dy - size * 0.5,
+      center.dx,
+      center.dy + size,
     );
-    
+
     canvas.drawPath(path, paint);
   }
 

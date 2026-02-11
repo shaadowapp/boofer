@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 import '../services/chat_service.dart';
@@ -162,7 +161,7 @@ class ChatProvider with ChangeNotifier {
 
   // Real friends data from Firestore
   List<Friend> _friends = [];
-  List<Friend> _archivedFriends = [];
+  final List<Friend> _archivedFriends = [];
   final Set<String> _mutedChats = {};
   final Set<String> _blockedUsers = {};
   bool _friendsLoaded = false;

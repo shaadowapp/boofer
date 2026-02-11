@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/anonymous_auth_service.dart';
-import '../services/local_storage_service.dart';
 
 enum AuthenticationState {
   initial,
@@ -119,8 +118,4 @@ class AuthStateProvider with ChangeNotifier {
     }
   }
   
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

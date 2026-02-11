@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import '../models/user_model.dart' as app_user;
 import '../services/local_storage_service.dart';
 import '../services/id_generation_service.dart';

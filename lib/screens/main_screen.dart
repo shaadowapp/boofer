@@ -793,7 +793,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildProfileIcon(bool isActive, String? profilePictureUrl) {
-    final size = 24.0;
+    const size = 24.0;
     final borderWidth = isActive ? 2.0 : 0.0;
     
     // Check if it's a real uploaded image (not UI-avatars generated)
@@ -860,7 +860,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Center(
                       child: Text(
                         _currentAvatar!,
-                        style: TextStyle(fontSize: size * 0.5),
+                        style: const TextStyle(fontSize: size * 0.5),
                       ),
                     ),
                   )

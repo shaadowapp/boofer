@@ -174,12 +174,11 @@ void main() {
       final futures = <Future>[];
       
       for (int i = 0; i < 10; i++) {
-        final message = const Message()
-          ..text = 'Concurrent message $i'
-          ..senderId = 'user$i'
-          ..timestamp = DateTime.now()
-          ..isOffline = false
-          ..status = MessageStatus.sent;
+        final message = Message.create(
+          text: 'Concurrent message $i',
+          senderId: 'user$i',
+          isOffline: false,
+        );
         
         futures.add(databaseService.saveMessage(message));
       }
@@ -191,12 +190,12 @@ void main() {
     });
 
     test('should delete message', () async {
-      final message = const Message()
-        ..text = 'Message to delete'
-        ..senderId = 'user123'
-        ..timestamp = DateTime.now()
-        ..isOffline = false
-        ..status = MessageStatus.sent;
+      final message = Message.create(
+        text: 'Message to delete',
+        senderId: 'user123',
+        isOffline: false,
+     );
+
 
       await databaseService.saveMessage(message);
       expect(message.id, isNotNull);
@@ -211,12 +210,11 @@ void main() {
     });
 
     test('should handle database schema correctly', () async {
-      final message = const Message()
-        ..text = 'Schema test message'
-        ..senderId = 'user123'
-        ..timestamp = DateTime.now()
-        ..isOffline = false
-        ..status = MessageStatus.sent;
+      final message = Message.create(
+        text: 'Schema test message',
+        senderId: 'user123',
+        isOffline: false,
+      );
 
       await databaseService.saveMessage(message);
 
@@ -237,12 +235,11 @@ void main() {
       
       // Save 1000 messages
       for (int i = 0; i < 1000; i++) {
-        final message = const Message()
-          ..text = 'Message $i'
-          ..senderId = 'user${i % 10}'
-          ..timestamp = DateTime.now().add(Duration(seconds: i))
-          ..isOffline = i % 2 == 0
-          ..status = MessageStatus.sent;
+        final message = Message.create(
+          text: 'Message $i',
+          senderId: 'user${i % 10}',
+          isOffline: i % 2 == 0,
+        );
         
         await databaseService.saveMessage(message);
       }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/friendship_service.dart';
 import '../services/user_service.dart';
-import '../screens/profile_screen.dart';
 import '../screens/friend_chat_screen.dart';
 
 /// Unified friend profile card with 3 segments:

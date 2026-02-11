@@ -21,7 +21,9 @@ void main() {
       await AppStateService.instance.clearUserSession();
     });
 
-    testWidgets('new user startup - should show onboarding', (WidgetTester tester) async {
+    testWidgets('new user startup - should show onboarding', (
+      WidgetTester tester,
+    ) async {
       // Ensure no onboarding data exists
       final isCompleted = await LocalStorageService.isOnboardingCompleted();
       expect(isCompleted, isFalse);
@@ -39,13 +41,14 @@ void main() {
       expect(find.byType(MainScreen), findsNothing);
     });
 
-    testWidgets('returning user startup - should show main screen', (WidgetTester tester) async {
+    testWidgets('returning user startup - should show main screen', (
+      WidgetTester tester,
+    ) async {
       // Pre-populate onboarding data to simulate returning user
       final onboardingData = OnboardingData(
         userName: 'Returning User',
         virtualNumber: '555-1234',
         pin: '1234',
-        termsAccepted: true,
         completed: true,
         completedAt: DateTime.now(),
       );
@@ -66,7 +69,9 @@ void main() {
       expect(find.byType(OnboardingScreen), findsNothing);
     });
 
-    testWidgets('incomplete onboarding startup - should show onboarding', (WidgetTester tester) async {
+    testWidgets('incomplete onboarding startup - should show onboarding', (
+      WidgetTester tester,
+    ) async {
       // Pre-populate incomplete onboarding data
       const incompleteData = OnboardingData(
         userName: 'Incomplete User',
@@ -89,17 +94,21 @@ void main() {
       expect(find.byType(MainScreen), findsNothing);
     });
 
-    testWidgets('corrupted data startup - should show onboarding', (WidgetTester tester) async {
+    testWidgets('corrupted data startup - should show onboarding', (
+      WidgetTester tester,
+    ) async {
       // Simulate corrupted data by saving invalid JSON
       try {
-        await LocalStorageService.saveOnboardingData(const OnboardingData(
-          userName: '',
-          virtualNumber: '',
-          pin: null,
-          termsAccepted: false,
-          completed: false,
-          completedAt: null,
-        ));
+        await LocalStorageService.saveOnboardingData(
+          const OnboardingData(
+            userName: '',
+            virtualNumber: '',
+            pin: null,
+            termsAccepted: false,
+            completed: false,
+            completedAt: null,
+          ),
+        );
       } catch (e) {
         // Expected to fail with invalid data
       }
@@ -113,7 +122,9 @@ void main() {
       expect(find.byType(MainScreen), findsNothing);
     });
 
-    testWidgets('app state service initialization', (WidgetTester tester) async {
+    testWidgets('app state service initialization', (
+      WidgetTester tester,
+    ) async {
       // Pre-populate valid onboarding data
       final onboardingData = OnboardingData(
         userName: 'State Test User',
@@ -166,10 +177,12 @@ void main() {
       expect(find.byType(MainScreen), findsOneWidget);
     });
 
-    testWidgets('splash screen behavior and transitions', (WidgetTester tester) async {
+    testWidgets('splash screen behavior and transitions', (
+      WidgetTester tester,
+    ) async {
       // Start the app
       app.main();
-      
+
       // Should initially show splash screen
       expect(find.text('Boofer'), findsOneWidget);
       expect(find.text('Privacy-first messaging'), findsOneWidget);
@@ -178,7 +191,7 @@ void main() {
 
       // Wait for initialization
       await tester.pump(const Duration(milliseconds: 500));
-      
+
       // Status should update
       expect(find.textContaining('Initializing'), findsOneWidget);
 
@@ -220,7 +233,9 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
     });
 
-    testWidgets('multiple app restarts with same user', (WidgetTester tester) async {
+    testWidgets('multiple app restarts with same user', (
+      WidgetTester tester,
+    ) async {
       // Pre-populate onboarding data
       final onboardingData = OnboardingData(
         userName: 'Restart Test User',
@@ -251,22 +266,24 @@ void main() {
       expect(appState.userDisplayName, equals('Restart Test User'));
     });
 
-    testWidgets('app startup with different screen sizes', (WidgetTester tester) async {
+    testWidgets('app startup with different screen sizes', (
+      WidgetTester tester,
+    ) async {
       // Test with small screen (phone)
       await tester.binding.setSurfaceSize(const Size(375, 667));
-      
+
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 3));
-      
+
       expect(find.byType(OnboardingScreen), findsOneWidget);
 
       // Clear and test with large screen (tablet)
       await tester.pumpWidget(Container());
       await tester.binding.setSurfaceSize(const Size(768, 1024));
-      
+
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 3));
-      
+
       expect(find.byType(OnboardingScreen), findsOneWidget);
 
       // Reset to default
@@ -275,25 +292,27 @@ void main() {
 
     testWidgets('app startup performance timing', (WidgetTester tester) async {
       final stopwatch = Stopwatch()..start();
-      
+
       // Start the app
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
-      
+
       stopwatch.stop();
-      
+
       // App should start within reasonable time (5 seconds max)
       expect(stopwatch.elapsedMilliseconds, lessThan(5000));
-      
+
       // Should successfully navigate to appropriate screen
       final hasOnboarding = find.byType(OnboardingScreen).evaluate().isNotEmpty;
       final hasMainScreen = find.byType(MainScreen).evaluate().isNotEmpty;
       expect(hasOnboarding || hasMainScreen, isTrue);
-      
+
       print('App startup time: ${stopwatch.elapsedMilliseconds}ms');
     });
 
-    testWidgets('app startup with user preferences loading', (WidgetTester tester) async {
+    testWidgets('app startup with user preferences loading', (
+      WidgetTester tester,
+    ) async {
       // Pre-populate complete user data
       final onboardingData = OnboardingData(
         userName: 'Preferences User',
@@ -307,20 +326,22 @@ void main() {
 
       // Start the app
       app.main();
-      
+
       // Should show loading messages during startup
-      await tester.pump(const Duration(milliseconds: 1100)); // After initial delay
+      await tester.pump(
+        const Duration(milliseconds: 1100),
+      ); // After initial delay
       expect(find.textContaining('Initializing'), findsOneWidget);
-      
+
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.textContaining('Loading'), findsOneWidget);
-      
+
       // Complete startup
       await tester.pumpAndSettle(const Duration(seconds: 3));
-      
+
       // Should show main screen
       expect(find.byType(MainScreen), findsOneWidget);
-      
+
       // App state should be properly initialized
       final appState = AppStateService.instance;
       expect(appState.isUserLoggedIn, isTrue);

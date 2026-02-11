@@ -330,6 +330,7 @@ class NetworkService implements INetworkService {
   }
 
   /// Get network statistics
+  @override
   Map<String, dynamic> getNetworkStatistics() {
     final state = currentNetworkState;
     
@@ -348,6 +349,7 @@ class NetworkService implements INetworkService {
   }
 
   /// Force a network state refresh
+  @override
   Future<void> refreshNetworkState() async {
     try {
       print('Refreshing network state...');
@@ -393,6 +395,7 @@ class NetworkService implements INetworkService {
   }
 
   /// Dispose resources
+  @override
   void dispose() {
     _connectivitySubscription?.cancel();
     _connectionCheckTimer?.cancel();

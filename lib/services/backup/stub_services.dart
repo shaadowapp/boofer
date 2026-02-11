@@ -2,9 +2,7 @@
 // This allows the app to run without the actual dependencies
 
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../../models/message_model.dart';
-import '../../models/chat_error.dart';
 
 // Stub Database Service
 class DatabaseService {

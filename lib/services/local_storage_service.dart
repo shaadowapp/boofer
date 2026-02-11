@@ -9,12 +9,11 @@ class LocalStorageService {
   static const String _virtualNumberKey = 'virtual_number';
   static const String _userPinKey = 'user_pin';
   static const String _onboardingDataKey = 'onboarding_data';
+  static const String _termsAcceptedKey = 'terms_accepted_v1';
 
   // Secure storage for sensitive data like PIN
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
@@ -34,13 +33,13 @@ class LocalStorageService {
   static Future<void> saveOnboardingData(OnboardingData data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Save basic data to SharedPreferences
       await prefs.setString(_onboardingDataKey, jsonEncode(data.toJson()));
       await prefs.setBool(_onboardingKey, data.completed);
       await prefs.setString(_userNameKey, data.userName);
       await prefs.setString(_virtualNumberKey, data.virtualNumber);
-      
+
       // Save PIN securely if provided
       if (data.pin != null) {
         await _secureStorage.write(key: _userPinKey, value: data.pin);
@@ -55,14 +54,14 @@ class LocalStorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final dataJson = prefs.getString(_onboardingDataKey);
-      
+
       if (dataJson == null) return null;
-      
+
       final data = OnboardingData.fromJson(jsonDecode(dataJson));
-      
+
       // Get PIN from secure storage if it exists
       final pin = await _secureStorage.read(key: _userPinKey);
-      
+
       return data.copyWith(pin: pin);
     } catch (e) {
       return null;
@@ -117,12 +116,15 @@ class LocalStorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userNameKey, userName);
-      
+
       // Update complete data if it exists
       final existingData = await getOnboardingData();
       if (existingData != null) {
         final updatedData = existingData.copyWith(userName: userName);
-        await prefs.setString(_onboardingDataKey, jsonEncode(updatedData.toJson()));
+        await prefs.setString(
+          _onboardingDataKey,
+          jsonEncode(updatedData.toJson()),
+        );
       }
     } catch (e) {
       throw Exception('Failed to update user name: $e');
@@ -137,13 +139,16 @@ class LocalStorageService {
       } else {
         await _secureStorage.delete(key: _userPinKey);
       }
-      
+
       // Update complete data if it exists
       final existingData = await getOnboardingData();
       if (existingData != null) {
         final updatedData = existingData.copyWith(pin: pin);
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_onboardingDataKey, jsonEncode(updatedData.toJson()));
+        await prefs.setString(
+          _onboardingDataKey,
+          jsonEncode(updatedData.toJson()),
+        );
       }
     } catch (e) {
       throw Exception('Failed to update user PIN: $e');
@@ -197,6 +202,26 @@ class LocalStorageService {
       await prefs.setStringList(key, value);
     } catch (e) {
       throw Exception('Failed to set string list value: $e');
+    }
+  }
+
+  /// Check if terms have been accepted by specific user
+  static Future<bool> hasAcceptedTerms(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('${_termsAcceptedKey}_$userId') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Set terms acceptance status for specific user
+  static Future<void> setTermsAccepted(String userId, bool accepted) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('${_termsAcceptedKey}_$userId', accepted);
+    } catch (e) {
+      throw Exception('Failed to set terms accepted: $e');
     }
   }
 }

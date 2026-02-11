@@ -24,37 +24,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     try {
       final authService = AnonymousAuthService();
-      
+
       setState(() {
         _statusMessage = 'Creating virtual identity...';
       });
-      
+
       final user = await authService.createAnonymousUser();
-      
+
       if (user != null) {
         setState(() {
           _statusMessage = 'Profile created successfully!';
         });
-        
+
         // Update auth state
         final authProvider = context.read<AuthStateProvider>();
         await authProvider.checkAuthState();
-        
+
         // Initialize user provider
         final userProvider = context.read<FirestoreUserProvider>();
         await userProvider.initialize();
-        
+
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/main');
+          Navigator.pushReplacementNamed(context, '/legal-acceptance');
         }
       } else {
         setState(() {
-          _statusMessage = 'Failed to create profile. Please check your internet connection and try again.';
+          _statusMessage =
+              'Failed to create profile. Please check your internet connection and try again.';
           _isCreatingProfile = false;
         });
-        
+
         // Show error dialog
         if (mounted) {
           _showErrorDialog(
@@ -69,17 +70,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         _statusMessage = errorMessage;
         _isCreatingProfile = false;
       });
-      
+
       // Show error dialog
       if (mounted) {
-        _showErrorDialog(
-          'Signup Failed',
-          errorMessage,
-        );
+        _showErrorDialog('Signup Failed', errorMessage);
       }
     }
   }
-  
+
   void _showErrorDialog(String title, String message) {
     showDialog(
       context: context,
@@ -104,11 +102,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF3B82F6),
-              Color(0xFF60A5FA),
-            ],
+            colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF60A5FA)],
           ),
         ),
         child: SafeArea(
@@ -119,16 +113,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Spacer(),
-                
+
                 // App Icon
                 const Icon(
                   Icons.chat_bubble_rounded,
                   size: 100,
                   color: Colors.white,
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // App Name
                 const Text(
                   'Boofer',
@@ -140,9 +134,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Tagline
                 const Text(
                   'Privacy-first messaging',
@@ -153,51 +147,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 48),
-                
+
                 // Privacy Features
                 _buildFeatureItem(
                   icon: Icons.shield_outlined,
                   title: 'No Email Required',
                   description: 'Your privacy is our priority',
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildFeatureItem(
                   icon: Icons.phone_android_outlined,
                   title: 'Virtual Phone Number',
                   description: 'Auto-generated for your safety',
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildFeatureItem(
                   icon: Icons.person_outline,
                   title: 'Anonymous Identity',
                   description: 'Random username and profile',
                 ),
-                
+
                 const Spacer(),
-                
+
                 // Status Message
                 if (_statusMessage.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Text(
                       _statusMessage,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                
+
                 // Create Profile Button
                 ElevatedButton(
-                  onPressed: _isCreatingProfile ? null : _createAnonymousProfile,
+                  onPressed: _isCreatingProfile
+                      ? null
+                      : _createAnonymousProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF1E3A8A),
@@ -213,7 +206,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E3A8A)),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF1E3A8A),
+                            ),
                           ),
                         )
                       : const Text(
@@ -224,19 +219,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Privacy Note
                 const Text(
                   'No personal information required.\nYour data stays private.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white60,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.white60),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 24),
               ],
             ),
@@ -256,18 +248,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: Colors.white,
-            size: 32,
-          ),
+          Icon(icon, color: Colors.white, size: 32),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -284,10 +269,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),

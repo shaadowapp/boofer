@@ -29,7 +29,7 @@ class MeshService implements IMeshService {
   bool _isConnected = false;
   bool _isInitialized = false;
   bool _isStarted = false;
-  int _peersCount = 0;
+  final int _peersCount = 0;
 
   static MeshService getInstance({dynamic messageRepository}) {
     _instance ??= MeshService();

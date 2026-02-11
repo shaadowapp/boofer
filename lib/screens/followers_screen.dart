@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/follow_provider.dart';
 import '../models/user_model.dart';
 import '../widgets/follow_button.dart';
-import '../widgets/user_profile_card.dart';
 
 /// Screen showing followers list
 class FollowersScreen extends StatefulWidget {
