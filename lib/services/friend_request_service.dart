@@ -309,6 +309,27 @@ class FriendRequestService {
           friends.add(app_user.User.fromJson(data['from_user']));
         }
       }
+
+      // ALWAYS add Boofer Official as a default friend
+      if (!friends.any((f) => f.id == '00000000-0000-4000-8000-000000000000')) {
+        friends.insert(
+          0,
+          app_user.User(
+            id: '00000000-0000-4000-8000-000000000000',
+            fullName: 'Boofer Official',
+            handle: 'boofer',
+            virtualNumber: 'BOOFER-001',
+            avatar: '🛸',
+            bio: 'Your official guide to Boofer.',
+            email: 'official@boofer.app',
+            isDiscoverable: true,
+            status: app_user.UserStatus.online,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+
       return friends;
     } catch (e) {
       return [];

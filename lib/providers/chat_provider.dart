@@ -12,28 +12,31 @@ import '../models/user_model.dart';
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
   final ErrorHandler _errorHandler;
-  
+
+  static const String booferId = '00000000-0000-4000-8000-000000000000';
+
   List<Message> _messages = [];
   bool _isLoading = false;
   String? _error;
   String? _currentConversationId;
-  
+
   List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
   String? get error => _error;
   String? get currentConversationId => _currentConversationId;
-  
+
   StreamSubscription<List<Message>>? _messagesSubscription;
   StreamSubscription<Message>? _newMessageSubscription;
-  
+
   ChatProvider({
     required ChatService chatService,
     required ErrorHandler errorHandler,
-  }) : _chatService = chatService, _errorHandler = errorHandler {
+  }) : _chatService = chatService,
+       _errorHandler = errorHandler {
     _initializeSubscriptions();
     _loadRealFriends(); // Load real friends instead of demo data
   }
-  
+
   void _initializeSubscriptions() {
     _messagesSubscription = _chatService.messagesStream.listen(
       (messages) {
@@ -46,38 +49,37 @@ class ChatProvider with ChangeNotifier {
         _handleError(error);
       },
     );
-    
-    _newMessageSubscription = _chatService.newMessageStream.listen(
-      (message) {
-        if (message.conversationId == _currentConversationId) {
-          _messages.add(message);
-          notifyListeners();
-        }
-      },
-    );
+
+    _newMessageSubscription = _chatService.newMessageStream.listen((message) {
+      if (message.conversationId == _currentConversationId) {
+        _messages.add(message);
+        notifyListeners();
+      }
+    });
   }
-  
+
   Future<void> loadMessages(String conversationId) async {
-    if (_currentConversationId == conversationId && _messages.isNotEmpty) return;
-    
+    if (_currentConversationId == conversationId && _messages.isNotEmpty)
+      return;
+
     _currentConversationId = conversationId;
     _isLoading = true;
     _error = null;
     notifyListeners();
-    
+
     try {
       // Get current user ID for validation
       final currentUser = await UserService.getCurrentUser();
       if (currentUser == null) {
         throw Exception('No current user found');
       }
-      
+
       await _chatService.loadMessages(conversationId, currentUser.id);
     } catch (e) {
       _handleError(e);
     }
   }
-  
+
   Future<void> sendMessage({
     required String conversationId,
     required String senderId,
@@ -98,7 +100,7 @@ class ChatProvider with ChangeNotifier {
       rethrow;
     }
   }
-  
+
   Future<void> markMessageAsRead(String messageId) async {
     try {
       await _chatService.markMessageAsRead(messageId);
@@ -106,7 +108,7 @@ class ChatProvider with ChangeNotifier {
       _handleError(e);
     }
   }
-  
+
   Future<void> deleteMessage(String messageId) async {
     try {
       await _chatService.deleteMessage(messageId);
@@ -115,43 +117,50 @@ class ChatProvider with ChangeNotifier {
       rethrow;
     }
   }
-  
+
   Future<List<Message>> searchMessages(String query) async {
     try {
-      return await _chatService.searchMessages(query, conversationId: _currentConversationId);
+      return await _chatService.searchMessages(
+        query,
+        conversationId: _currentConversationId,
+      );
     } catch (e) {
       _handleError(e);
       return [];
     }
   }
-  
+
   void _handleError(dynamic error) {
     _isLoading = false;
     _error = error.toString();
-    
+
     if (error is AppError) {
       _errorHandler.handleError(error);
     } else {
-      _errorHandler.handleError(AppError.service(
-        message: error.toString(),
-        originalException: error is Exception ? error : Exception(error.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.service(
+          message: error.toString(),
+          originalException: error is Exception
+              ? error
+              : Exception(error.toString()),
+        ),
+      );
     }
-    
+
     notifyListeners();
   }
-  
+
   void clearError() {
     _error = null;
     notifyListeners();
   }
-  
+
   void clearMessages() {
     _messages.clear();
     _currentConversationId = null;
     notifyListeners();
   }
-  
+
   @override
   void dispose() {
     _messagesSubscription?.cancel();
@@ -178,12 +187,14 @@ class ChatProvider with ChangeNotifier {
       }
 
       print('📱 Loading real friends for user: ${currentUser.id}');
-      
+
       final friendRequestService = FriendRequestService.instance;
-      final friendUsers = await friendRequestService.getFriends(userId: currentUser.id);
-      
+      final friendUsers = await friendRequestService.getFriends(
+        userId: currentUser.id,
+      );
+
       print('✅ Loaded ${friendUsers.length} friends from Firestore');
-      
+
       // Convert User objects to Friend objects
       _friends = friendUsers.map((user) {
         return Friend(
@@ -199,7 +210,26 @@ class ChatProvider with ChangeNotifier {
           isArchived: false,
         );
       }).toList();
-      
+
+      // ALWAYS add Boofer Official to the list if not already present
+      if (!_friends.any((f) => f.id == booferId)) {
+        _friends.insert(
+          0,
+          Friend(
+            id: booferId,
+            name: 'Boofer Official',
+            handle: 'boofer',
+            virtualNumber: 'BOOFER-001',
+            avatar: '🛸',
+            lastMessage: 'Welcome to Boofer! 🛸',
+            lastMessageTime: DateTime.now(),
+            unreadCount: 0,
+            isOnline: true,
+            isArchived: false,
+          ),
+        );
+      }
+
       _friendsLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -219,7 +249,7 @@ class ChatProvider with ChangeNotifier {
   List<Friend> get activeChats {
     return _friends.where((friend) => !friend.isArchived).toList();
   }
-  
+
   List<Friend> get archivedChats {
     return _archivedFriends;
   }
@@ -230,7 +260,7 @@ class ChatProvider with ChangeNotifier {
 
   bool isChatArchived(String chatId) {
     return _archivedFriends.any((friend) => friend.id == chatId) ||
-           _friends.any((friend) => friend.id == chatId && friend.isArchived);
+        _friends.any((friend) => friend.id == chatId && friend.isArchived);
   }
 
   Future<void> archiveChat(String chatId) async {
@@ -244,7 +274,9 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> unarchiveChat(String chatId) async {
-    final friendIndex = _archivedFriends.indexWhere((friend) => friend.id == chatId);
+    final friendIndex = _archivedFriends.indexWhere(
+      (friend) => friend.id == chatId,
+    );
     if (friendIndex != -1) {
       final friend = _archivedFriends[friendIndex];
       _archivedFriends.removeAt(friendIndex);
