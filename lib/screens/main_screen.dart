@@ -1490,14 +1490,15 @@ class _MainScreenState extends State<MainScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutBack,
               transform: isSelected
-                  ? Matrix4.translationValues(0, -4, 0)
+                  ? Matrix4.translationValues(0, -6, 0)
                   : Matrix4.identity(),
               child: isProfile
                   ? SizedBox(
-                      width: 26,
-                      height: 26,
+                      width: 24,
+                      height: 24,
                       child: StreamBuilder<String?>(
                         stream:
                             ProfilePictureService.instance.profilePictureStream,
@@ -1510,18 +1511,28 @@ class _MainScreenState extends State<MainScreen> {
                     )
                   : _getSvgIcon(label, isSelected, color),
             ),
-            if (isSelected)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: isSelected ? 16 : 0,
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isSelected ? 1.0 : 0.0,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),
@@ -1586,20 +1597,20 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? color.withValues(alpha: 0.15)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isProfile)
               SizedBox(
-                width: 26,
-                height: 26,
+                width: 24,
+                height: 24,
                 child: StreamBuilder<String?>(
                   stream: ProfilePictureService.instance.profilePictureStream,
                   initialData:
@@ -1617,22 +1628,17 @@ class _MainScreenState extends State<MainScreen> {
                     : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
 
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              child: isSelected
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ],
         ),
       ),

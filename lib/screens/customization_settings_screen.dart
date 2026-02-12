@@ -1024,26 +1024,27 @@ class _CustomizationSettingsScreenState
     }
 
     if (style == NavBarStyle.bubble) {
-      return Container(
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? color.withValues(alpha: 0.15)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             icon,
             if (isSelected) ...[
-              const SizedBox(height: 4),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,
-                  fontSize: 10,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -1054,26 +1055,28 @@ class _CustomizationSettingsScreenState
 
     if (style == NavBarStyle.liquid) {
       return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 400),
         transform: isSelected
-            ? Matrix4.translationValues(0, -4, 0)
+            ? Matrix4.translationValues(0, -6, 0)
             : Matrix4.identity(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(padding: const EdgeInsets.all(12), child: icon),
-            if (isSelected) ...[
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                ),
-              ),
-            ],
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: isSelected ? 14 : 0,
+              child: isSelected
+                  ? Text(
+                      label,
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    )
+                  : null,
+            ),
           ],
         ),
       );
