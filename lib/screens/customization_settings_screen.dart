@@ -1067,17 +1067,18 @@ class _CustomizationSettingsScreenState
               : Colors.transparent,
           borderRadius: BorderRadius.circular(24),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             icon,
             if (isSelected) ...[
-              const SizedBox(width: 6),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 10,
                 ),
               ),
             ],
@@ -1092,22 +1093,38 @@ class _CustomizationSettingsScreenState
         transform: isSelected
             ? Matrix4.translationValues(0, -5, 0)
             : Matrix4.identity(),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: isSelected
-              ? BoxDecoration(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: isSelected
+                  ? BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    )
+                  : null,
+              child: icon,
+            ),
+            if (isSelected) ...[
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
                   color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.4),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                )
-              : null,
-          child: icon,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
