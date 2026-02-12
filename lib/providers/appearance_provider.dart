@@ -14,7 +14,7 @@ class AppearanceProvider extends ChangeNotifier {
   double _appFontSize = 16.0; // Font size for app UI
   double _bubbleFontSize = 16.0; // Font size for chat bubbles
   double _cornerRadius = 16.0; // UI Corner radius
-  NavBarStyle _navBarStyle = NavBarStyle.modern;
+  NavBarStyle _navBarStyle = NavBarStyle.modern; // Navigation bar style
 
   ChatBubbleShape _chatBubbleShape =
       ChatBubbleShape.rounded; // Chat bubble shape

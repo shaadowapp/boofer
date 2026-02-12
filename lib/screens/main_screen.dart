@@ -956,8 +956,7 @@ class _MainScreenState extends State<MainScreen> {
     final extendBody =
         navBarStyle == NavBarStyle.ios ||
         navBarStyle == NavBarStyle.liquid ||
-        navBarStyle == NavBarStyle.modern ||
-        navBarStyle == NavBarStyle.neon;
+        navBarStyle == NavBarStyle.modern;
 
     return Scaffold(
       extendBody: extendBody,
@@ -1157,8 +1156,6 @@ class _MainScreenState extends State<MainScreen> {
         return _buildBubbleNavBar();
       case NavBarStyle.liquid:
         return _buildLiquidNavBar();
-      case NavBarStyle.neon:
-        return _buildNeonNavBar();
     }
   }
 
@@ -1552,123 +1549,6 @@ class _MainScreenState extends State<MainScreen> {
       default:
         return const SizedBox();
     }
-  }
-
-  Widget _buildNeonNavBar() {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.primary.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        child: Container(
-          height: 70,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNeonNavItem(0, 'Home'),
-              _buildNeonNavItem(1, 'Chats'),
-              _buildNeonNavItem(2, 'Calls'),
-              _buildNeonNavItem(3, 'You', isProfile: true),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNeonNavItem(int index, String label, {bool isProfile = false}) {
-    final isSelected = _currentIndex == index;
-    final theme = Theme.of(context);
-    final neonColor = theme.colorScheme.primary;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _currentIndex = index);
-          HapticFeedback.lightImpact();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          decoration: isSelected
-              ? BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: neonColor.withOpacity(0.5),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                )
-              : null,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: isSelected
-                    ? BoxDecoration(
-                        border: Border.all(color: neonColor, width: 2),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: neonColor.withOpacity(0.6),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      )
-                    : null,
-                child: isProfile
-                    ? SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: StreamBuilder<String?>(
-                          stream: ProfilePictureService
-                              .instance
-                              .profilePictureStream,
-                          initialData: ProfilePictureService
-                              .instance
-                              .currentProfilePicture,
-                          builder: (context, snapshot) =>
-                              _buildProfileIcon(isSelected, snapshot.data),
-                        ),
-                      )
-                    : _getSvgIcon(
-                        label,
-                        isSelected,
-                        isSelected ? neonColor : Colors.grey,
-                      ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? neonColor : Colors.grey,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  shadows: isSelected
-                      ? [
-                          Shadow(
-                            color: neonColor.withOpacity(0.8),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildBubbleNavBar() {
