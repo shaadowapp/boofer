@@ -1161,7 +1161,10 @@ class _MainScreenState extends State<MainScreen> {
                       return PageView.builder(
                         controller: _pageController,
                         onPageChanged: _onPageChanged,
-                        physics: const BouncingScrollPhysics(),
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        dragStartBehavior: DragStartBehavior.down,
                         itemBuilder: (context, index) {
                           // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
                           int screenIndex = (index + 3) % 4;
@@ -1459,54 +1462,54 @@ class _MainScreenState extends State<MainScreen> {
     final width = MediaQuery.of(context).size.width;
     final itemWidth = width / 4;
 
-    return AnimatedBuilder(
-      animation: _pageController,
-      builder: (context, child) {
-        double page = _pageController.hasClients
-            ? (_pageController.page ?? _baseIndex.toDouble())
-            : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
-        double normalizedPage = (page + 3) % 4;
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _pageController,
+        builder: (context, child) {
+          final double page = _pageController.hasClients
+              ? (_pageController.page ?? _baseIndex.toDouble())
+              : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
+          final double normalizedPage = (page + 3) % 4;
 
-        return Container(
-          height: 80,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left:
-                    itemWidth * normalizedPage +
-                    (itemWidth - 56) / 2, // Follows scroll position
-                top: 12,
-                width: 56,
-                height: 56,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
+          return Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: itemWidth * normalizedPage + (itemWidth - 56) / 2,
+                  top: 12,
+                  width: 56,
+                  height: 56,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  _buildLiquidNavItem(0, 'Home'),
-                  _buildLiquidNavItem(1, 'Chats'),
-                  _buildLiquidNavItem(2, 'Calls'),
-                  _buildLiquidNavItem(3, 'You', isProfile: true),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+                Row(
+                  children: [
+                    _buildLiquidNavItem(0, 'Home'),
+                    _buildLiquidNavItem(1, 'Chats'),
+                    _buildLiquidNavItem(2, 'Calls'),
+                    _buildLiquidNavItem(3, 'You', isProfile: true),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1516,10 +1519,20 @@ class _MainScreenState extends State<MainScreen> {
     bool isProfile = false,
   }) {
     final isSelected = _currentIndex == index;
-    final theme = Theme.of(context);
-    final color = isSelected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
+    final color = Theme.of(context).colorScheme.primary;
+
+    final double page = _pageController.hasClients
+        ? (_pageController.page ?? _baseIndex.toDouble())
+        : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
+    final double normalizedPage = (page + 3) % 4;
+    double distance = (index - normalizedPage).abs();
+
+    // Handle wrap-around distance
+    if (distance > 2) distance = (4 - distance).abs();
+
+    final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
+    final double scale = 1.0 + (0.2 * selectionFactor);
+    final double opacity = isSelected ? 1.0 : selectionFactor;
 
     return Expanded(
       child: GestureDetector(
@@ -1604,25 +1617,27 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBubbleNavBar() {
-    return AnimatedBuilder(
-      animation: _pageController,
-      builder: (context, child) {
-        return Container(
-          color: Theme.of(context).colorScheme.surface,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: SafeArea(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildBubbleNavItem(0, 'Home'),
-                _buildBubbleNavItem(1, 'Chats'),
-                _buildBubbleNavItem(2, 'Calls'),
-                _buildBubbleNavItem(3, 'You', isProfile: true),
-              ],
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _pageController,
+        builder: (context, child) {
+          return Container(
+            color: Theme.of(context).colorScheme.surface,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildBubbleNavItem(0, 'Home'),
+                  _buildBubbleNavItem(1, 'Chats'),
+                  _buildBubbleNavItem(2, 'Calls'),
+                  _buildBubbleNavItem(3, 'You', isProfile: true),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -1634,84 +1649,78 @@ class _MainScreenState extends State<MainScreen> {
     final isSelected = _currentIndex == index;
     final color = Theme.of(context).colorScheme.primary;
 
+    // Calculate individual item scale based on distance to current scroll position
+    final double page = _pageController.hasClients
+        ? (_pageController.page ?? _baseIndex.toDouble())
+        : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
+    final double normalizedPage = (page + 3) % 4;
+    double distance = (index - normalizedPage).abs();
+    // Handle wrapping distance for Profile <-> Home
+    if (distance > 2) distance = (4 - distance).abs();
+
+    final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
+    final double scale = 1.0 + (0.2 * selectionFactor);
+    final double opacity = isSelected ? 1.0 : selectionFactor;
+
     return GestureDetector(
       onTap: () => _onTabTapped(index),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Calculate individual item scale based on distance to current scroll position
-          double page = _pageController.hasClients
-              ? (_pageController.page ?? _baseIndex.toDouble())
-              : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
-          double normalizedPage = (page + 3) % 4;
-          double distance = (index - normalizedPage).abs();
-          // Handle wrapping distance for Profile <-> Home
-          if (distance > 2) distance = (4 - distance).abs();
-
-          double scale = 1.0 + (0.2 * (1.0 - distance.clamp(0.0, 1.0)));
-          double opacity = isSelected ? 1.0 : (1.0 - distance.clamp(0.0, 1.0));
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(
-                    alpha: 0.15 * (1.0 - distance.clamp(0.0, 1.0)),
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: Transform.scale(
-                  scale: scale,
-                  child: isProfile
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: StreamBuilder<String?>(
-                            stream: ProfilePictureService
-                                .instance
-                                .profilePictureStream,
-                            initialData: ProfilePictureService
-                                .instance
-                                .currentProfilePicture,
-                            builder: (context, snapshot) =>
-                                _buildProfileIcon(isSelected, snapshot.data),
-                          ),
-                        )
-                      : _getSvgIcon(
-                          label,
-                          isSelected,
-                          Color.lerp(
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                                color,
-                                (1.0 - distance.clamp(0.0, 1.0)),
-                              ) ??
-                              color,
-                        ),
-                ),
-              ),
-              ClipRect(
-                child: Align(
-                  heightFactor: (1.0 - distance.clamp(0.0, 1.0)),
-                  child: Opacity(
-                    opacity: opacity.clamp(0.0, 1.0),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15 * selectionFactor),
+              shape: BoxShape.circle,
+            ),
+            child: Transform.scale(
+              scale: scale,
+              child: isProfile
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: StreamBuilder<String?>(
+                        stream:
+                            ProfilePictureService.instance.profilePictureStream,
+                        initialData: ProfilePictureService
+                            .instance
+                            .currentProfilePicture,
+                        builder: (context, snapshot) =>
+                            _buildProfileIcon(isSelected, snapshot.data),
                       ),
+                    )
+                  : _getSvgIcon(
+                      label,
+                      isSelected,
+                      Color.lerp(
+                            Theme.of(context).colorScheme.onSurfaceVariant,
+                            color,
+                            selectionFactor,
+                          ) ??
+                          color,
+                    ),
+            ),
+          ),
+          ClipRect(
+            child: Align(
+              heightFactor: selectionFactor,
+              child: Opacity(
+                opacity: opacity.clamp(0.0, 1.0),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
