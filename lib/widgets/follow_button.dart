@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/friend_request_provider.dart';
+import '../providers/appearance_provider.dart';
 import '../models/user_model.dart';
 
 /// Friend request button widget (Instagram/Snapchat style)
@@ -32,7 +33,9 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
   Widget build(BuildContext context) {
     return Consumer<FriendRequestProvider>(
       builder: (context, provider, child) {
-        final relationshipStatus = provider.getRelationshipStatus(widget.user.id);
+        final relationshipStatus = provider.getRelationshipStatus(
+          widget.user.id,
+        );
         final isLoading = provider.isLoading || _isProcessing;
 
         if (relationshipStatus == 'self') {
@@ -40,10 +43,20 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
         }
 
         if (widget.compact) {
-          return _buildCompactButton(context, relationshipStatus, isLoading, provider);
+          return _buildCompactButton(
+            context,
+            relationshipStatus,
+            isLoading,
+            provider,
+          );
         }
 
-        return _buildFullButton(context, relationshipStatus, isLoading, provider);
+        return _buildFullButton(
+          context,
+          relationshipStatus,
+          isLoading,
+          provider,
+        );
       },
     );
   }
@@ -55,13 +68,53 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
     FriendRequestProvider provider,
   ) {
     final theme = Theme.of(context);
-    
-    return SizedBox(
+    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+
+    // Only apply gradient to primary actions: Follow/Accept
+    final showGradient =
+        appearanceProvider.useGradientAccent &&
+        (relationshipStatus == 'none' ||
+            relationshipStatus == 'request_received' ||
+            relationshipStatus == 'request_rejected' ||
+            relationshipStatus == 'request_cancelled');
+
+    final borderRadius = BorderRadius.circular(appearanceProvider.cornerRadius);
+
+    return Container(
       width: 120,
       height: 36,
+      decoration: showGradient
+          ? BoxDecoration(
+              gradient: appearanceProvider.getAccentGradient(),
+              borderRadius: borderRadius,
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      (appearanceProvider.getAccentGradient()?.colors.first ??
+                              theme.colorScheme.primary)
+                          .withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            )
+          : null,
       child: ElevatedButton(
-        onPressed: isLoading ? null : () => _handleButtonPress(context, relationshipStatus, provider),
-        style: widget.style ?? _getButtonStyle(theme, relationshipStatus),
+        onPressed: isLoading
+            ? null
+            : () => _handleButtonPress(context, relationshipStatus, provider),
+        style:
+            widget.style ??
+            (showGradient
+                ? ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: borderRadius),
+                  )
+                : _getButtonStyle(theme, relationshipStatus)),
         child: isLoading
             ? SizedBox(
                 width: 16,
@@ -69,7 +122,9 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    _getButtonTextColor(theme, relationshipStatus),
+                    showGradient
+                        ? Colors.white
+                        : _getButtonTextColor(theme, relationshipStatus),
                   ),
                 ),
               )
@@ -78,7 +133,9 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: _getButtonTextColor(theme, relationshipStatus),
+                  color: showGradient
+                      ? Colors.white
+                      : _getButtonTextColor(theme, relationshipStatus),
                 ),
               ),
       ),
@@ -92,12 +149,14 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
     FriendRequestProvider provider,
   ) {
     final theme = Theme.of(context);
-    
+
     return SizedBox(
       width: 32,
       height: 32,
       child: IconButton(
-        onPressed: isLoading ? null : () => _handleButtonPress(context, relationshipStatus, provider),
+        onPressed: isLoading
+            ? null
+            : () => _handleButtonPress(context, relationshipStatus, provider),
         style: IconButton.styleFrom(
           backgroundColor: _getButtonBackgroundColor(theme, relationshipStatus),
           foregroundColor: _getButtonTextColor(theme, relationshipStatus),
@@ -114,10 +173,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
                   ),
                 ),
               )
-            : Icon(
-                _getButtonIcon(relationshipStatus),
-                size: 18,
-              ),
+            : Icon(_getButtonIcon(relationshipStatus), size: 18),
       ),
     );
   }
@@ -242,20 +298,22 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
           success = await _showUnfriendDialog(context, provider);
           message = success ? 'Removed from friends' : '';
           break;
-          
+
         case 'request_sent':
           success = await _showCancelRequestDialog(context, provider);
           message = success ? 'Friend request cancelled' : '';
           break;
-          
+
         case 'request_received':
           final request = provider.getFriendRequestStatus(widget.user.id);
           if (request != null) {
             success = await provider.acceptFriendRequest(request.id);
-            message = success ? 'Friend request accepted' : 'Failed to accept request';
+            message = success
+                ? 'Friend request accepted'
+                : 'Failed to accept request';
           }
           break;
-          
+
         case 'request_rejected':
         case 'request_cancelled':
         case 'none':
@@ -267,7 +325,7 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
 
       if (success) {
         widget.onStatusChanged?.call();
-        
+
         if (mounted && message.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -338,7 +396,9 @@ class _FriendRequestButtonState extends State<FriendRequestButton> {
     if (result == true) {
       return await provider.sendFriendRequest(
         widget.user.id,
-        message: messageController.text.trim().isEmpty ? null : messageController.text.trim(),
+        message: messageController.text.trim().isEmpty
+            ? null
+            : messageController.text.trim(),
       );
     }
 
@@ -432,7 +492,7 @@ class FriendRequestStatsWidget extends StatelessWidget {
     return Consumer<FriendRequestProvider>(
       builder: (context, provider, child) {
         final stats = provider.stats;
-        
+
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -463,7 +523,7 @@ class FriendRequestStatsWidget extends StatelessWidget {
     bool showBadge = false,
   }) {
     final theme = Theme.of(context);
-    
+
     final child = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -505,10 +565,7 @@ class FriendRequestStatsWidget extends StatelessWidget {
       return InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: child,
-        ),
+        child: Padding(padding: const EdgeInsets.all(8), child: child),
       );
     }
 

@@ -19,6 +19,9 @@ class AppearanceProvider extends ChangeNotifier {
   ChatBubbleShape _chatBubbleShape =
       ChatBubbleShape.rounded; // Chat bubble shape
 
+  bool _useGradientAccent = false;
+  String? _selectedGradientId;
+
   bool _isInitialized = false;
   ThemeProvider? _themeProvider;
   Timer? _fontSizeDebounce;
@@ -32,6 +35,8 @@ class AppearanceProvider extends ChangeNotifier {
 
   ChatBubbleShape get chatBubbleShape => _chatBubbleShape;
   bool get isInitialized => _isInitialized;
+  bool get useGradientAccent => _useGradientAccent;
+  String? get selectedGradientId => _selectedGradientId;
 
   // Font size presets
   static const double fontSizeSmall = 14.0;
@@ -66,6 +71,12 @@ class AppearanceProvider extends ChangeNotifier {
     final chatBubbleShapeValue = await UnifiedStorageService.getString(
       'chat_bubble_shape',
     );
+    final useGradientAccentValue = await UnifiedStorageService.getBool(
+      'use_gradient_accent',
+    );
+    final selectedGradientIdValue = await UnifiedStorageService.getString(
+      'selected_gradient_id',
+    );
 
     _accentColor = Color(accentColorValue ?? 0xFF3B82F6);
     _selectedWallpaper = wallpaper ?? 'none';
@@ -84,10 +95,20 @@ class AppearanceProvider extends ChangeNotifier {
       orElse: () => ChatBubbleShape.rounded,
     );
 
+    _useGradientAccent = useGradientAccentValue ?? false;
+    _selectedGradientId = selectedGradientIdValue;
+
     _isInitialized = true;
 
     // Update theme provider with loaded accent color and APP font size
-    _themeProvider?.updateAccentColor(_accentColor);
+    if (_useGradientAccent && _selectedGradientId != null) {
+      final gradientColors = getGradientAccentColors(_selectedGradientId!);
+      if (gradientColors.isNotEmpty) {
+        _themeProvider?.updateAccentColor(gradientColors[0]);
+      }
+    } else {
+      _themeProvider?.updateAccentColor(_accentColor);
+    }
     _themeProvider?.updateFontSize(_appFontSize);
     _themeProvider?.updateCornerRadius(_cornerRadius);
 
@@ -97,12 +118,63 @@ class AppearanceProvider extends ChangeNotifier {
   // Update accent color
   Future<void> setAccentColor(Color color) async {
     _accentColor = color;
+    _useGradientAccent = false;
+    _selectedGradientId = null;
+
     await UnifiedStorageService.setInt('accent_color', color.value);
+    await UnifiedStorageService.setBool('use_gradient_accent', false);
 
     // Update theme provider to rebuild entire app theme
     _themeProvider?.updateAccentColor(color);
 
     notifyListeners();
+  }
+
+  // Update accent gradient
+  Future<void> setAccentGradient(String gradientId) async {
+    _useGradientAccent = true;
+    _selectedGradientId = gradientId;
+
+    final gradientColors = getGradientAccentColors(gradientId);
+    if (gradientColors.isNotEmpty) {
+      _accentColor = gradientColors[0];
+      await UnifiedStorageService.setInt('accent_color', _accentColor.value);
+      _themeProvider?.updateAccentColor(_accentColor);
+    }
+
+    await UnifiedStorageService.setBool('use_gradient_accent', true);
+    await UnifiedStorageService.setString('selected_gradient_id', gradientId);
+
+    notifyListeners();
+  }
+
+  // Get current accent gradient
+  LinearGradient? getAccentGradient() {
+    if (!_useGradientAccent || _selectedGradientId == null) return null;
+
+    return LinearGradient(
+      colors: getGradientAccentColors(_selectedGradientId!),
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
+
+  // Helper to get colors for accent gradients
+  List<Color> getGradientAccentColors(String gradientId) {
+    switch (gradientId) {
+      case 'sunset':
+        return [const Color(0xFFFFB74D), const Color(0xFFEC4899)];
+      case 'ocean':
+        return [const Color(0xFF06B6D4), const Color(0xFF3B82F6)];
+      case 'lush':
+        return [const Color(0xFF10B981), const Color(0xFF06B6D4)];
+      case 'royal':
+        return [const Color(0xFF8B5CF6), const Color(0xFF6366F1)];
+      case 'fire':
+        return [const Color(0xFFEF4444), const Color(0xFFF59E0B)];
+      default:
+        return [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)];
+    }
   }
 
   // Update wallpaper

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/appearance_provider.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -29,20 +31,51 @@ class CustomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    return SizedBox(
+    final appearanceProvider = Provider.of<AppearanceProvider>(
+      context,
+      listen: false,
+    );
+
+    // Only apply gradient if it's enabled and we're using the default background color
+    final useGradient =
+        appearanceProvider.useGradientAccent && backgroundColor == null;
+    final buttonBorderRadius =
+        borderRadius ?? BorderRadius.circular(appearanceProvider.cornerRadius);
+
+    return Container(
       width: width,
       height: height,
+      decoration: useGradient
+          ? BoxDecoration(
+              gradient: appearanceProvider.getAccentGradient(),
+              borderRadius: buttonBorderRadius,
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      (appearanceProvider.getAccentGradient()?.colors.first ??
+                              theme.colorScheme.primary)
+                          .withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            )
+          : null,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor ?? theme.colorScheme.primary,
-          foregroundColor: textColor ?? theme.colorScheme.onPrimary,
-          padding: padding ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: borderRadius ?? BorderRadius.circular(8),
-          ),
-          elevation: 2,
+          backgroundColor: useGradient
+              ? Colors.transparent
+              : (backgroundColor ?? theme.colorScheme.primary),
+          foregroundColor:
+              textColor ??
+              (useGradient ? Colors.white : theme.colorScheme.onPrimary),
+          shadowColor: useGradient ? Colors.transparent : null,
+          padding:
+              padding ??
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: buttonBorderRadius),
+          elevation: useGradient ? 0 : 2,
         ),
         child: isLoading
             ? SizedBox(
@@ -51,7 +84,10 @@ class CustomButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    textColor ?? theme.colorScheme.onPrimary,
+                    textColor ??
+                        (useGradient
+                            ? Colors.white
+                            : theme.colorScheme.onPrimary),
                   ),
                 ),
               )
@@ -59,16 +95,17 @@ class CustomButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (icon != null) ...[
-                    icon!,
-                    const SizedBox(width: 8),
-                  ],
+                  if (icon != null) ...[icon!, const SizedBox(width: 8)],
                   Text(
                     text,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: textColor ?? theme.colorScheme.onPrimary,
+                      color:
+                          textColor ??
+                          (useGradient
+                              ? Colors.white
+                              : theme.colorScheme.onPrimary),
                     ),
                   ),
                 ],

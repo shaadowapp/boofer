@@ -1710,18 +1710,45 @@ class _MainScreenState extends State<MainScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildGenZNavItem(0, Icons.home_rounded, 'Home'),
-          _buildGenZNavItem(1, Icons.chat_bubble_rounded, 'Chats'),
-          _buildGenZNavItem(2, Icons.call_rounded, 'Calls'),
-          _buildGenZNavItem(3, Icons.person_rounded, 'You'),
+          _buildGenZNavItem(0, 'Home'),
+          _buildGenZNavItem(1, 'Chats'),
+          _buildGenZNavItem(2, 'Calls'),
+          _buildGenZNavItem(3, 'You'),
         ],
       ),
     );
   }
 
-  Widget _buildGenZNavItem(int index, IconData icon, String label) {
+  Widget _buildGenZNavItem(int index, String label) {
     final theme = Theme.of(context);
     final isSelected = _currentIndex == index;
+
+    Widget icon;
+    if (label == 'Home') {
+      icon = SvgIcons.home(
+        filled: isSelected,
+        context: context,
+        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+      );
+    } else if (label == 'Chats') {
+      icon = SvgIcons.chat(
+        filled: isSelected,
+        context: context,
+        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+      );
+    } else if (label == 'Calls') {
+      icon = SvgIcons.call(
+        filled: isSelected,
+        context: context,
+        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+      );
+    } else {
+      icon = Icon(
+        isSelected ? Icons.person : Icons.person_outline,
+        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+        size: 24,
+      );
+    }
 
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
@@ -1746,11 +1773,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               )
             : null,
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
-          size: 26,
-        ),
+        child: icon,
       ),
     );
   }

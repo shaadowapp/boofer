@@ -21,11 +21,29 @@ class _CustomizationSettingsScreenState
     const Color(0xFFEF4444), // Red
     const Color(0xFFF59E0B), // Orange
     const Color(0xFF8B5CF6), // Purple
-    const Color(0xFFEC4899), // Pink
-    const Color(0xFF06B6D4), // Cyan
-    const Color(0xFF14B8A6), // Teal
-    const Color(0xFF6366F1), // Indigo
-    const Color(0xFFFF5722), // Deep Orange
+  ];
+
+  final List<Map<String, dynamic>> _accentGradients = [
+    {
+      'id': 'sunset',
+      'colors': [const Color(0xFFFFB74D), const Color(0xFFEC4899)],
+    },
+    {
+      'id': 'ocean',
+      'colors': [const Color(0xFF06B6D4), const Color(0xFF3B82F6)],
+    },
+    {
+      'id': 'lush',
+      'colors': [const Color(0xFF10B981), const Color(0xFF06B6D4)],
+    },
+    {
+      'id': 'royal',
+      'colors': [const Color(0xFF8B5CF6), const Color(0xFF6366F1)],
+    },
+    {
+      'id': 'fire',
+      'colors': [const Color(0xFFEF4444), const Color(0xFFF59E0B)],
+    },
   ];
 
   @override
@@ -102,57 +120,55 @@ class _CustomizationSettingsScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Text(
+                      'Solid Colors',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 16,
                       runSpacing: 16,
                       alignment: WrapAlignment.center,
                       children: _brandColors.map((color) {
                         final isSelected =
+                            !appearanceProvider.useGradientAccent &&
                             appearanceProvider.accentColor.value == color.value;
                         return GestureDetector(
                           onTap: () => appearanceProvider.setAccentColor(color),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOutCubic,
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: isSelected
-                                  ? Border.all(
-                                      color: theme.colorScheme.surface,
-                                      width: 4,
-                                    )
-                                  : null,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: color.withValues(alpha: 0.4),
-                                  blurRadius: isSelected ? 12 : 8,
-                                  offset: isSelected
-                                      ? const Offset(0, 6)
-                                      : const Offset(0, 4),
-                                ),
-                                if (isSelected)
-                                  BoxShadow(
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.2),
-                                    blurRadius: 2,
-                                    spreadRadius: 1,
-                                  ),
-                              ],
-                            ),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 200),
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      key: ValueKey('check'),
-                                      color: Colors.white,
-                                      size: 32,
-                                    )
-                                  : const SizedBox(key: ValueKey('empty')),
-                            ),
+                          child: _buildColorOption(context, color, isSelected),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Premium Gradients',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 16,
+                      alignment: WrapAlignment.center,
+                      children: _accentGradients.map((gradient) {
+                        final id = gradient['id'] as String;
+                        final colors = gradient['colors'] as List<Color>;
+                        final isSelected =
+                            appearanceProvider.useGradientAccent &&
+                            appearanceProvider.selectedGradientId == id;
+                        return GestureDetector(
+                          onTap: () => appearanceProvider.setAccentGradient(id),
+                          child: _buildGradientOption(
+                            context,
+                            colors,
+                            isSelected,
                           ),
                         );
                       }).toList(),
@@ -883,7 +899,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -894,6 +911,12 @@ class _CustomizationSettingsScreenState
           color: Colors.white,
         );
       } else if (style == NavBarStyle.liquid && isSelected) {
+        icon = SvgIcons.home(
+          filled: true,
+          context: context,
+          color: Colors.white,
+        );
+      } else if (style == NavBarStyle.genz && isSelected) {
         icon = SvgIcons.home(
           filled: true,
           context: context,
@@ -907,7 +930,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -918,6 +942,12 @@ class _CustomizationSettingsScreenState
           color: Colors.white,
         );
       } else if (style == NavBarStyle.liquid && isSelected) {
+        icon = SvgIcons.chat(
+          filled: true,
+          context: context,
+          color: Colors.white,
+        );
+      } else if (style == NavBarStyle.genz && isSelected) {
         icon = SvgIcons.chat(
           filled: true,
           context: context,
@@ -931,7 +961,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -942,6 +973,12 @@ class _CustomizationSettingsScreenState
           color: Colors.white,
         );
       } else if (style == NavBarStyle.liquid && isSelected) {
+        icon = SvgIcons.call(
+          filled: true,
+          context: context,
+          color: Colors.white,
+        );
+      } else if (style == NavBarStyle.genz && isSelected) {
         icon = SvgIcons.call(
           filled: true,
           context: context,
@@ -955,13 +992,16 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
         icon = Icon(Icons.person, color: Colors.white);
       } else if (style == NavBarStyle.liquid && isSelected) {
+        icon = Icon(Icons.person, color: Colors.white);
+      } else if (style == NavBarStyle.genz && isSelected) {
         icon = Icon(Icons.person, color: Colors.white);
       }
     }
@@ -1118,5 +1158,79 @@ class _CustomizationSettingsScreenState
       default:
         return Icons.circle;
     }
+  }
+
+  Widget _buildColorOption(BuildContext context, Color color, bool isSelected) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: isSelected
+            ? Border.all(color: theme.colorScheme.surface, width: 4)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: isSelected ? 12 : 6,
+            offset: isSelected ? const Offset(0, 6) : const Offset(0, 3),
+          ),
+          if (isSelected)
+            BoxShadow(
+              color: theme.colorScheme.onSurface.withOpacity(0.2),
+              blurRadius: 2,
+              spreadRadius: 1,
+            ),
+        ],
+      ),
+      child: isSelected
+          ? const Icon(Icons.check_rounded, color: Colors.white, size: 32)
+          : null,
+    );
+  }
+
+  Widget _buildGradientOption(
+    BuildContext context,
+    List<Color> colors,
+    bool isSelected,
+  ) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        shape: BoxShape.circle,
+        border: isSelected
+            ? Border.all(color: theme.colorScheme.surface, width: 4)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: colors[0].withOpacity(0.4),
+            blurRadius: isSelected ? 12 : 6,
+            offset: isSelected ? const Offset(0, 6) : const Offset(0, 3),
+          ),
+          if (isSelected)
+            BoxShadow(
+              color: theme.colorScheme.onSurface.withOpacity(0.2),
+              blurRadius: 2,
+              spreadRadius: 1,
+            ),
+        ],
+      ),
+      child: isSelected
+          ? const Icon(Icons.check_rounded, color: Colors.white, size: 32)
+          : null,
+    );
   }
 }
