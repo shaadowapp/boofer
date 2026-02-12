@@ -120,15 +120,6 @@ class _CustomizationSettingsScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'Solid Colors',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 16,
                       runSpacing: 16,
@@ -143,16 +134,7 @@ class _CustomizationSettingsScreenState
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Premium Gradients',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 24),
                     Wrap(
                       spacing: 16,
                       runSpacing: 16,
@@ -837,12 +819,27 @@ class _CustomizationSettingsScreenState
   }
 
   Widget _buildLiquidPreview(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 0),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Simulated fluid background for active item could act here but simplified for preview
+          // Simulated background pill like in actual UI
+          Positioned(
+            left:
+                (MediaQuery.of(context).size.width - 32) / 4 * 0 +
+                ((MediaQuery.of(context).size.width - 32) / 4 - 56) / 2,
+            top: 12,
+            width: 56,
+            height: 56,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -897,20 +894,11 @@ class _CustomizationSettingsScreenState
         filled: isSelected,
         context: context,
         color:
-            isSelected &&
-                style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid &&
-                style != NavBarStyle.genz
+            isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
-        icon = SvgIcons.home(
-          filled: true,
-          context: context,
-          color: Colors.white,
-        );
-      } else if (style == NavBarStyle.liquid && isSelected) {
         icon = SvgIcons.home(
           filled: true,
           context: context,
@@ -928,20 +916,11 @@ class _CustomizationSettingsScreenState
         filled: isSelected,
         context: context,
         color:
-            isSelected &&
-                style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid &&
-                style != NavBarStyle.genz
+            isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
-        icon = SvgIcons.chat(
-          filled: true,
-          context: context,
-          color: Colors.white,
-        );
-      } else if (style == NavBarStyle.liquid && isSelected) {
         icon = SvgIcons.chat(
           filled: true,
           context: context,
@@ -959,20 +938,11 @@ class _CustomizationSettingsScreenState
         filled: isSelected,
         context: context,
         color:
-            isSelected &&
-                style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid &&
-                style != NavBarStyle.genz
+            isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
-        icon = SvgIcons.call(
-          filled: true,
-          context: context,
-          color: Colors.white,
-        );
-      } else if (style == NavBarStyle.liquid && isSelected) {
         icon = SvgIcons.call(
           filled: true,
           context: context,
@@ -990,16 +960,11 @@ class _CustomizationSettingsScreenState
       icon = Icon(
         isSelected ? Icons.person : Icons.person_outline,
         color:
-            isSelected &&
-                style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid &&
-                style != NavBarStyle.genz
+            isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
-        icon = Icon(Icons.person, color: Colors.white);
-      } else if (style == NavBarStyle.liquid && isSelected) {
         icon = Icon(Icons.person, color: Colors.white);
       } else if (style == NavBarStyle.genz && isSelected) {
         icon = Icon(Icons.person, color: Colors.white);
@@ -1091,28 +1056,13 @@ class _CustomizationSettingsScreenState
       return AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         transform: isSelected
-            ? Matrix4.translationValues(0, -5, 0)
+            ? Matrix4.translationValues(0, -4, 0)
             : Matrix4.identity(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: isSelected
-                  ? BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withOpacity(0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    )
-                  : null,
-              child: icon,
-            ),
+            Container(padding: const EdgeInsets.all(12), child: icon),
             if (isSelected) ...[
               const SizedBox(height: 4),
               Text(
