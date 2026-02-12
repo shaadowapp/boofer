@@ -1024,22 +1024,27 @@ class _CustomizationSettingsScreenState
     }
 
     if (style == NavBarStyle.bubble) {
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: Transform.scale(scale: isSelected ? 1.2 : 1.0, child: icon),
+          ),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: isSelected ? 1.0 : 0.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: isSelected ? 18 : 0,
+              child: Text(
                 label,
                 style: TextStyle(
                   color: color,
@@ -1047,9 +1052,9 @@ class _CustomizationSettingsScreenState
                   fontSize: 12,
                 ),
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -1085,7 +1090,7 @@ class _CustomizationSettingsScreenState
     if (style == NavBarStyle.genz) {
       return AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: isSelected
             ? BoxDecoration(
                 gradient: LinearGradient(
@@ -1104,30 +1109,11 @@ class _CustomizationSettingsScreenState
                 ],
               )
             : null,
-        child: Icon(
-          _getIconForLabel(label),
-          color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
-          size: 24,
-        ),
+        child: icon,
       );
     }
 
     return Container(child: icon);
-  }
-
-  IconData _getIconForLabel(String label) {
-    switch (label) {
-      case 'Home':
-        return Icons.home_rounded;
-      case 'Chats':
-        return Icons.chat_bubble_rounded;
-      case 'Calls':
-        return Icons.call_rounded;
-      case 'You':
-        return Icons.person_rounded;
-      default:
-        return Icons.circle;
-    }
   }
 
   Widget _buildColorOption(BuildContext context, Color color, bool isSelected) {

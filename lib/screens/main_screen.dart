@@ -1595,52 +1595,63 @@ class _MainScreenState extends State<MainScreen> {
         setState(() => _currentIndex = index);
         HapticFeedback.lightImpact();
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isProfile)
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: StreamBuilder<String?>(
-                  stream: ProfilePictureService.instance.profilePictureStream,
-                  initialData:
-                      ProfilePictureService.instance.currentProfilePicture,
-                  builder: (context, snapshot) =>
-                      _buildProfileIcon(isSelected, snapshot.data),
-                ),
-              )
-            else
-              _getSvgIcon(
-                label,
-                isSelected,
-                isSelected
-                    ? color
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.elasticOut,
+              scale: isSelected ? 1.2 : 1.0,
+              child: isProfile
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: StreamBuilder<String?>(
+                        stream:
+                            ProfilePictureService.instance.profilePictureStream,
+                        initialData: ProfilePictureService
+                            .instance
+                            .currentProfilePicture,
+                        builder: (context, snapshot) =>
+                            _buildProfileIcon(isSelected, snapshot.data),
+                      ),
+                    )
+                  : _getSvgIcon(
+                      label,
+                      isSelected,
+                      isSelected
+                          ? color
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+            ),
+          ),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: isSelected ? 1.0 : 0.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: isSelected ? 18 : 0,
+              child: Text(
                 label,
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: 12,
                 ),
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1719,18 +1730,29 @@ class _MainScreenState extends State<MainScreen> {
           _buildGenZNavItem(0, 'Home'),
           _buildGenZNavItem(1, 'Chats'),
           _buildGenZNavItem(2, 'Calls'),
-          _buildGenZNavItem(3, 'You'),
+          _buildGenZNavItem(3, 'You', isProfile: true),
         ],
       ),
     );
   }
 
-  Widget _buildGenZNavItem(int index, String label) {
+  Widget _buildGenZNavItem(int index, String label, {bool isProfile = false}) {
     final theme = Theme.of(context);
     final isSelected = _currentIndex == index;
 
     Widget icon;
-    if (label == 'Home') {
+    if (isProfile) {
+      icon = SizedBox(
+        width: 24,
+        height: 24,
+        child: StreamBuilder<String?>(
+          stream: ProfilePictureService.instance.profilePictureStream,
+          initialData: ProfilePictureService.instance.currentProfilePicture,
+          builder: (context, snapshot) =>
+              _buildProfileIcon(isSelected, snapshot.data),
+        ),
+      );
+    } else if (label == 'Home') {
       icon = SvgIcons.home(
         filled: isSelected,
         context: context,
