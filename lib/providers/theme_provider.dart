@@ -10,13 +10,16 @@ class ThemeProvider extends ChangeNotifier {
   bool _isSystemDarkMode = false;
   Color _accentColor = AppColors.loveRose;
   double _fontSizeScale = 1.0; // Font size multiplier (16.0 / 16.0 = 1.0)
+  double _cornerRadius = 16.0; // Corner radius for UI elements
 
   AppThemeMode get themeMode => _themeMode;
-  bool get isDarkMode => _themeMode == AppThemeMode.dark || 
-                        (_themeMode == AppThemeMode.system && _isSystemDarkMode);
+  bool get isDarkMode =>
+      _themeMode == AppThemeMode.dark ||
+      (_themeMode == AppThemeMode.system && _isSystemDarkMode);
   Color get accentColor => _accentColor;
   double get fontSizeScale => _fontSizeScale;
-  
+  double get cornerRadius => _cornerRadius;
+
   String get themeModeString {
     switch (_themeMode) {
       case AppThemeMode.light:
@@ -44,8 +47,17 @@ class ThemeProvider extends ChangeNotifier {
   // Update font size and rebuild theme smoothly
   void updateFontSize(double fontSize) {
     final newScale = fontSize / 16.0; // 16.0 is the base font size
-    if ((_fontSizeScale - newScale).abs() > 0.01) { // Only update if change is significant
+    if ((_fontSizeScale - newScale).abs() > 0.01) {
+      // Only update if change is significant
       _fontSizeScale = newScale;
+      notifyListeners();
+    }
+  }
+
+  // Update corner radius and rebuild theme
+  void updateCornerRadius(double radius) {
+    if (_cornerRadius != radius) {
+      _cornerRadius = radius;
       notifyListeners();
     }
   }
@@ -58,21 +70,24 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   void _detectSystemTheme() {
-    final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final brightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _isSystemDarkMode = brightness == Brightness.dark;
-    
+
     // Listen for system theme changes
-    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged = () {
-      final newBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-      final newIsSystemDarkMode = newBrightness == Brightness.dark;
-      
-      if (_isSystemDarkMode != newIsSystemDarkMode) {
-        _isSystemDarkMode = newIsSystemDarkMode;
-        if (_themeMode == AppThemeMode.system) {
-          notifyListeners();
-        }
-      }
-    };
+    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
+        () {
+          final newBrightness =
+              WidgetsBinding.instance.platformDispatcher.platformBrightness;
+          final newIsSystemDarkMode = newBrightness == Brightness.dark;
+
+          if (_isSystemDarkMode != newIsSystemDarkMode) {
+            _isSystemDarkMode = newIsSystemDarkMode;
+            if (_themeMode == AppThemeMode.system) {
+              notifyListeners();
+            }
+          }
+        };
   }
 
   Future<void> toggleTheme() async {
@@ -141,23 +156,72 @@ class ThemeProvider extends ChangeNotifier {
           fontWeight: FontWeight.w600,
           fontSize: 12 * _fontSizeScale,
         ),
-        unselectedLabelStyle: TextStyle(
-          fontSize: 12 * _fontSizeScale,
-        ),
+        unselectedLabelStyle: TextStyle(fontSize: 12 * _fontSizeScale),
         backgroundColor: AppColors.lightSurface,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.lightSurface,
         elevation: 2,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(_cornerRadius)),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+          borderSide: const BorderSide(color: AppColors.lightSecondaryText),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+          borderSide: BorderSide(color: _accentColor, width: 2),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            _cornerRadius + 4,
+          ), // Slightly rounder
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(_cornerRadius + 8),
+          ),
         ),
       ),
       scaffoldBackgroundColor: AppColors.lightBackground,
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: _accentColor,
         foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -214,23 +278,70 @@ class ThemeProvider extends ChangeNotifier {
           fontWeight: FontWeight.w600,
           fontSize: 12 * _fontSizeScale,
         ),
-        unselectedLabelStyle: TextStyle(
-          fontSize: 12 * _fontSizeScale,
-        ),
+        unselectedLabelStyle: TextStyle(fontSize: 12 * _fontSizeScale),
         backgroundColor: AppColors.darkSurface,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.darkSurface,
         elevation: 2,
         shadowColor: Colors.black54,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(_cornerRadius)),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+          borderSide: const BorderSide(color: AppColors.darkSecondaryText),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+          borderSide: BorderSide(color: _accentColor, width: 2),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius + 4),
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(_cornerRadius + 8),
+          ),
         ),
       ),
       scaffoldBackgroundColor: AppColors.darkBackground,
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: _accentColor,
         foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -251,26 +362,86 @@ class ThemeProvider extends ChangeNotifier {
 
   // Build text theme with font size scaling
   TextTheme _buildTextTheme(Brightness brightness) {
-    final baseColor = brightness == Brightness.light 
-        ? AppColors.lightPrimaryText 
+    final baseColor = brightness == Brightness.light
+        ? AppColors.lightPrimaryText
         : AppColors.darkPrimaryText;
-    
+
     return TextTheme(
-      displayLarge: TextStyle(fontSize: 57 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      displayMedium: TextStyle(fontSize: 45 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      displaySmall: TextStyle(fontSize: 36 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      headlineLarge: TextStyle(fontSize: 32 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      headlineMedium: TextStyle(fontSize: 28 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      headlineSmall: TextStyle(fontSize: 24 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      titleLarge: TextStyle(fontSize: 22 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      titleMedium: TextStyle(fontSize: 16 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      titleSmall: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w600, color: baseColor),
-      bodyLarge: TextStyle(fontSize: 16 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      bodyMedium: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      bodySmall: TextStyle(fontSize: 12 * _fontSizeScale, fontWeight: FontWeight.w400, color: baseColor),
-      labelLarge: TextStyle(fontSize: 14 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
-      labelMedium: TextStyle(fontSize: 12 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
-      labelSmall: TextStyle(fontSize: 11 * _fontSizeScale, fontWeight: FontWeight.w500, color: baseColor),
+      displayLarge: TextStyle(
+        fontSize: 57 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      displayMedium: TextStyle(
+        fontSize: 45 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      displaySmall: TextStyle(
+        fontSize: 36 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      headlineLarge: TextStyle(
+        fontSize: 32 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 28 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      headlineSmall: TextStyle(
+        fontSize: 24 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 22 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      titleSmall: TextStyle(
+        fontSize: 14 * _fontSizeScale,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      bodySmall: TextStyle(
+        fontSize: 12 * _fontSizeScale,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 14 * _fontSizeScale,
+        fontWeight: FontWeight.w500,
+        color: baseColor,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 12 * _fontSizeScale,
+        fontWeight: FontWeight.w500,
+        color: baseColor,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11 * _fontSizeScale,
+        fontWeight: FontWeight.w500,
+        color: baseColor,
+      ),
     );
   }
 }

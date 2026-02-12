@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/message_model.dart';
+import '../providers/appearance_provider.dart';
 
 /// Widget for displaying individual message bubbles
 class MessageBubble extends StatelessWidget {
@@ -20,12 +22,13 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOwnMessage = message.senderId == currentUserId;
     final theme = Theme.of(context);
-    
+    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
       child: Row(
-        mainAxisAlignment: isOwnMessage 
-            ? MainAxisAlignment.end 
+        mainAxisAlignment: isOwnMessage
+            ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -47,7 +50,10 @@ class MessageBubble extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: _getBubbleColor(context, isOwnMessage),
-                  borderRadius: _getBorderRadius(isOwnMessage),
+                  borderRadius: _getBorderRadius(
+                    isOwnMessage,
+                    appearanceProvider.chatBubbleShape,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
@@ -61,7 +67,11 @@ class MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (!isOwnMessage) _buildSenderName(context),
-                    _buildMessageText(context, isOwnMessage),
+                    _buildMessageText(
+                      context,
+                      isOwnMessage,
+                      appearanceProvider.bubbleFontSize,
+                    ),
                     const SizedBox(height: 4),
                     _buildMessageInfo(context, isOwnMessage),
                   ],
@@ -84,9 +94,7 @@ class MessageBubble extends StatelessWidget {
       radius: 16,
       backgroundColor: Theme.of(context).colorScheme.primary,
       child: Text(
-        message.senderId.isNotEmpty 
-            ? message.senderId[0].toUpperCase()
-            : '?',
+        message.senderId.isNotEmpty ? message.senderId[0].toUpperCase() : '?',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -112,12 +120,16 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Build message text
-  Widget _buildMessageText(BuildContext context, bool isOwnMessage) {
+  Widget _buildMessageText(
+    BuildContext context,
+    bool isOwnMessage,
+    double fontSize,
+  ) {
     return Text(
       message.text,
       style: TextStyle(
-        fontSize: 16,
-        color: isOwnMessage 
+        fontSize: fontSize,
+        color: isOwnMessage
             ? Colors.white
             : Theme.of(context).colorScheme.onSurface,
       ),
@@ -135,7 +147,7 @@ class MessageBubble extends StatelessWidget {
           _formatTimestamp(message.timestamp),
           style: TextStyle(
             fontSize: 11,
-            color: isOwnMessage 
+            color: isOwnMessage
                 ? Colors.white.withOpacity(0.8)
                 : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
           ),
@@ -150,10 +162,10 @@ class MessageBubble extends StatelessWidget {
 
   /// Build mode indicator (online/offline)
   Widget _buildModeIndicator(BuildContext context, bool isOwnMessage) {
-    final color = isOwnMessage 
+    final color = isOwnMessage
         ? Colors.white.withOpacity(0.8)
         : Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
-    
+
     return Icon(
       message.isOffline ? Icons.wifi_off : Icons.wifi,
       size: 12,
@@ -165,7 +177,7 @@ class MessageBubble extends StatelessWidget {
   Widget _buildStatusIndicator(BuildContext context) {
     IconData icon;
     Color color;
-    
+
     switch (message.status) {
       case MessageStatus.pending:
         icon = Icons.access_time;
@@ -188,12 +200,8 @@ class MessageBubble extends StatelessWidget {
         color = Colors.red;
         break;
     }
-    
-    return Icon(
-      icon,
-      size: 12,
-      color: color,
-    );
+
+    return Icon(icon, size: 12, color: color);
   }
 
   /// Get bubble background color
@@ -206,19 +214,38 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Get border radius for bubble
-  BorderRadius _getBorderRadius(bool isOwnMessage) {
-    const radius = Radius.circular(18);
-    const smallRadius = Radius.circular(4);
-    
+  BorderRadius _getBorderRadius(bool isOwnMessage, ChatBubbleShape shape) {
+    // Default radii
+    var radius = const Radius.circular(18);
+    var smallRadius = const Radius.circular(4);
+
+    switch (shape) {
+      case ChatBubbleShape.rounded:
+        // Pill shape
+        radius = const Radius.circular(24);
+        smallRadius = const Radius.circular(24);
+        break;
+      case ChatBubbleShape.square:
+        // Box shape
+        radius = const Radius.circular(4);
+        smallRadius = const Radius.circular(4);
+        break;
+      case ChatBubbleShape.standard:
+        // Standard tail shape
+        radius = const Radius.circular(18);
+        smallRadius = const Radius.circular(4);
+        break;
+    }
+
     if (isOwnMessage) {
-      return const BorderRadius.only(
+      return BorderRadius.only(
         topLeft: radius,
         topRight: radius,
         bottomLeft: radius,
         bottomRight: smallRadius,
       );
     } else {
-      return const BorderRadius.only(
+      return BorderRadius.only(
         topLeft: radius,
         topRight: radius,
         bottomLeft: smallRadius,
@@ -231,7 +258,7 @@ class MessageBubble extends StatelessWidget {
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
-    
+
     if (difference.inMinutes < 1) {
       return 'now';
     } else if (difference.inHours < 1) {
@@ -270,11 +297,7 @@ class MessageStatusWidget extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
           ),
           const SizedBox(width: 2),
-          Icon(
-            _getStatusIcon(),
-            size: 12,
-            color: _getStatusColor(context),
-          ),
+          Icon(_getStatusIcon(), size: 12, color: _getStatusColor(context)),
         ],
       ),
     );

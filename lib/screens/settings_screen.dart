@@ -123,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               delegate: SliverChildListDelegate([
                 // Personalization Section
                 if (_matchesSearch(
-                  'personalization appearance theme color language font',
+                  'personalization appearance theme color language font customization radius icon bubble wallpaper shape',
                 ))
                   _buildSettingsSection(
                     context,
@@ -131,8 +131,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _buildColorfulTile(
                         context,
-                        title: 'Appearance',
-                        subtitle: 'Theme, colors, font size',
+                        title: 'Customization',
+                        subtitle: 'Theme, colors, app text size',
+                        icon: Icons.brush_outlined,
+                        color: Colors.pink,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          '/customization-settings',
+                        ),
+                      ),
+                      _buildColorfulTile(
+                        context,
+                        title: 'Chat Appearance',
+                        subtitle: 'Chat bubbles, wallpaper',
                         icon: Icons.palette_outlined,
                         color: Colors.purple,
                         onTap: () => Navigator.pushNamed(
@@ -346,17 +357,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     title: 'Accessibility',
                     children: [
-                      _buildColorfulTile(
-                        context,
-                        title: 'Text Size',
-                        subtitle: 'Adjust font size',
-                        icon: Icons.format_size,
-                        color: Colors.deepPurple,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/appearance-settings',
-                        ),
-                      ),
                       _buildColorfulTile(
                         context,
                         title: 'High Contrast',

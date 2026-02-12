@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,6 +16,8 @@ import 'archived_chats_screen.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
 import '../providers/theme_provider.dart';
+import '../providers/appearance_provider.dart';
+import '../providers/locale_provider.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/firestore_user_provider.dart';
 import '../providers/friend_request_provider.dart';
@@ -46,10 +50,12 @@ class _MainScreenState extends State<MainScreen> {
   final ConnectionService _connectionService = ConnectionService.instance;
   int _pendingRequestsCount = 0;
   User? _currentUser; // Store current user for profile picture
-  StreamSubscription<String?>? _profilePictureSubscription; // Listen to profile picture changes
+  StreamSubscription<String?>?
+  _profilePictureSubscription; // Listen to profile picture changes
   String? _currentAvatar; // Store emoji avatar
   String? _currentAvatarColor; // Store emoji avatar color
-  StreamSubscription<DocumentSnapshot>? _userDocSubscription; // Listen to Firestore user changes
+  StreamSubscription<DocumentSnapshot>?
+  _userDocSubscription; // Listen to Firestore user changes
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -64,64 +70,80 @@ class _MainScreenState extends State<MainScreen> {
     _initializeMainScreen();
     _loadPendingRequests();
     _initializeProviders();
-    
+
     // Listen to connection request updates
     _connectionService.connectionRequestsStream.listen((requests) {
       if (mounted) {
         setState(() {
-          _pendingRequestsCount = _connectionService.getPendingRequests().length;
+          _pendingRequestsCount = _connectionService
+              .getPendingRequests()
+              .length;
         });
       }
     });
 
     // Listen to profile picture updates (broadcast)
-    _profilePictureSubscription = ProfilePictureService.instance.profilePictureStream.listen((profilePictureUrl) {
-      if (mounted) {
-        print('🔄 Profile picture stream update: $profilePictureUrl');
-        setState(() {});
-      }
-    });
-    
+    _profilePictureSubscription = ProfilePictureService
+        .instance
+        .profilePictureStream
+        .listen((profilePictureUrl) {
+          if (mounted) {
+            print('🔄 Profile picture stream update: $profilePictureUrl');
+            setState(() {});
+          }
+        });
+
     // Listen directly to Firestore for real-time user updates
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final customUserId = await LocalStorageService.getString('custom_user_id');
+      final customUserId = await LocalStorageService.getString(
+        'custom_user_id',
+      );
       if (customUserId != null && mounted) {
         _userDocSubscription = FirebaseFirestore.instance
             .collection('users')
             .doc(customUserId)
             .snapshots()
             .listen((snapshot) {
-          if (snapshot.exists && mounted) {
-            final userData = snapshot.data()!;
-            final updatedUser = User.fromJson(userData);
-            final avatarColor = userData['avatarColor'] as String?;
-            
-            print('🔥 Real-time Firestore update: ${updatedUser.handle}, avatar: ${updatedUser.avatar}, color: $avatarColor');
-            
-            setState(() {
-              _currentUser = updatedUser;
-              _currentAvatar = updatedUser.avatar;
-              _currentAvatarColor = avatarColor;
-            });
-            
-            // Update local storage with avatar color
-            UserService.setCurrentUser(updatedUser).then((_) async {
-              if (avatarColor != null) {
-                final storedUserData = await LocalStorageService.getString('current_user');
-                if (storedUserData != null) {
-                  try {
-                    final userJson = jsonDecode(storedUserData);
-                    userJson['avatarColor'] = avatarColor;
-                    await LocalStorageService.setString('current_user', jsonEncode(userJson));
-                    print('🎨 Avatar color saved to local storage: $avatarColor');
-                  } catch (e) {
-                    print('❌ Error saving avatar color: $e');
+              if (snapshot.exists && mounted) {
+                final userData = snapshot.data()!;
+                final updatedUser = User.fromJson(userData);
+                final avatarColor = userData['avatarColor'] as String?;
+
+                print(
+                  '🔥 Real-time Firestore update: ${updatedUser.handle}, avatar: ${updatedUser.avatar}, color: $avatarColor',
+                );
+
+                setState(() {
+                  _currentUser = updatedUser;
+                  _currentAvatar = updatedUser.avatar;
+                  _currentAvatarColor = avatarColor;
+                });
+
+                // Update local storage with avatar color
+                UserService.setCurrentUser(updatedUser).then((_) async {
+                  if (avatarColor != null) {
+                    final storedUserData = await LocalStorageService.getString(
+                      'current_user',
+                    );
+                    if (storedUserData != null) {
+                      try {
+                        final userJson = jsonDecode(storedUserData);
+                        userJson['avatarColor'] = avatarColor;
+                        await LocalStorageService.setString(
+                          'current_user',
+                          jsonEncode(userJson),
+                        );
+                        print(
+                          '🎨 Avatar color saved to local storage: $avatarColor',
+                        );
+                      } catch (e) {
+                        print('❌ Error saving avatar color: $e');
+                      }
+                    }
                   }
-                }
+                });
               }
             });
-          }
-        });
       }
     });
 
@@ -134,12 +156,12 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _initializeUserData() async {
     try {
       print('🔄 Initializing user data...');
-      
+
       // Get current user data
       final authProvider = context.read<AuthStateProvider>();
       if (authProvider.isAuthenticated) {
         final userProfile = await UserService.getCurrentUser();
-        
+
         if (mounted && userProfile != null) {
           setState(() {
             _currentUser = userProfile;
@@ -148,9 +170,11 @@ class _MainScreenState extends State<MainScreen> {
           print('✅ User data loaded: ${userProfile.fullName}');
           print('📸 Profile picture: ${userProfile.profilePicture}');
           print('😊 Avatar: ${userProfile.avatar}');
-          
+
           // Load avatar color from local storage
-          final storedUserData = await LocalStorageService.getString('current_user');
+          final storedUserData = await LocalStorageService.getString(
+            'current_user',
+          );
           if (storedUserData != null) {
             try {
               final userJson = jsonDecode(storedUserData);
@@ -166,7 +190,7 @@ class _MainScreenState extends State<MainScreen> {
             }
           }
         }
-        
+
         // Get from FirestoreUserProvider
         final firestoreUserProvider = context.read<FirestoreUserProvider>();
         if (firestoreUserProvider.currentUser != null) {
@@ -176,10 +200,14 @@ class _MainScreenState extends State<MainScreen> {
               _currentAvatar = firestoreUserProvider.currentUser!.avatar;
             });
           }
-          print('📸 Firestore profile picture: ${firestoreUserProvider.currentUser!.profilePicture}');
-          print('😊 Firestore avatar: ${firestoreUserProvider.currentUser!.avatar}');
+          print(
+            '📸 Firestore profile picture: ${firestoreUserProvider.currentUser!.profilePicture}',
+          );
+          print(
+            '😊 Firestore avatar: ${firestoreUserProvider.currentUser!.avatar}',
+          );
         }
-        
+
         // Initialize FriendRequestProvider
         if (userProfile != null) {
           final friendRequestProvider = context.read<FriendRequestProvider>();
@@ -200,7 +228,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _profilePictureSubscription?.cancel(); // Cancel profile picture subscription
+    _profilePictureSubscription
+        ?.cancel(); // Cancel profile picture subscription
     _userDocSubscription?.cancel(); // Cancel Firestore subscription
     super.dispose();
   }
@@ -216,10 +245,10 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _checkNotificationPermissions() async {
     try {
       _hasCheckedNotifications = true;
-      
+
       final notificationService = NotificationService.instance;
       await notificationService.initialize();
-      
+
       // Only show dialog if permission is not granted and not permanently denied
       if (await notificationService.shouldRequestPermission()) {
         if (mounted) {
@@ -262,7 +291,10 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _initializeProviders() async {
     try {
       // Force reload the username provider to ensure it has the latest data
-      final usernameProvider = Provider.of<UsernameProvider>(context, listen: false);
+      final usernameProvider = Provider.of<UsernameProvider>(
+        context,
+        listen: false,
+      );
       await usernameProvider.reloadHandle();
     } catch (e) {
       debugPrint('Error initializing providers: $e');
@@ -292,13 +324,19 @@ class _MainScreenState extends State<MainScreen> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                
+
                 // Archive option (if configured to show in top navbar)
-                if (chatProvider.archivedChats.isNotEmpty && 
-                    archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topNavbarMoreOptions)
+                if (chatProvider.archivedChats.isNotEmpty &&
+                    archiveSettings.archiveButtonPosition ==
+                        ArchiveButtonPosition.topNavbarMoreOptions)
                   ListTile(
-                    leading: Icon(Icons.archive, color: Theme.of(context).colorScheme.onSurface),
-                    title: Text('Archived (${chatProvider.archivedChats.length})'),
+                    leading: Icon(
+                      Icons.archive,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    title: Text(
+                      'Archived (${chatProvider.archivedChats.length})',
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -309,7 +347,7 @@ class _MainScreenState extends State<MainScreen> {
                       );
                     },
                   ),
-                
+
                 // Theme toggle switch
                 Consumer<ThemeProvider>(
                   builder: (context, themeProvider, child) {
@@ -328,7 +366,10 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 // Settings button
                 ListTile(
-                  leading: SvgIcons.medium(SvgIcons.settings, color: Theme.of(context).colorScheme.onSurface),
+                  leading: SvgIcons.medium(
+                    SvgIcons.settings,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   title: const Text('Settings'),
                   onTap: () {
                     Navigator.pop(context);
@@ -345,17 +386,18 @@ class _MainScreenState extends State<MainScreen> {
 
   void _performSearch(String query) {
     final trimmedQuery = query.toLowerCase().trim();
-    
+
     setState(() {
       _isSearching = trimmedQuery.isNotEmpty;
-      
+
       if (trimmedQuery.isEmpty) {
         _filteredUsers = _allUsers;
       } else {
         _filteredUsers = _allUsers.where((user) {
           return user.fullName.toLowerCase().contains(trimmedQuery) ||
-                 user.handle.toLowerCase().contains(trimmedQuery) ||
-                 (user.virtualNumber?.toLowerCase().contains(trimmedQuery) ?? false);
+              user.handle.toLowerCase().contains(trimmedQuery) ||
+              (user.virtualNumber?.toLowerCase().contains(trimmedQuery) ??
+                  false);
         }).toList();
       }
     });
@@ -377,7 +419,7 @@ class _MainScreenState extends State<MainScreen> {
         try {
           final userProvider = context.read<FirestoreUserProvider>();
           final currentUser = userProvider.currentUser;
-          
+
           if (currentUser != null && mounted) {
             Navigator.push(
               context,
@@ -410,9 +452,7 @@ class _MainScreenState extends State<MainScreen> {
         // For calls tab, show dialpad
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const DialpadScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const DialpadScreen()),
         );
         break;
     }
@@ -421,18 +461,14 @@ class _MainScreenState extends State<MainScreen> {
   void _onDialpadPressed() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const DialpadScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const DialpadScreen()),
     );
   }
 
   void _showSettingsMenu() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
 
@@ -452,27 +488,27 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   bool _checkArchiveTrigger(String searchText) {
-    final archiveSettings = Provider.of<ArchiveSettingsProvider>(context, listen: false);
+    final archiveSettings = Provider.of<ArchiveSettingsProvider>(
+      context,
+      listen: false,
+    );
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    
+
     // Get the trigger and ensure it's not empty
     final trigger = archiveSettings.archiveSearchTrigger.trim();
     if (trigger.isEmpty) {
       return false; // Don't trigger if the trigger string is empty
     }
-    
+
     // Only check trigger if archive button is hidden and there are archived chats
     if (archiveSettings.archiveButtonPosition == ArchiveButtonPosition.hidden &&
         chatProvider.archivedChats.isNotEmpty &&
         searchText.trim().toLowerCase() == trigger.toLowerCase()) {
-      
       // Clear search field and navigate to archived chats
       _searchController.clear();
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const ArchivedChatsScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
       );
       return true;
     }
@@ -531,13 +567,20 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.1),
                   backgroundImage: user.profilePicture != null
                       ? NetworkImage(user.profilePicture!)
                       : null,
                   child: user.profilePicture == null
                       ? Text(
-                          user.fullName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase(),
+                          user.fullName
+                              .split(' ')
+                              .map((e) => e.isNotEmpty ? e[0] : '')
+                              .take(2)
+                              .join()
+                              .toUpperCase(),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -565,9 +608,9 @@ class _MainScreenState extends State<MainScreen> {
                   ),
               ],
             ),
-            
+
             const SizedBox(width: 16),
-            
+
             // User Info
             Expanded(
               child: Column(
@@ -579,18 +622,20 @@ class _MainScreenState extends State<MainScreen> {
                       Expanded(
                         child: Text(
                           user.fullName,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (_currentIndex == 1) // Chat tab
                         Text(
                           _formatTime(user.lastSeen ?? user.updatedAt),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.6),
+                              ),
                         ),
                     ],
                   ),
@@ -600,12 +645,16 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          _currentIndex == 1 // Chat tab
+                          _currentIndex ==
+                                  1 // Chat tab
                               ? '@${user.handle}'
                               : user.virtualNumber ?? '@${user.handle}',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.7),
+                              ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -616,7 +665,7 @@ class _MainScreenState extends State<MainScreen> {
                           children: [
                             IconButton(
                               icon: SvgIcons.sized(
-                                SvgIcons.voiceCall, 
+                                SvgIcons.voiceCall,
                                 20,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -624,7 +673,7 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                             IconButton(
                               icon: SvgIcons.sized(
-                                SvgIcons.videoCall, 
+                                SvgIcons.videoCall,
                                 20,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -646,11 +695,13 @@ class _MainScreenState extends State<MainScreen> {
   void _onUserTap(User user) {
     // Clear search first
     _clearSearch();
-    
-    if (_currentIndex == 1) { // Chat tab
+
+    if (_currentIndex == 1) {
+      // Chat tab
       // Navigate to chat screen with user
       Navigator.pushNamed(context, '/chat', arguments: user);
-    } else if (_currentIndex == 2) { // Calls tab
+    } else if (_currentIndex == 2) {
+      // Calls tab
       // Show call options
       _showCallOptions(user);
     }
@@ -682,13 +733,20 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.1),
                   backgroundImage: user.profilePicture != null
                       ? NetworkImage(user.profilePicture!)
                       : null,
                   child: user.profilePicture == null
                       ? Text(
-                          user.fullName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase(),
+                          user.fullName
+                              .split(' ')
+                              .map((e) => e.isNotEmpty ? e[0] : '')
+                              .take(2)
+                              .join()
+                              .toUpperCase(),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -704,14 +762,15 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Text(
                         user.fullName,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text(
                         user.virtualNumber ?? '@${user.handle}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -730,7 +789,7 @@ class _MainScreenState extends State<MainScreen> {
                       _makeCall(user, false);
                     },
                     icon: SvgIcons.sized(
-                      SvgIcons.voiceCall, 
+                      SvgIcons.voiceCall,
                       20,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
@@ -748,7 +807,7 @@ class _MainScreenState extends State<MainScreen> {
                       _makeCall(user, true);
                     },
                     icon: SvgIcons.sized(
-                      SvgIcons.videoCall, 
+                      SvgIcons.videoCall,
                       20,
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
@@ -769,7 +828,9 @@ class _MainScreenState extends State<MainScreen> {
   void _makeCall(User user, bool isVideo) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${isVideo ? 'Video' : 'Voice'} calling ${user.fullName}...'),
+        content: Text(
+          '${isVideo ? 'Video' : 'Voice'} calling ${user.fullName}...',
+        ),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -795,17 +856,20 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildProfileIcon(bool isActive, String? profilePictureUrl) {
     const size = 24.0;
     final borderWidth = isActive ? 2.0 : 0.0;
-    
+
     // Check if it's a real uploaded image (not UI-avatars generated)
-    final hasRealProfilePicture = profilePictureUrl != null && 
+    final hasRealProfilePicture =
+        profilePictureUrl != null &&
         profilePictureUrl.isNotEmpty &&
         !profilePictureUrl.contains('ui-avatars.com');
-    
+
     // Check if we have an emoji avatar
     final hasEmojiAvatar = _currentAvatar != null && _currentAvatar!.isNotEmpty;
-    
+
     // Parse avatar color
-    Color avatarBgColor = Theme.of(context).colorScheme.primary.withOpacity(0.2);
+    Color avatarBgColor = Theme.of(
+      context,
+    ).colorScheme.primary.withOpacity(0.2);
     if (_currentAvatarColor != null && _currentAvatarColor!.isNotEmpty) {
       try {
         avatarBgColor = Color(int.parse(_currentAvatarColor!, radix: 16));
@@ -813,13 +877,13 @@ class _MainScreenState extends State<MainScreen> {
         print('❌ Error parsing avatar color: $e');
       }
     }
-    
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: isActive 
+        border: isActive
             ? Border.all(
                 color: Theme.of(context).colorScheme.primary,
                 width: borderWidth,
@@ -843,28 +907,25 @@ class _MainScreenState extends State<MainScreen> {
                 },
               )
             : hasEmojiAvatar
-                ? Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          avatarBgColor,
-                          avatarBgColor.withOpacity(0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _currentAvatar!,
-                        style: const TextStyle(fontSize: size * 0.5),
-                      ),
-                    ),
-                  )
-                : _buildDefaultProfileIcon(isActive, size),
+            ? Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [avatarBgColor, avatarBgColor.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    _currentAvatar!,
+                    style: const TextStyle(fontSize: size * 0.5),
+                  ),
+                ),
+              )
+            : _buildDefaultProfileIcon(isActive, size),
       ),
     );
   }
@@ -875,14 +936,14 @@ class _MainScreenState extends State<MainScreen> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isActive 
+        color: isActive
             ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
       ),
       child: Icon(
         Icons.person,
         size: size * 0.6,
-        color: isActive 
+        color: isActive
             ? Theme.of(context).colorScheme.primary
             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
       ),
@@ -891,8 +952,15 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final navBarStyle = context.watch<AppearanceProvider>().navBarStyle;
+    final extendBody =
+        navBarStyle == NavBarStyle.ios ||
+        navBarStyle == NavBarStyle.liquid ||
+        navBarStyle == NavBarStyle.modern;
+
     return Scaffold(
-      appBar: _currentIndex == 3 
+      extendBody: extendBody,
+      appBar: _currentIndex == 3
           ? null // Hide app bar on profile tab
           : AppBar(
               backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
@@ -922,7 +990,8 @@ class _MainScreenState extends State<MainScreen> {
                           width: 24,
                           height: 24,
                           colorFilter: ColorFilter.mode(
-                            Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                            Theme.of(context).appBarTheme.foregroundColor ??
+                                Colors.white,
                             BlendMode.srcIn,
                           ),
                         ),
@@ -972,7 +1041,9 @@ class _MainScreenState extends State<MainScreen> {
                   child: IconButton(
                     icon: SvgIcons.more(
                       horizontal: false,
-                      color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                      color:
+                          Theme.of(context).appBarTheme.foregroundColor ??
+                          Colors.white,
                     ),
                     onPressed: _showMoreOptions,
                     tooltip: 'More options',
@@ -992,23 +1063,44 @@ class _MainScreenState extends State<MainScreen> {
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: _getSearchPlaceholder(),
-                  hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                  prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                  hintStyle: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                          icon: Icon(
+                            Icons.clear,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
                           onPressed: _clearSearch,
                         )
                       : null,
                   filled: true,
-                  fillColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(25),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 onChanged: (value) {
                   setState(() {});
                   // Don't perform search automatically - only show/hide clear button
@@ -1027,128 +1119,601 @@ class _MainScreenState extends State<MainScreen> {
             ),
           // Main content
           Expanded(
-            child: _isSearching 
-                ? _buildSearchResults() 
+            child: _isSearching
+                ? _buildSearchResults()
                 : Consumer<FirestoreUserProvider>(
                     builder: (context, userProvider, child) {
                       // Update local users list when Firestore data changes
                       _allUsers = userProvider.allUsers;
                       _filteredUsers = _allUsers;
-                      
+
                       return _screens[_currentIndex];
                     },
-                  )
+                  ),
           ),
         ],
       ),
-      bottomNavigationBar: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Theme.of(context).colorScheme.primary,
-            unselectedItemColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-            items: [
-              BottomNavigationBarItem(
+      bottomNavigationBar: Consumer<AppearanceProvider>(
+        builder: (context, appearance, child) {
+          return _buildNavBar(context, appearance.navBarStyle);
+        },
+      ),
+      floatingActionButton: _currentIndex == 3
+          ? null
+          : _getFloatingActionButton(),
+    );
+  }
+
+  Widget _buildNavBar(BuildContext context, NavBarStyle style) {
+    switch (style) {
+      case NavBarStyle.simple:
+        return _buildSimpleNavBar();
+      case NavBarStyle.modern:
+        return _buildModernNavBar();
+      case NavBarStyle.ios:
+        return _buildIOSNavBar();
+      case NavBarStyle.bubble:
+        return _buildBubbleNavBar();
+      case NavBarStyle.liquid:
+        return _buildLiquidNavBar();
+    }
+  }
+
+  Widget _buildSimpleNavBar() {
+    return BottomNavigationBar(
+      currentIndex: _currentIndex,
+      onTap: (index) {
+        setState(() => _currentIndex = index);
+      },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Theme.of(context).colorScheme.primary,
+      unselectedItemColor: Theme.of(
+        context,
+      ).colorScheme.onSurface.withValues(alpha: 0.6),
+      elevation: 8,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      items: [
+        BottomNavigationBarItem(
+          icon: SvgIcons.home(
+            filled: false,
+            context: context,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          activeIcon: SvgIcons.home(
+            filled: true,
+            context: context,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          label: 'Home',
+        ),
+        BottomNavigationBarItem(
+          icon: SvgIcons.chat(
+            filled: false,
+            context: context,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          activeIcon: SvgIcons.chat(
+            filled: true,
+            context: context,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          label: 'Chats',
+        ),
+        BottomNavigationBarItem(
+          icon: SvgIcons.call(
+            filled: false,
+            context: context,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          activeIcon: SvgIcons.call(
+            filled: true,
+            context: context,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          label: 'Calls',
+        ),
+        BottomNavigationBarItem(
+          icon: StreamBuilder<String?>(
+            stream: ProfilePictureService.instance.profilePictureStream,
+            initialData: ProfilePictureService.instance.currentProfilePicture,
+            builder: (context, snapshot) =>
+                _buildProfileIcon(false, snapshot.data),
+          ),
+          activeIcon: StreamBuilder<String?>(
+            stream: ProfilePictureService.instance.profilePictureStream,
+            initialData: ProfilePictureService.instance.currentProfilePicture,
+            builder: (context, snapshot) =>
+                _buildProfileIcon(true, snapshot.data),
+          ),
+          label: 'You',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          height: 70,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildModernNavItem(
+                index: 0,
                 icon: SvgIcons.home(
-                  filled: false,
+                  filled: _currentIndex == 0,
                   context: context,
-                  color: _currentIndex == 0 
+                  color: _currentIndex == 0
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                activeIcon: SvgIcons.home(
-                  filled: true,
-                  context: context,
-                  color: Theme.of(context).colorScheme.primary,
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
+              _buildModernNavItem(
+                index: 1,
                 icon: SvgIcons.chat(
-                  filled: false,
+                  filled: _currentIndex == 1,
                   context: context,
-                  color: _currentIndex == 1 
+                  color: _currentIndex == 1
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                activeIcon: SvgIcons.chat(
-                  filled: true,
-                  context: context,
-                  color: Theme.of(context).colorScheme.primary,
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 label: 'Chats',
               ),
-              BottomNavigationBarItem(
+              _buildModernNavItem(
+                index: 2,
                 icon: SvgIcons.call(
-                  filled: false,
+                  filled: _currentIndex == 2,
                   context: context,
-                  color: _currentIndex == 2 
+                  color: _currentIndex == 2
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                activeIcon: SvgIcons.call(
-                  filled: true,
-                  context: context,
-                  color: Theme.of(context).colorScheme.primary,
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 label: 'Calls',
               ),
-              BottomNavigationBarItem(
+              _buildModernNavItem(
+                index: 3,
                 icon: StreamBuilder<String?>(
                   stream: ProfilePictureService.instance.profilePictureStream,
-                  initialData: ProfilePictureService.instance.currentProfilePicture,
+                  initialData:
+                      ProfilePictureService.instance.currentProfilePicture,
                   builder: (context, snapshot) {
-                    print('📸 Bottom nav stream update: ${snapshot.data}');
-                    return _buildProfileIcon(false, snapshot.data);
-                  },
-                ),
-                activeIcon: StreamBuilder<String?>(
-                  stream: ProfilePictureService.instance.profilePictureStream,
-                  initialData: ProfilePictureService.instance.currentProfilePicture,
-                  builder: (context, snapshot) {
-                    return _buildProfileIcon(true, snapshot.data);
+                    return _buildProfileIcon(_currentIndex == 3, snapshot.data);
                   },
                 ),
                 label: 'You',
+                isProfile: true,
               ),
             ],
-          );
-        },
+          ),
+        ),
       ),
-      floatingActionButton: _currentIndex == 3 
-          ? null // No FAB on profile tab
-          : _currentIndex == 2 
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Dialpad FAB (smaller)
-                    FloatingActionButton.small(
-                      onPressed: _onDialpadPressed,
-                      heroTag: 'dialpad',
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      child: SvgIcons.sized(SvgIcons.dialpad, 20, color: Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    // Main FAB (same size as other tabs)
-                    FloatingActionButton(
-                      onPressed: _onAddPressed,
-                      heroTag: 'add',
-                      child: SvgIcons.sized(SvgIcons.addCall, 24, color: Colors.white),
-                    ),
-                  ],
-                )
-              : FloatingActionButton(
-                  onPressed: _onAddPressed,
-                  child: _currentIndex == 1 
-                      ? SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white)
-                      : SvgIcons.sized(SvgIcons.add, 24, color: Colors.white),
+    );
+  }
+
+  Widget _buildIOSNavBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildIOSNavItem(0, 'Home'),
+                _buildIOSNavItem(1, 'Chats'),
+                _buildIOSNavItem(2, 'Calls'),
+                _buildIOSNavItem(3, 'You', isProfile: true),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIOSNavItem(int index, String label, {bool isProfile = false}) {
+    final isSelected = _currentIndex == index;
+    Widget icon;
+
+    if (isProfile) {
+      icon = StreamBuilder<String?>(
+        stream: ProfilePictureService.instance.profilePictureStream,
+        initialData: ProfilePictureService.instance.currentProfilePicture,
+        builder: (context, snapshot) => _buildProfileIcon(false, snapshot.data),
+      );
+    } else {
+      final color = isSelected
+          ? Colors.white
+          : Theme.of(context).colorScheme.onSurface;
+      switch (label) {
+        case 'Home':
+          icon = SvgIcons.home(
+            filled: isSelected,
+            context: context,
+            color: color,
+          );
+          break;
+        case 'Chats':
+          icon = SvgIcons.chat(
+            filled: isSelected,
+            context: context,
+            color: color,
+          );
+          break;
+        case 'Calls':
+          icon = SvgIcons.call(
+            filled: isSelected,
+            context: context,
+            color: color,
+          );
+          break;
+        default:
+          icon = const SizedBox();
+      }
+    }
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => _currentIndex = index);
+        HapticFeedback.lightImpact();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.transparent,
+          shape: BoxShape.circle,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: icon,
+      ),
+    );
+  }
+
+  Widget _buildLiquidNavBar() {
+    final theme = Theme.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final itemWidth = width / 4;
+
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            left:
+                itemWidth * _currentIndex +
+                (itemWidth - 56) / 2, // Center the pill
+            top: 12,
+            width: 56,
+            height: 56,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+
+          Row(
+            children: [
+              _buildLiquidNavItem(0, 'Home'),
+              _buildLiquidNavItem(1, 'Chats'),
+              _buildLiquidNavItem(2, 'Calls'),
+              _buildLiquidNavItem(3, 'You', isProfile: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiquidNavItem(
+    int index,
+    String label, {
+    bool isProfile = false,
+  }) {
+    final isSelected = _currentIndex == index;
+    final theme = Theme.of(context);
+    final color = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _currentIndex = index);
+          HapticFeedback.lightImpact();
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              transform: isSelected
+                  ? Matrix4.translationValues(0, -4, 0)
+                  : Matrix4.identity(),
+              child: isProfile
+                  ? SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: StreamBuilder<String?>(
+                        stream:
+                            ProfilePictureService.instance.profilePictureStream,
+                        initialData: ProfilePictureService
+                            .instance
+                            .currentProfilePicture,
+                        builder: (context, snapshot) =>
+                            _buildProfileIcon(isSelected, snapshot.data),
+                      ),
+                    )
+                  : _getSvgIcon(label, isSelected, color),
+            ),
+            if (isSelected)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _getSvgIcon(String label, bool isSelected, Color color) {
+    switch (label) {
+      case 'Home':
+        return SvgIcons.home(
+          filled: isSelected,
+          context: context,
+          color: color,
+        );
+      case 'Chats':
+        return SvgIcons.chat(
+          filled: isSelected,
+          context: context,
+          color: color,
+        );
+      case 'Calls':
+        return SvgIcons.call(
+          filled: isSelected,
+          context: context,
+          color: color,
+        );
+      default:
+        return const SizedBox();
+    }
+  }
+
+  Widget _buildBubbleNavBar() {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildBubbleNavItem(0, 'Home'),
+            _buildBubbleNavItem(1, 'Chats'),
+            _buildBubbleNavItem(2, 'Calls'),
+            _buildBubbleNavItem(3, 'You', isProfile: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBubbleNavItem(
+    int index,
+    String label, {
+    bool isProfile = false,
+  }) {
+    final isSelected = _currentIndex == index;
+    final color = Theme.of(context).colorScheme.primary;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => _currentIndex = index);
+        HapticFeedback.lightImpact();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isProfile)
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: StreamBuilder<String?>(
+                  stream: ProfilePictureService.instance.profilePictureStream,
+                  initialData:
+                      ProfilePictureService.instance.currentProfilePicture,
+                  builder: (context, snapshot) =>
+                      _buildProfileIcon(isSelected, snapshot.data),
+                ),
+              )
+            else
+              _getSvgIcon(
+                label,
+                isSelected,
+                isSelected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              child: isSelected
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernNavItem({
+    required int index,
+    required Widget icon,
+    required String label,
+    bool isProfile = false,
+  }) {
+    final isSelected = _currentIndex == index;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+        HapticFeedback.lightImpact();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 16 : 12,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _getFloatingActionButton() {
+    if (_currentIndex == 2) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            onPressed: _onDialpadPressed,
+            heroTag: 'dialpad',
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            child: SvgIcons.sized(SvgIcons.dialpad, 20, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _onAddPressed,
+            heroTag: 'add',
+            child: SvgIcons.sized(SvgIcons.addCall, 24, color: Colors.white),
+          ),
+        ],
+      );
+    }
+
+    return FloatingActionButton(
+      onPressed: _onAddPressed,
+      heroTag: 'add',
+      child: _currentIndex == 1
+          ? SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white)
+          : SvgIcons.sized(SvgIcons.add, 24, color: Colors.white),
     );
   }
 }

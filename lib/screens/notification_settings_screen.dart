@@ -51,117 +51,161 @@ class _NotificationSettingsScreenState
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 0,
-        title: const Text('Notifications'),
-      ),
-      body: ListView(
-        children: [
-          _buildSection(
-            context,
-            title: 'MESSAGES',
-            children: [
-              _buildChannelTile(
-                context,
-                icon: Icons.message_rounded,
-                title: 'Messages',
-                subtitle: 'Direct messages',
-                channelId: NotificationChannels.messages,
-                color: Colors.blue,
-              ),
-              _buildChannelTile(
-                context,
-                icon: Icons.groups_rounded,
-                title: 'Groups',
-                subtitle: 'Group chat messages',
-                channelId: NotificationChannels.groupMessages,
-                color: Colors.purple,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar.large(
+            title: const Text('Notifications'),
+            centerTitle: true,
+            backgroundColor: theme.colorScheme.surface,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'System Settings',
+                onPressed: () => _openSystemSettings(context),
               ),
             ],
           ),
-          _buildSection(
-            context,
-            title: 'CALLS',
-            children: [
-              _buildChannelTile(
-                context,
-                icon: Icons.call_rounded,
-                title: 'Calls',
-                subtitle: 'Incoming calls',
-                channelId: NotificationChannels.calls,
-                color: Colors.green,
-              ),
-              _buildChannelTile(
-                context,
-                icon: Icons.phone_missed_rounded,
-                title: 'Missed Calls',
-                subtitle: 'Missed call alerts',
-                channelId: NotificationChannels.missedCalls,
-                color: Colors.orange,
-              ),
-            ],
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildSectionContainer(
+                  context,
+                  title: 'Communication',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  color: Colors.blue,
+                  children: [
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.message_rounded,
+                      title: 'Messages',
+                      subtitle: 'Direct messages',
+                      channelId: NotificationChannels.messages,
+                      color: Colors.blue,
+                    ),
+                    const Divider(height: 1),
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.groups_rounded,
+                      title: 'Groups',
+                      subtitle: 'Group chat messages',
+                      channelId: NotificationChannels.groupMessages,
+                      color: Colors.purple,
+                    ),
+                    const Divider(height: 1),
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.call_rounded,
+                      title: 'Calls',
+                      subtitle: 'Incoming voice & video calls',
+                      channelId: NotificationChannels.calls,
+                      color: Colors.green,
+                    ),
+                    const Divider(height: 1),
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.phone_missed_rounded,
+                      title: 'Missed Calls',
+                      subtitle: 'Missed call alerts',
+                      channelId: NotificationChannels.missedCalls,
+                      color: Colors.orange,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildSectionContainer(
+                  context,
+                  title: 'Social Activity',
+                  icon: Icons.people_outline_rounded,
+                  color: Colors.pink,
+                  children: [
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.person_add_rounded,
+                      title: 'Friend Requests',
+                      subtitle: 'New friend requests',
+                      channelId: NotificationChannels.friendRequests,
+                      color: Colors.teal,
+                    ),
+                    const Divider(height: 1),
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.alternate_email_rounded,
+                      title: 'Mentions',
+                      subtitle: 'When someone mentions you',
+                      channelId: NotificationChannels.mentions,
+                      color: Colors.indigo,
+                    ),
+                    const Divider(height: 1),
+                    _buildChannelTile(
+                      context,
+                      icon: Icons.favorite_rounded,
+                      title: 'Reactions',
+                      subtitle: 'Message reactions',
+                      channelId: NotificationChannels.reactions,
+                      color: Colors.pink,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+              ]),
+            ),
           ),
-          _buildSection(
-            context,
-            title: 'OTHER',
-            children: [
-              _buildChannelTile(
-                context,
-                icon: Icons.person_add_rounded,
-                title: 'Friend Requests',
-                subtitle: 'New friend requests',
-                channelId: NotificationChannels.friendRequests,
-                color: Colors.teal,
-              ),
-              _buildChannelTile(
-                context,
-                icon: Icons.alternate_email_rounded,
-                title: 'Mentions',
-                subtitle: 'When someone mentions you',
-                channelId: NotificationChannels.mentions,
-                color: Colors.indigo,
-              ),
-              _buildChannelTile(
-                context,
-                icon: Icons.favorite_rounded,
-                title: 'Reactions',
-                subtitle: 'Message reactions',
-                channelId: NotificationChannels.reactions,
-                color: Colors.pink,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _buildSection(
+  Widget _buildSectionContainer(
     BuildContext context, {
     required String title,
+    required IconData icon,
+    required Color color,
     required List<Widget> children,
   }) {
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            title,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.05),
         ),
-        ...children,
-      ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
     );
   }
 
@@ -174,22 +218,53 @@ class _NotificationSettingsScreenState
     required Color color,
   }) {
     final theme = Theme.of(context);
+    final isEnabled = _channelEnabled[channelId] ?? true;
 
     return ListTile(
+      contentPadding: EdgeInsets.zero,
       leading: Container(
-        width: 40,
-        height: 40,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: isEnabled
+              ? color.withValues(alpha: 0.1)
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, color: color, size: 22),
+        child: Icon(
+          icon,
+          color: isEnabled
+              ? color
+              : theme.colorScheme.onSurface.withValues(alpha: 0.4),
+          size: 24,
+        ),
       ),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: Icon(
-        Icons.chevron_right,
-        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: isEnabled
+              ? theme.colorScheme.onSurface
+              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant.withValues(
+            alpha: isEnabled ? 1.0 : 0.5,
+          ),
+          fontSize: 12,
+        ),
+      ),
+      trailing: Switch(
+        value: isEnabled,
+        activeColor: color,
+        onChanged: (value) {
+          setState(() => _channelEnabled[channelId] = value);
+          HapticFeedback.lightImpact();
+        },
       ),
       onTap: () => _openChannelSettings(context, channelId, title, icon, color),
     );
@@ -205,6 +280,7 @@ class _NotificationSettingsScreenState
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _ChannelSettingsBottomSheet(
         channelId: channelId,

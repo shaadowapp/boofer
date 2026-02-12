@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
-import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
@@ -13,16 +12,7 @@ class AppearanceSettingsScreen extends StatefulWidget {
 }
 
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
-  final List<Color> _brandColors = [
-    const Color(0xFF3B82F6), // Blue
-    const Color(0xFF10B981), // Green
-    const Color(0xFFEF4444), // Red
-    const Color(0xFFF59E0B), // Orange
-    const Color(0xFF8B5CF6), // Purple
-    const Color(0xFFEC4899), // Pink
-    const Color(0xFF06B6D4), // Cyan
-    const Color(0xFF14B8A6), // Teal
-  ];
+  // _brandColors removed as it is now in CustomizationSettingsScreen
 
   final List<Map<String, dynamic>> _wallpapers = [
     {'id': 'none', 'name': 'None', 'type': 'none'},
@@ -157,14 +147,14 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    // themeProvider not needed here anymore for this screen
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           SliverAppBar.large(
-            title: const Text('Appearance'),
+            title: const Text('Chat Appearance'),
             centerTitle: true,
             backgroundColor: theme.colorScheme.surface,
             scrolledUnderElevation: 0,
@@ -173,122 +163,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Theme Section
+                // Chat Typography Section
                 _buildSectionContainer(
                   context,
-                  title: 'Theme',
-                  icon: Icons.brightness_6_outlined,
-                  color: Colors.indigo,
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          themeProvider.isDarkMode
-                              ? Icons.dark_mode_outlined
-                              : Icons.light_mode_outlined,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      title: const Text(
-                        'Theme Mode',
-                        style: TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      subtitle: Text(themeProvider.themeModeString),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.3,
-                        ),
-                      ),
-                      onTap: () => _showThemeDialog(context, themeProvider),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Brand Color Section
-                _buildSectionContainer(
-                  context,
-                  title: 'Accent Color',
-                  icon: Icons.palette_outlined,
-                  color: Colors.pink,
-                  children: [
-                    Text(
-                      'Choose your accent color',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      alignment: WrapAlignment.center,
-                      children: _brandColors.map((color) {
-                        final isSelected =
-                            appearanceProvider.accentColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () => appearanceProvider.setAccentColor(color),
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: isSelected
-                                  ? Border.all(
-                                      color: theme.colorScheme.surface,
-                                      width: 4,
-                                    )
-                                  : null,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: color.withValues(alpha: 0.4),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                                if (isSelected)
-                                  BoxShadow(
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.2),
-                                    blurRadius: 2,
-                                    spreadRadius: 1,
-                                  ),
-                              ],
-                            ),
-                            child: isSelected
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
-                                    size: 32,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Font Size Section
-                _buildSectionContainer(
-                  context,
-                  title: 'Typography',
+                  title: 'Chat Typography',
                   icon: Icons.text_fields_rounded,
-                  color: Colors.teal,
+                  color: Colors.orange,
                   children: [
                     Text(
-                      'Adjust text size across the entire app',
+                      'Adjust text size for chat bubbles',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -300,9 +183,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                         color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: theme.colorScheme.outline.withValues(
-                            alpha: 0.1,
-                          ),
+                          color: theme.colorScheme.outline.withOpacity(0.1),
                         ),
                       ),
                       child: Column(
@@ -333,15 +214,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                                     ),
                                   ),
                                   child: Slider(
-                                    value: appearanceProvider.fontSize,
-                                    min: 14.0,
-                                    max: 20.0,
-                                    divisions: 3,
-                                    label: _getFontSizeLabel(
-                                      appearanceProvider.fontSize,
-                                    ),
+                                    value: appearanceProvider.bubbleFontSize,
+                                    min: 12.0,
+                                    max: 24.0,
+                                    divisions: 6,
+                                    label:
+                                        '${appearanceProvider.bubbleFontSize.toInt()}',
                                     onChanged: (value) {
-                                      appearanceProvider.setFontSize(value);
+                                      appearanceProvider.setBubbleFontSize(
+                                        value,
+                                      );
                                     },
                                   ),
                                 ),
@@ -357,18 +239,75 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeInOut,
-                            style: TextStyle(
-                              fontSize: appearanceProvider.fontSize,
-                              color: theme.colorScheme.onSurface,
-                              height: 1.5,
-                            ),
-                            child: const Text(
-                              'The quick brown fox jumps over the lazy dog',
-                              textAlign: TextAlign.center,
-                            ),
+                          // Chat Bubble Preview
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Sent message
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                    bottom: 8,
+                                    left: 40,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(16),
+                                      bottomLeft: Radius.circular(16),
+                                      bottomRight: Radius.circular(4),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Hello! How are you?',
+                                    style: TextStyle(
+                                      fontSize:
+                                          appearanceProvider.bubbleFontSize,
+                                      color: theme.colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Received message
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                    bottom: 8,
+                                    right: 40,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(16),
+                                      bottomLeft: Radius.circular(4),
+                                      bottomRight: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'I\'m doing great, thanks!',
+                                    style: TextStyle(
+                                      fontSize:
+                                          appearanceProvider.bubbleFontSize,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -376,12 +315,57 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     const SizedBox(height: 8),
                     Center(
                       child: Text(
-                        'Preview: ${_getFontSizeLabel(appearanceProvider.fontSize)}',
+                        'Preview: ${appearanceProvider.bubbleFontSize.toInt()} px',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Bubble Style Section
+                _buildSectionContainer(
+                  context,
+                  title: 'Bubble Style',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  color: Colors.blue,
+                  children: [
+                    Text(
+                      'Choose message bubble appearance',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildShapeOption(
+                          context,
+                          appearanceProvider,
+                          ChatBubbleShape.rounded,
+                          Icons.circle_outlined,
+                          'Rounded',
+                        ),
+                        _buildShapeOption(
+                          context,
+                          appearanceProvider,
+                          ChatBubbleShape.standard,
+                          Icons.message_outlined,
+                          'Standard',
+                        ),
+                        _buildShapeOption(
+                          context,
+                          appearanceProvider,
+                          ChatBubbleShape.square,
+                          Icons.crop_square,
+                          'Square',
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -507,6 +491,58 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
+  Widget _buildShapeOption(
+    BuildContext context,
+    AppearanceProvider provider,
+    ChatBubbleShape shape,
+    IconData icon,
+    String label,
+  ) {
+    final theme = Theme.of(context);
+    final isSelected = provider.chatBubbleShape == shape;
+
+    return GestureDetector(
+      onTap: () => provider.setChatBubbleShape(shape),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? theme.colorScheme.primaryContainer
+                  : theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outline.withValues(alpha: 0.2),
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Build wallpaper subsection with horizontal scroll
   Widget _buildWallpaperSubSection(
     BuildContext context, {
@@ -533,6 +569,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             itemCount: wallpapers.length,
             itemBuilder: (context, index) {
               final wallpaper = wallpapers[index];
@@ -749,60 +786,6 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         return [Colors.grey.shade200, Colors.grey.shade300];
     }
   }
-
-  String _getFontSizeLabel(double fontSize) {
-    if (fontSize <= 14.0) return 'Small';
-    if (fontSize <= 16.0) return 'Medium';
-    if (fontSize <= 18.0) return 'Large';
-    return 'Extra Large';
-  }
-
-  void _showThemeDialog(BuildContext context, ThemeProvider themeProvider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Choose Theme'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<AppThemeMode>(
-              title: const Text('Light'),
-              value: AppThemeMode.light,
-              groupValue: themeProvider.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-            RadioListTile<AppThemeMode>(
-              title: const Text('Dark'),
-              value: AppThemeMode.dark,
-              groupValue: themeProvider.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-            RadioListTile<AppThemeMode>(
-              title: const Text('System Default'),
-              value: AppThemeMode.system,
-              groupValue: themeProvider.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // Custom painter for doodle patterns inspired by Telegram/WhatsApp
@@ -814,137 +797,85 @@ class DoodlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.12)
-      ..strokeWidth = 1.8
+      ..color = Colors.black
+          .withValues(alpha: 0.08) // Lower opacity for subtlety
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
+    final random = math.Random(
+      doodleId.hashCode,
+    ); // Seeded random for consistent patterns
+
     switch (doodleId) {
       case 'doodle1':
-        // Geometric circles and dots pattern
-        _drawGeometricPattern(canvas, size, paint);
+        _drawGeometricPattern(canvas, size, paint, random);
         break;
       case 'doodle2':
-        // Nature-inspired leaves pattern
-        _drawLeavesPattern(canvas, size, paint);
+        _drawLeavesPattern(canvas, size, paint, random);
         break;
       case 'doodle3':
-        // Stars and sparkles pattern
-        _drawStarsPattern(canvas, size, paint);
+        _drawStarsPattern(canvas, size, paint, random);
         break;
       case 'doodle4':
-        // Abstract curves pattern
-        _drawCurvesPattern(canvas, size, paint);
+        _drawCurvesPattern(canvas, size, paint, random);
         break;
       case 'doodle5':
-        // Hearts and flowers pattern
-        _drawHeartsPattern(canvas, size, paint);
+        _drawHeartsPattern(canvas, size, paint, random);
         break;
       case 'doodle6':
-        // Waves and lines pattern
-        _drawWavesPattern(canvas, size, paint);
+        _drawWavesPattern(canvas, size, paint, random);
         break;
       case 'doodle7':
-        // Simple dots pattern
-        _drawSimpleDotsPattern(canvas, size, paint);
+        _drawSimpleDotsPattern(canvas, size, paint, random);
         break;
       case 'doodle8':
-        // Diagonal lines pattern
-        _drawDiagonalLinesPattern(canvas, size, paint);
+        _drawDiagonalLinesPattern(canvas, size, paint, random);
         break;
     }
   }
 
-  void _drawGeometricPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.width / 5;
+  void _drawGeometricPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = size.width / 6;
     final rows = (size.height / spacing).ceil() + 1;
 
-    // Draw circles
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 6; i++) {
       for (var j = 0; j < rows; j++) {
-        final x = i * spacing + spacing / 2;
-        final y = j * spacing + spacing / 2;
+        final x = i * spacing + spacing / 2 + (random.nextDouble() * 10 - 5);
+        final y = j * spacing + spacing / 2 + (random.nextDouble() * 10 - 5);
+        final radius = (spacing / 5) * (0.8 + random.nextDouble() * 0.4);
 
-        // Alternating circles and dots
-        if ((i + j) % 2 == 0) {
-          canvas.drawCircle(Offset(x, y), spacing / 4, paint);
+        if ((i + j) % 3 == 0) {
+          paint.style = PaintingStyle.stroke;
+          canvas.drawCircle(Offset(x, y), radius, paint);
+        } else if ((i + j) % 3 == 1) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x, y), 3, paint);
         } else {
-          paint.style = PaintingStyle.fill;
-          canvas.drawCircle(Offset(x, y), 2, paint);
+          // Triangle
+          final path = Path();
+          path.moveTo(x, y - radius);
+          path.lineTo(x + radius, y + radius);
+          path.lineTo(x - radius, y + radius);
+          path.close();
           paint.style = PaintingStyle.stroke;
+          canvas.drawPath(path, paint);
         }
       }
     }
   }
 
-  void _drawLeavesPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.width / 4;
-    final rows = (size.height / spacing).ceil() + 1;
-
-    for (var i = 0; i < 4; i++) {
-      for (var j = 0; j < rows; j++) {
-        final x = i * spacing + spacing / 2;
-        final y = j * spacing + spacing / 2;
-
-        // Draw leaf shape
-        final path = Path();
-        path.moveTo(x, y - spacing / 3);
-        path.quadraticBezierTo(
-          x + spacing / 4,
-          y - spacing / 6,
-          x,
-          y + spacing / 3,
-        );
-        path.quadraticBezierTo(
-          x - spacing / 4,
-          y - spacing / 6,
-          x,
-          y - spacing / 3,
-        );
-        canvas.drawPath(path, paint);
-
-        // Add vein
-        canvas.drawLine(
-          Offset(x, y - spacing / 3),
-          Offset(x, y + spacing / 3),
-          paint,
-        );
-      }
-    }
-  }
-
-  void _drawStarsPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.width / 4;
-    final rows = (size.height / spacing).ceil() + 1;
-
-    for (var i = 0; i < 4; i++) {
-      for (var j = 0; j < rows; j++) {
-        final x = i * spacing + spacing / 2;
-        final y = j * spacing + spacing / 2;
-
-        // Draw 4-point star
-        _drawStar(canvas, paint, Offset(x, y), spacing / 4, 4);
-
-        // Add small sparkles
-        if ((i + j) % 2 == 0) {
-          paint.style = PaintingStyle.fill;
-          canvas.drawCircle(
-            Offset(x + spacing / 3, y - spacing / 4),
-            1.5,
-            paint,
-          );
-          canvas.drawCircle(
-            Offset(x - spacing / 3, y + spacing / 4),
-            1.5,
-            paint,
-          );
-          paint.style = PaintingStyle.stroke;
-        }
-      }
-    }
-  }
-
-  void _drawCurvesPattern(Canvas canvas, Size size, Paint paint) {
+  void _drawLeavesPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
     final spacing = size.width / 5;
     final rows = (size.height / spacing).ceil() + 1;
 
@@ -952,89 +883,151 @@ class DoodlePainter extends CustomPainter {
       for (var j = 0; j < rows; j++) {
         final x = i * spacing + spacing / 2;
         final y = j * spacing + spacing / 2;
+        final rotation = random.nextDouble() * math.pi;
 
-        // Draw curved lines
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(rotation);
+
         final path = Path();
-        path.moveTo(x - spacing / 3, y);
-        path.quadraticBezierTo(x, y - spacing / 3, x + spacing / 3, y);
-        path.quadraticBezierTo(x, y + spacing / 3, x - spacing / 3, y);
+        path.moveTo(0, -spacing / 4);
+        path.quadraticBezierTo(spacing / 4, -spacing / 8, 0, spacing / 4);
+        path.quadraticBezierTo(-spacing / 4, -spacing / 8, 0, -spacing / 4);
+
+        paint.style = PaintingStyle.stroke;
         canvas.drawPath(path, paint);
+        canvas.drawLine(Offset(0, -spacing / 4), Offset(0, spacing / 4), paint);
+
+        canvas.restore();
       }
     }
   }
 
-  void _drawHeartsPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.width / 4;
+  void _drawStarsPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = size.width / 5;
     final rows = (size.height / spacing).ceil() + 1;
 
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 5; i++) {
       for (var j = 0; j < rows; j++) {
-        final x = i * spacing + spacing / 2;
-        final y = j * spacing + spacing / 2;
+        final x = i * spacing + spacing / 2 + (random.nextDouble() * 20 - 10);
+        final y = j * spacing + spacing / 2 + (random.nextDouble() * 20 - 10);
 
-        // Draw heart
-        _drawHeart(canvas, paint, Offset(x, y), spacing / 5);
-
-        // Add small dots around
-        if ((i + j) % 2 == 0) {
-          paint.style = PaintingStyle.fill;
-          canvas.drawCircle(Offset(x + spacing / 3, y), 1.5, paint);
-          canvas.drawCircle(Offset(x - spacing / 3, y), 1.5, paint);
-          paint.style = PaintingStyle.stroke;
+        // Star or Shine
+        if (random.nextBool()) {
+          _drawStar(canvas, paint, Offset(x, y), spacing / 6, 5);
+        } else {
+          // Cross shine
+          canvas.drawLine(Offset(x - 5, y), Offset(x + 5, y), paint);
+          canvas.drawLine(Offset(x, y - 5), Offset(x, y + 5), paint);
         }
       }
     }
   }
 
-  void _drawWavesPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.height / 8;
+  void _drawCurvesPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = size.width / 4;
     final rows = (size.height / spacing).ceil() + 1;
 
-    for (var row = 0; row < rows; row++) {
-      final path = Path();
-      final y = row * spacing;
-      path.moveTo(0, y);
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < rows; j++) {
+        final x = i * spacing;
+        final y = j * spacing;
 
-      for (var i = 0.0; i < size.width + spacing; i += spacing) {
-        path.quadraticBezierTo(
-          i + spacing / 2,
-          y + spacing / 3,
-          i + spacing,
+        final path = Path();
+        path.moveTo(x, y + spacing / 2);
+        path.cubicTo(
+          x + spacing / 3,
           y,
+          x + 2 * spacing / 3,
+          y + spacing,
+          x + spacing,
+          y + spacing / 2,
         );
+        canvas.drawPath(path, paint);
+      }
+    }
+  }
+
+  void _drawHeartsPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = size.width / 6;
+    final rows = (size.height / spacing).ceil() + 1;
+
+    for (var i = 0; i < 6; i++) {
+      for (var j = 0; j < rows; j++) {
+        if ((i + j) % 2 != 0 && random.nextDouble() > 0.3) continue; // Sparse
+
+        final x = i * spacing + spacing / 2;
+        final y = j * spacing + spacing / 2;
+
+        _drawHeart(canvas, paint, Offset(x, y), spacing / 6);
+      }
+    }
+  }
+
+  void _drawWavesPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = size.height / 10;
+
+    for (var i = 0.0; i < size.height; i += spacing) {
+      final path = Path();
+      path.moveTo(0, i);
+
+      final amplitude = 10.0 + random.nextDouble() * 10;
+      final frequency = 50.0 + random.nextDouble() * 50;
+
+      for (var x = 0.0; x < size.width; x += 5) {
+        path.lineTo(x, i + math.sin(x / frequency) * amplitude);
       }
       canvas.drawPath(path, paint);
+    }
+  }
 
-      // Add dots between waves
-      if (row % 2 == 0) {
-        paint.style = PaintingStyle.fill;
-        for (var i = spacing / 2; i < size.width; i += spacing) {
-          canvas.drawCircle(Offset(i, y + spacing / 2), 1.5, paint);
+  void _drawSimpleDotsPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = 20.0;
+
+    for (var x = 0.0; x < size.width; x += spacing) {
+      for (var y = 0.0; y < size.height; y += spacing) {
+        if (random.nextDouble() > 0.8) {
+          paint.style = PaintingStyle.fill;
+          canvas.drawCircle(Offset(x, y), 1.5, paint);
         }
-        paint.style = PaintingStyle.stroke;
       }
     }
   }
 
-  void _drawSimpleDotsPattern(Canvas canvas, Size size, Paint paint) {
-    final spacing = size.width / 8;
-    final rows = (size.height / spacing).ceil() + 1;
-
-    paint.style = PaintingStyle.fill;
-    for (var i = 0; i < 8; i++) {
-      for (var j = 0; j < rows; j++) {
-        final x = i * spacing + spacing / 2;
-        final y = j * spacing + spacing / 2;
-        canvas.drawCircle(Offset(x, y), 2.5, paint);
-      }
-    }
-    paint.style = PaintingStyle.stroke;
-  }
-
-  void _drawDiagonalLinesPattern(Canvas canvas, Size size, Paint paint) {
-    const spacing = 20.0;
-
+  void _drawDiagonalLinesPattern(
+    Canvas canvas,
+    Size size,
+    Paint paint,
+    math.Random random,
+  ) {
+    final spacing = 30.0;
     for (var i = -size.height; i < size.width + size.height; i += spacing) {
+      paint.strokeWidth = random.nextBool() ? 1.0 : 2.0;
       canvas.drawLine(
         Offset(i.toDouble(), 0),
         Offset(i + size.height, size.height),
@@ -1052,52 +1045,35 @@ class DoodlePainter extends CustomPainter {
   ) {
     final path = Path();
     final angleStep = (2 * math.pi) / points;
-
     for (var i = 0; i < points; i++) {
       final angle = i * angleStep - math.pi / 2;
-      final x = center.dx + radius * math.cos(angle);
-      final y = center.dy + radius * math.sin(angle);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-
-      // Add inner point
-      final innerAngle = angle + angleStep / 2;
-      final innerX = center.dx + (radius * 0.4) * math.cos(innerAngle);
-      final innerY = center.dy + (radius * 0.4) * math.sin(innerAngle);
-      path.lineTo(innerX, innerY);
+      path.lineTo(
+        center.dx + radius * math.cos(angle),
+        center.dy + radius * math.sin(angle),
+      );
     }
     path.close();
+    paint.style = PaintingStyle.stroke;
     canvas.drawPath(path, paint);
   }
 
   void _drawHeart(Canvas canvas, Paint paint, Offset center, double size) {
+    // Simplified heart drawing
     final path = Path();
-    path.moveTo(center.dx, center.dy + size);
-
-    // Left curve
-    path.cubicTo(
-      center.dx - size * 2,
-      center.dy - size * 0.5,
+    path.moveTo(center.dx, center.dy + size / 2);
+    path.quadraticBezierTo(
       center.dx - size,
-      center.dy - size * 1.2,
+      center.dy - size / 2,
       center.dx,
-      center.dy - size * 0.3,
+      center.dy - size,
     );
-
-    // Right curve
-    path.cubicTo(
+    path.quadraticBezierTo(
       center.dx + size,
-      center.dy - size * 1.2,
-      center.dx + size * 2,
-      center.dy - size * 0.5,
+      center.dy - size / 2,
       center.dx,
-      center.dy + size,
+      center.dy + size / 2,
     );
-
+    paint.style = PaintingStyle.stroke;
     canvas.drawPath(path, paint);
   }
 

@@ -35,6 +35,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+
     private fun openNotificationSettings() {
         val intent = Intent()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
