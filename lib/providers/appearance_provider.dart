@@ -6,7 +6,7 @@ import 'dart:math' as math;
 
 enum ChatBubbleShape { rounded, square, standard }
 
-enum NavBarStyle { simple, modern, ios, bubble, liquid }
+enum NavBarStyle { simple, modern, ios, bubble, liquid, neon }
 
 class AppearanceProvider extends ChangeNotifier {
   Color _accentColor = const Color(0xFF3B82F6);
@@ -14,7 +14,7 @@ class AppearanceProvider extends ChangeNotifier {
   double _appFontSize = 16.0; // Font size for app UI
   double _bubbleFontSize = 16.0; // Font size for chat bubbles
   double _cornerRadius = 16.0; // UI Corner radius
-  NavBarStyle _navBarStyle = NavBarStyle.modern; // Navigation bar style
+  NavBarStyle _navBarStyle = NavBarStyle.modern;
 
   ChatBubbleShape _chatBubbleShape =
       ChatBubbleShape.rounded; // Chat bubble shape

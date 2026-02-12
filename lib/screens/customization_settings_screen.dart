@@ -266,6 +266,17 @@ class _CustomizationSettingsScreenState
                             NavBarStyle.liquid,
                           ),
                         ),
+                        _buildNavBarOption(
+                          context,
+                          title: 'Neon',
+                          style: NavBarStyle.neon,
+                          isSelected:
+                              appearanceProvider.navBarStyle ==
+                              NavBarStyle.neon,
+                          onTap: () => appearanceProvider.setNavBarStyle(
+                            NavBarStyle.neon,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -687,6 +698,8 @@ class _CustomizationSettingsScreenState
         return Icons.bubble_chart_rounded;
       case NavBarStyle.liquid:
         return Icons.water_drop_rounded;
+      case NavBarStyle.neon:
+        return Icons.flash_on_rounded;
     }
   }
 
@@ -702,6 +715,8 @@ class _CustomizationSettingsScreenState
         return _buildBubblePreview(context);
       case NavBarStyle.liquid:
         return _buildLiquidPreview(context);
+      case NavBarStyle.neon:
+        return _buildNeonPreview(context);
     }
   }
 
@@ -826,6 +841,23 @@ class _CustomizationSettingsScreenState
     );
   }
 
+  Widget _buildNeonPreview(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildPreviewItem(context, 'Home', true, NavBarStyle.neon),
+          _buildPreviewItem(context, 'Chats', false, NavBarStyle.neon),
+          _buildPreviewItem(context, 'Calls', false, NavBarStyle.neon),
+          _buildPreviewItem(context, 'You', false, NavBarStyle.neon),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPreviewItem(
     BuildContext context,
     String label,
@@ -843,7 +875,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.neon
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -859,6 +892,8 @@ class _CustomizationSettingsScreenState
           context: context,
           color: Colors.white,
         );
+      } else if (style == NavBarStyle.neon && isSelected) {
+        icon = SvgIcons.home(filled: true, context: context, color: color);
       }
     } else if (label == 'Chats') {
       icon = SvgIcons.chat(
@@ -867,7 +902,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.neon
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -883,6 +919,8 @@ class _CustomizationSettingsScreenState
           context: context,
           color: Colors.white,
         );
+      } else if (style == NavBarStyle.neon && isSelected) {
+        icon = SvgIcons.chat(filled: true, context: context, color: color);
       }
     } else if (label == 'Calls') {
       icon = SvgIcons.call(
@@ -891,7 +929,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.neon
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -907,6 +946,8 @@ class _CustomizationSettingsScreenState
           context: context,
           color: Colors.white,
         );
+      } else if (style == NavBarStyle.neon && isSelected) {
+        icon = SvgIcons.call(filled: true, context: context, color: color);
       }
     } else {
       // 'You'
@@ -915,7 +956,8 @@ class _CustomizationSettingsScreenState
         color:
             isSelected &&
                 style != NavBarStyle.ios &&
-                style != NavBarStyle.liquid
+                style != NavBarStyle.liquid &&
+                style != NavBarStyle.neon
             ? color
             : theme.colorScheme.onSurfaceVariant,
       );
@@ -923,6 +965,8 @@ class _CustomizationSettingsScreenState
         icon = Icon(Icons.person, color: Colors.white);
       } else if (style == NavBarStyle.liquid && isSelected) {
         icon = Icon(Icons.person, color: Colors.white);
+      } else if (style == NavBarStyle.neon && isSelected) {
+        icon = Icon(Icons.person, color: color);
       }
     }
 
@@ -1029,6 +1073,26 @@ class _CustomizationSettingsScreenState
               : null,
           child: icon,
         ),
+      );
+    }
+
+    if (style == NavBarStyle.neon) {
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: isSelected
+            ? BoxDecoration(
+                border: Border.all(color: color, width: 2),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.6),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              )
+            : null,
+        child: icon,
       );
     }
 
