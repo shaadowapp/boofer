@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/message_model.dart';
@@ -7,6 +8,7 @@ import '../providers/appearance_provider.dart';
 class MessageBubble extends StatelessWidget {
   final Message message;
   final String currentUserId;
+  final String? senderName;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -14,6 +16,7 @@ class MessageBubble extends StatelessWidget {
     super.key,
     required this.message,
     required this.currentUserId,
+    this.senderName,
     this.onTap,
     this.onLongPress,
   });
@@ -22,68 +25,122 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOwnMessage = message.senderId == currentUserId;
     final theme = Theme.of(context);
-    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+    final appearance = Provider.of<AppearanceProvider>(context);
+    final hasWallpaper = appearance.selectedWallpaper != 'none';
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: isOwnMessage
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isOwnMessage) ...[
-            _buildAvatar(context),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: GestureDetector(
-              onTap: onTap,
-              onLongPress: onLongPress,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.75,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: _getBubbleColor(context, isOwnMessage),
-                  borderRadius: _getBorderRadius(
-                    isOwnMessage,
-                    appearanceProvider.chatBubbleShape,
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: isOwnMessage
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isOwnMessage) ...[
+              _buildAvatar(context),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: GestureDetector(
+                onTap: onTap,
+                onLongPress: onLongPress,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!isOwnMessage) _buildSenderName(context),
-                    _buildMessageText(
-                      context,
+                  decoration: BoxDecoration(
+                    gradient: isOwnMessage
+                        ? appearance.getAccentGradient()
+                        : null,
+                    color: isOwnMessage
+                        ? (appearance.getAccentGradient() == null
+                              ? appearance.accentColor
+                              : null)
+                        : (hasWallpaper
+                              ? theme.colorScheme.surface.withOpacity(0.8)
+                              : theme.colorScheme.surfaceVariant),
+                    borderRadius: _getBorderRadius(
                       isOwnMessage,
-                      appearanceProvider.bubbleFontSize,
+                      appearance.chatBubbleShape,
                     ),
-                    const SizedBox(height: 4),
-                    _buildMessageInfo(context, isOwnMessage),
-                  ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: _getBorderRadius(
+                      isOwnMessage,
+                      appearance.chatBubbleShape,
+                    ),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: hasWallpaper ? 10 : 0,
+                        sigmaY: hasWallpaper ? 10 : 0,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isOwnMessage && senderName != null) ...[
+                              Text(
+                                senderName!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                            ],
+                            Text(
+                              message.text,
+                              style: TextStyle(
+                                color: isOwnMessage
+                                    ? Colors.white
+                                    : theme.colorScheme.onSurface,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatTimestamp(message.timestamp),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isOwnMessage
+                                        ? Colors.white.withOpacity(0.7)
+                                        : theme.colorScheme.onSurface
+                                              .withOpacity(0.5),
+                                  ),
+                                ),
+                                if (isOwnMessage) ...[
+                                  const SizedBox(width: 4),
+                                  _buildStatusIcon(message.status),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          if (isOwnMessage) ...[
-            const SizedBox(width: 8),
-            _buildAvatar(context),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -104,134 +161,52 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// Build sender name for received messages
-  Widget _buildSenderName(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        message.senderId,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-
-  /// Build message text
-  Widget _buildMessageText(
-    BuildContext context,
-    bool isOwnMessage,
-    double fontSize,
-  ) {
-    return Text(
-      message.text,
-      style: TextStyle(
-        fontSize: fontSize,
-        color: isOwnMessage
-            ? Colors.white
-            : Theme.of(context).colorScheme.onSurface,
-      ),
-    );
-  }
-
-  /// Build message info (timestamp, status, mode indicator)
-  Widget _buildMessageInfo(BuildContext context, bool isOwnMessage) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildModeIndicator(context, isOwnMessage),
-        const SizedBox(width: 4),
-        Text(
-          _formatTimestamp(message.timestamp),
-          style: TextStyle(
-            fontSize: 11,
-            color: isOwnMessage
-                ? Colors.white.withOpacity(0.8)
-                : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          ),
-        ),
-        if (isOwnMessage) ...[
-          const SizedBox(width: 4),
-          _buildStatusIndicator(context),
-        ],
-      ],
-    );
-  }
-
-  /// Build mode indicator (online/offline)
-  Widget _buildModeIndicator(BuildContext context, bool isOwnMessage) {
-    final color = isOwnMessage
-        ? Colors.white.withOpacity(0.8)
-        : Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
-
-    return Icon(
-      message.isOffline ? Icons.wifi_off : Icons.wifi,
-      size: 12,
-      color: color,
-    );
-  }
-
-  /// Build status indicator for sent messages
-  Widget _buildStatusIndicator(BuildContext context) {
+  /// Build status icon for messages
+  Widget _buildStatusIcon(MessageStatus status) {
     IconData icon;
     Color color;
 
-    switch (message.status) {
+    switch (status) {
       case MessageStatus.pending:
         icon = Icons.access_time;
-        color = Colors.orange;
+        color = Colors.white.withOpacity(0.6);
         break;
       case MessageStatus.sent:
         icon = Icons.check;
-        color = Colors.white.withOpacity(0.8);
+        color = Colors.white.withOpacity(0.7);
         break;
       case MessageStatus.delivered:
         icon = Icons.done_all;
-        color = Colors.blue;
+        color = Colors.white.withOpacity(0.7);
         break;
       case MessageStatus.read:
         icon = Icons.done_all;
-        color = Colors.green;
+        color = Colors.white; // Full bright for read
         break;
       case MessageStatus.failed:
         icon = Icons.error_outline;
-        color = Colors.red;
+        color = Colors.redAccent;
         break;
     }
 
-    return Icon(icon, size: 12, color: color);
-  }
-
-  /// Get bubble background color
-  Color _getBubbleColor(BuildContext context, bool isOwnMessage) {
-    if (isOwnMessage) {
-      return Theme.of(context).colorScheme.primary;
-    } else {
-      return Theme.of(context).colorScheme.surfaceContainerHighest;
-    }
+    return Icon(icon, size: 13, color: color);
   }
 
   /// Get border radius for bubble
   BorderRadius _getBorderRadius(bool isOwnMessage, ChatBubbleShape shape) {
-    // Default radii
     var radius = const Radius.circular(18);
     var smallRadius = const Radius.circular(4);
 
     switch (shape) {
       case ChatBubbleShape.rounded:
-        // Pill shape
         radius = const Radius.circular(24);
         smallRadius = const Radius.circular(24);
         break;
       case ChatBubbleShape.square:
-        // Box shape
         radius = const Radius.circular(4);
         smallRadius = const Radius.circular(4);
         break;
       case ChatBubbleShape.standard:
-        // Standard tail shape
         radius = const Radius.circular(18);
         smallRadius = const Radius.circular(4);
         break;
@@ -270,72 +245,5 @@ class MessageBubble extends StatelessWidget {
     } else {
       return '${timestamp.day}/${timestamp.month}';
     }
-  }
-}
-
-/// Widget for displaying message status with tooltip
-class MessageStatusWidget extends StatelessWidget {
-  final MessageStatus status;
-  final bool isOffline;
-
-  const MessageStatusWidget({
-    super.key,
-    required this.status,
-    required this.isOffline,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: _getStatusTooltip(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isOffline ? Icons.wifi_off : Icons.wifi,
-            size: 12,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          ),
-          const SizedBox(width: 2),
-          Icon(_getStatusIcon(), size: 12, color: _getStatusColor(context)),
-        ],
-      ),
-    );
-  }
-
-  IconData _getStatusIcon() {
-    switch (status) {
-      case MessageStatus.pending:
-        return Icons.access_time;
-      case MessageStatus.sent:
-        return Icons.check;
-      case MessageStatus.delivered:
-        return Icons.done_all;
-      case MessageStatus.read:
-        return Icons.done_all;
-      case MessageStatus.failed:
-        return Icons.error_outline;
-    }
-  }
-
-  Color _getStatusColor(BuildContext context) {
-    switch (status) {
-      case MessageStatus.pending:
-        return Colors.orange;
-      case MessageStatus.sent:
-        return Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
-      case MessageStatus.delivered:
-        return Colors.blue;
-      case MessageStatus.read:
-        return Colors.green;
-      case MessageStatus.failed:
-        return Colors.red;
-    }
-  }
-
-  String _getStatusTooltip() {
-    final modeText = isOffline ? 'Offline' : 'Online';
-    final statusText = status.name.toUpperCase();
-    return '$modeText - $statusText';
   }
 }

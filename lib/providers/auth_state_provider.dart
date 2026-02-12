@@ -7,6 +7,7 @@ import '../services/user_service.dart';
 import '../services/virtual_number_service.dart';
 import '../services/location_service.dart';
 import '../utils/random_data_generator.dart';
+import '../services/follow_service.dart';
 
 enum AuthenticationState {
   initial,
@@ -52,6 +53,10 @@ class AuthStateProvider with ChangeNotifier {
         if (profile != null) {
           _currentUserId = profile.id;
           _setState(AuthenticationState.authenticated);
+
+          // Ensure following Boofer Official
+          FollowService.instance.ensureFollowingBoofer(profile.id);
+
           print('✅ User session restored successfully from Supabase');
           return;
         }
@@ -141,6 +146,9 @@ class AuthStateProvider with ChangeNotifier {
         await UserService.setCurrentUser(newUser);
         _currentUserId = newUser.id;
         _setState(AuthenticationState.authenticated);
+
+        // Ensure following Boofer Official
+        FollowService.instance.ensureFollowingBoofer(newUser.id);
       } else {
         throw Exception('Failed to sign in anonymously via Supabase');
       }

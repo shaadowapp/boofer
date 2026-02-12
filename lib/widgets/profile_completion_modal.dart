@@ -26,11 +26,11 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
   late TextEditingController _nameController;
   late TextEditingController _usernameController;
   late TextEditingController _bioController;
-  
+
   bool _isLoading = false;
   String? _usernameError;
   bool _isCheckingUsername = false;
-  
+
   late AnimationController _slideController;
   late AnimationController _fadeController;
   late Animation<Offset> _slideAnimation;
@@ -39,43 +39,39 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize controllers with current user data
     _nameController = TextEditingController(text: widget.initialUser.fullName);
-    _usernameController = TextEditingController(text: widget.initialUser.handle);
+    _usernameController = TextEditingController(
+      text: widget.initialUser.handle,
+    );
     _bioController = TextEditingController(text: widget.initialUser.bio);
-    
+
     // Setup animations
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    
+
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+        );
 
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
 
     // Start animations
     _fadeController.forward();
     _slideController.forward();
-    
+
     // Listen to username changes for validation
     _usernameController.addListener(_validateUsername);
   }
@@ -92,7 +88,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
 
   void _validateUsername() async {
     final username = _usernameController.text.trim();
-    
+
     if (username.isEmpty) {
       setState(() {
         _usernameError = null;
@@ -112,7 +108,8 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
 
     if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
       setState(() {
-        _usernameError = 'Username can only contain letters, numbers, and underscores';
+        _usernameError =
+            'Username can only contain letters, numbers, and underscores';
         _isCheckingUsername = false;
       });
       return;
@@ -134,7 +131,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
     });
 
     try {
-      final isAvailable = await UserService.instance.isHandleAvailable(username);
+      final isAvailable = await UserService.instance.isHandleAvailable(
+        username,
+      );
       if (mounted) {
         setState(() {
           _usernameError = isAvailable ? null : 'Username is already taken';
@@ -180,13 +179,16 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
 
     try {
       print('🔄 Saving comprehensive profile data...');
-      
+
       // Generate virtual number for the user
       final virtualNumberService = VirtualNumberService();
-      print('🔄 Attempting to generate virtual number for user: ${widget.initialUser.id}');
-      
-      final virtualNumber = await virtualNumberService.generateAndAssignVirtualNumber(widget.initialUser.id);
-      
+      print(
+        '🔄 Attempting to generate virtual number for user: ${widget.initialUser.id}',
+      );
+
+      final virtualNumber = await virtualNumberService
+          .generateAndAssignVirtualNumber(widget.initialUser.id);
+
       if (virtualNumber == null) {
         print('❌ Virtual number generation failed');
         _showError('Failed to generate virtual number. Please try again.');
@@ -194,7 +196,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
       }
 
       print('✅ Virtual number generated successfully: $virtualNumber');
-      
+
       // Update user profile with all details including virtual number
       final updatedUser = widget.initialUser.copyWith(
         fullName: name,
@@ -206,7 +208,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
 
       // Use comprehensive sync service
       final syncService = UserProfileSyncService();
-      
+
       // Sync profile with completion metadata and virtual number
       final success = await syncService.syncUserProfile(
         updatedUser,
@@ -238,7 +240,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
           await LocalStorageService.setString('user_type', 'completed_user');
           print('✅ Profile completion status saved to local storage');
         } catch (e) {
-          print('⚠️ Warning: Could not save profile completion to local storage: $e');
+          print(
+            '⚠️ Warning: Could not save profile completion to local storage: $e',
+          );
           // Continue anyway - this is not critical
         }
 
@@ -276,10 +280,13 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
         // Close modal with animation
         await _slideController.reverse();
         await _fadeController.reverse();
-        
+
         // Set timestamp to prevent showing modal again soon
-        await LocalStorageService.setString('profile_modal_last_dismissed', DateTime.now().toIso8601String());
-        
+        await LocalStorageService.setString(
+          'profile_modal_last_dismissed',
+          DateTime.now().toIso8601String(),
+        );
+
         widget.onCompleted();
       } else {
         _showError('Failed to update profile. Please try again.');
@@ -314,7 +321,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return WillPopScope(
       onWillPop: () async => false, // Prevent dismissal
       child: Material(
@@ -330,13 +337,11 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                 color: Colors.black.withOpacity(0.7),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    color: Colors.black.withOpacity(0.2),
-                  ),
+                  child: Container(color: Colors.black.withOpacity(0.2)),
                 ),
               ),
             ),
-            
+
             // Modal content
             Center(
               child: SlideTransition(
@@ -409,34 +414,56 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                             ),
                           ],
                         ),
-                        
+
                         const SizedBox(height: 32),
-                        
+
                         // Profile picture placeholder
                         Center(
                           child: Stack(
                             children: [
                               CircleAvatar(
                                 radius: 50,
-                                backgroundColor: AppColors.trustBlue.withOpacity(0.1),
-                                backgroundImage: widget.initialUser.profilePicture != null
-                                    ? NetworkImage(widget.initialUser.profilePicture!)
-                                    : null,
-                                child: widget.initialUser.profilePicture == null
-                                    ? Text(
-                                        widget.initialUser.fullName
-                                            .split(' ')
-                                            .map((e) => e.isNotEmpty ? e[0] : '')
-                                            .take(2)
-                                            .join()
-                                            .toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.trustBlue,
-                                        ),
+                                backgroundColor: AppColors.trustBlue
+                                    .withOpacity(0.1),
+                                backgroundImage:
+                                    widget.initialUser.profilePicture != null &&
+                                        widget.initialUser.profilePicture!
+                                            .startsWith('http')
+                                    ? NetworkImage(
+                                        widget.initialUser.profilePicture!,
                                       )
                                     : null,
+                                child:
+                                    widget.initialUser.avatar != null &&
+                                        widget.initialUser.avatar!.isNotEmpty
+                                    ? Text(
+                                        widget.initialUser.avatar!,
+                                        style: const TextStyle(fontSize: 40),
+                                      )
+                                    : (widget.initialUser.profilePicture ==
+                                                  null ||
+                                              !widget
+                                                  .initialUser
+                                                  .profilePicture!
+                                                  .startsWith('http')
+                                          ? Text(
+                                              widget.initialUser.fullName
+                                                  .split(' ')
+                                                  .map(
+                                                    (e) => e.isNotEmpty
+                                                        ? e[0]
+                                                        : '',
+                                                  )
+                                                  .take(2)
+                                                  .join()
+                                                  .toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.trustBlue,
+                                              ),
+                                            )
+                                          : null),
                               ),
                               Positioned(
                                 bottom: 0,
@@ -448,7 +475,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                     color: AppColors.trustBlue,
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: AppColors.scaffoldBackground(isDark),
+                                      color: AppColors.scaffoldBackground(
+                                        isDark,
+                                      ),
                                       width: 2,
                                     ),
                                   ),
@@ -462,9 +491,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                             ],
                           ),
                         ),
-                        
+
                         const SizedBox(height: 32),
-                        
+
                         // Name field
                         _buildTextField(
                           controller: _nameController,
@@ -472,9 +501,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           hint: 'Enter your full name',
                           icon: Icons.person,
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // Username field
                         _buildTextField(
                           controller: _usernameController,
@@ -493,17 +522,18 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                     ),
                                   ),
                                 )
-                              : _usernameError == null && _usernameController.text.isNotEmpty
-                                  ? const Icon(
-                                      Icons.check_circle,
-                                      color: AppColors.trustBlue,
-                                      size: 20,
-                                    )
-                                  : null,
+                              : _usernameError == null &&
+                                    _usernameController.text.isNotEmpty
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.trustBlue,
+                                  size: 20,
+                                )
+                              : null,
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // Bio field
                         _buildTextField(
                           controller: _bioController,
@@ -512,9 +542,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                           icon: Icons.info,
                           maxLines: 3,
                         ),
-                        
+
                         const SizedBox(height: 24),
-                        
+
                         // Features info
                         Container(
                           padding: const EdgeInsets.all(16),
@@ -537,16 +567,28 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              _buildFeatureItem('🆔', 'Unique Boofer ID (Virtual Number)'),
-                              _buildFeatureItem('👥', 'Connect with friends easily'),
-                              _buildFeatureItem('🔍', 'Be discoverable by others'),
-                              _buildFeatureItem('💬', 'Start chatting immediately'),
+                              _buildFeatureItem(
+                                '🆔',
+                                'Unique Boofer ID (Virtual Number)',
+                              ),
+                              _buildFeatureItem(
+                                '👥',
+                                'Connect with friends easily',
+                              ),
+                              _buildFeatureItem(
+                                '🔍',
+                                'Be discoverable by others',
+                              ),
+                              _buildFeatureItem(
+                                '💬',
+                                'Start chatting immediately',
+                              ),
                             ],
                           ),
                         ),
-                        
+
                         const SizedBox(height: 32),
-                        
+
                         // Save button
                         ElevatedButton(
                           onPressed: _isLoading ? null : _saveProfile,
@@ -568,7 +610,10 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     ),
                                     SizedBox(width: 12),
@@ -583,16 +628,21 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                   ),
                                 ),
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // Skip button (subtle)
                         TextButton(
-                          onPressed: _isLoading ? null : () async {
-                            // Set timestamp to prevent showing modal again soon
-                            await LocalStorageService.setString('profile_modal_last_dismissed', DateTime.now().toIso8601String());
-                            widget.onCompleted();
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  // Set timestamp to prevent showing modal again soon
+                                  await LocalStorageService.setString(
+                                    'profile_modal_last_dismissed',
+                                    DateTime.now().toIso8601String(),
+                                  );
+                                  widget.onCompleted();
+                                },
                           child: const Text(
                             'Skip for now',
                             style: TextStyle(
@@ -645,7 +695,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
     int maxLines = 1,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -663,13 +713,8 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: AppColors.lightSecondaryText,
-            ),
-            prefixIcon: Icon(
-              icon,
-              color: AppColors.lightSecondaryText,
-            ),
+            hintStyle: const TextStyle(color: AppColors.lightSecondaryText),
+            prefixIcon: Icon(icon, color: AppColors.lightSecondaryText),
             suffixIcon: suffix,
             errorText: errorText,
             filled: true,
@@ -695,18 +740,14 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.danger,
-              ),
+              borderSide: const BorderSide(color: AppColors.danger),
             ),
             contentPadding: EdgeInsets.symmetric(
               horizontal: 16,
               vertical: maxLines > 1 ? 16 : 12,
             ),
           ),
-          style: TextStyle(
-            color: AppColors.primaryText(isDark),
-          ),
+          style: TextStyle(color: AppColors.primaryText(isDark)),
         ),
       ],
     );

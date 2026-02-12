@@ -9,11 +9,7 @@ class FollowersScreen extends StatefulWidget {
   final String userId;
   final String? userName;
 
-  const FollowersScreen({
-    super.key,
-    required this.userId,
-    this.userName,
-  });
+  const FollowersScreen({super.key, required this.userId, this.userName});
 
   @override
   State<FollowersScreen> createState() => _FollowersScreenState();
@@ -24,7 +20,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FriendRequestProvider>().loadFollowers(widget.userId);
+      context.read<FollowProvider>().loadFollowers(widget.userId);
     });
   }
 
@@ -33,22 +29,20 @@ class _FollowersScreenState extends State<FollowersScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.userName != null 
+          widget.userName != null
               ? '${widget.userName}\'s Followers'
               : 'Followers',
         ),
         elevation: 0,
       ),
-      body: Consumer<FriendRequestProvider>(
+      body: Consumer<FollowProvider>(
         builder: (context, followProvider, child) {
           final followers = followProvider.getFollowers(widget.userId);
           final isLoading = followProvider.isLoading;
           final error = followProvider.error;
 
           if (isLoading && followers.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (error != null && followers.isEmpty) {
@@ -77,7 +71,10 @@ class _FollowersScreenState extends State<FollowersScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      followProvider.loadFollowers(widget.userId, refresh: true);
+                      followProvider.loadFollowers(
+                        widget.userId,
+                        refresh: true,
+                      );
                     },
                     child: const Text('Retry'),
                   ),
@@ -135,7 +132,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   Widget _buildFollowerItem(
     BuildContext context,
     User user,
-    FriendRequestProvider followProvider,
+    FollowProvider followProvider,
   ) {
     final currentUserId = followProvider.currentUserId;
     final isCurrentUser = user.id == currentUserId;
@@ -149,21 +146,26 @@ class _FollowersScreenState extends State<FollowersScreen> {
             // User avatar
             CircleAvatar(
               radius: 24,
-              backgroundImage: user.profilePicture != null
+              backgroundImage:
+                  user.profilePicture != null &&
+                      user.profilePicture!.startsWith('http')
                   ? NetworkImage(user.profilePicture!)
                   : null,
-              child: user.profilePicture == null
-                  ? Text(
-                      user.initials,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              child: user.avatar != null && user.avatar!.isNotEmpty
+                  ? Text(user.avatar!)
+                  : (user.profilePicture == null ||
+                            !user.profilePicture!.startsWith('http')
+                        ? Text(
+                            user.initials,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null),
             ),
             const SizedBox(width: 12),
-            
+
             // User info
             Expanded(
               child: Column(
@@ -193,7 +195,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
                 ],
               ),
             ),
-            
+
             // Follow button or remove option
             if (!isCurrentUser) ...[
               const SizedBox(width: 12),
@@ -221,10 +223,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
                 ),
               ] else ...[
                 // Show follow button for other users' followers
-                FollowButton(
-                  user: user,
-                  compact: true,
-                ),
+                FollowButton(user: user, compact: true),
               ],
             ],
           ],
@@ -236,7 +235,7 @@ class _FollowersScreenState extends State<FollowersScreen> {
   void _showRemoveFollowerDialog(
     BuildContext context,
     User user,
-    FriendRequestProvider followProvider,
+    FollowProvider followProvider,
   ) {
     showDialog(
       context: context,
@@ -254,9 +253,9 @@ class _FollowersScreenState extends State<FollowersScreen> {
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              
+
               final success = await followProvider.removeFollower(user.id);
-              
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -265,8 +264,8 @@ class _FollowersScreenState extends State<FollowersScreen> {
                           ? 'Removed ${user.displayName} from followers'
                           : 'Failed to remove follower',
                     ),
-                    backgroundColor: success 
-                        ? null 
+                    backgroundColor: success
+                        ? null
                         : Theme.of(context).colorScheme.error,
                   ),
                 );

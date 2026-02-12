@@ -10,6 +10,7 @@ import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/unified_friend_card.dart';
 import 'archived_chats_screen.dart';
+import 'friend_chat_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -88,7 +89,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No friends yet',
+                          'No chats yet',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Theme.of(
@@ -318,9 +319,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
       id: friend.id,
       email: '', // Friend model doesn't have email
       fullName: friend.name,
-      handle: friend.virtualNumber.replaceAll('+', '').replaceAll(' ', ''),
+      handle: friend.handle,
       virtualNumber: friend.virtualNumber,
-      profilePicture: friend.avatar,
+      profilePicture: friend.avatar != null && friend.avatar!.startsWith('http')
+          ? friend.avatar
+          : null,
+      avatar: friend.avatar != null && !friend.avatar!.startsWith('http')
+          ? friend.avatar
+          : null,
       status: friend.isOnline ? UserStatus.online : UserStatus.offline,
       bio: '',
       isDiscoverable: true,
@@ -337,6 +343,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
         showOnlineStatus: true,
         showActionButton:
             false, // Hide action button in lobby (they're already friends)
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FriendChatScreen(
+                recipientId: friend.id,
+                recipientName: friend.name,
+                recipientHandle: friend.handle,
+                recipientAvatar: friend.avatar ?? '',
+              ),
+            ),
+          );
+        },
       ),
     );
   }

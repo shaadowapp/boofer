@@ -4,15 +4,15 @@ import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
 import '../models/message_model.dart';
 import '../models/network_state.dart';
-import '../services/friend_request_service.dart';
+import '../services/follow_service.dart';
 import '../services/supabase_service.dart';
+import '../core/constants.dart';
 
 /// Privacy-focused chat service for local message management
 class ChatService {
   final DatabaseManager _database;
   final ErrorHandler _errorHandler;
-  final FriendRequestService _friendRequestService =
-      FriendRequestService.instance;
+  final FollowService _followService = FollowService.instance;
   final SupabaseService _supabaseService = SupabaseService.instance;
   final Map<String, List<Message>> _messageCache = {};
   final StreamController<List<Message>> _messagesController =
@@ -106,11 +106,19 @@ class ChatService {
         return userId == userId1;
       }
 
-      // Check if users are friends
-      return await _friendRequestService.areFriends(
-        userId1: userId1,
-        userId2: userId2,
+      // Allow if either user is Boofer
+      if (userId1 == AppConstants.booferId ||
+          userId2 == AppConstants.booferId) {
+        return true;
+      }
+
+      // Otherwise, check if users are mutual follows (friends)
+      final status = await _followService.getRelationshipStatus(
+        currentUserId: userId1,
+        targetUserId: userId2,
       );
+
+      return status == 'mutual';
     } catch (e) {
       return false;
     }
@@ -126,16 +134,22 @@ class ChatService {
     String? mediaUrl,
   }) async {
     try {
-      // Validate friendship before sending message
+      // Validate following status before sending message
       if (receiverId != null && receiverId != senderId) {
-        final canSend = await _friendRequestService.areFriends(
-          userId1: senderId,
-          userId2: receiverId,
-        );
-        if (!canSend) {
-          throw Exception(
-            'You can only send messages to friends. Send a friend request first.',
+        final isBooferRecipient = receiverId == AppConstants.booferId;
+        final isBooferSender = senderId == AppConstants.booferId;
+
+        if (!isBooferRecipient && !isBooferSender) {
+          final status = await _followService.getRelationshipStatus(
+            currentUserId: senderId,
+            targetUserId: receiverId,
           );
+
+          if (status != 'mutual') {
+            throw Exception(
+              'Private messaging is restricted to mutual follows.',
+            );
+          }
         }
       }
 

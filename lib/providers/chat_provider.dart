@@ -2,18 +2,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
+import '../services/follow_service.dart';
 import '../services/chat_service.dart';
 import '../services/user_service.dart';
-import '../services/friend_request_service.dart';
 import '../models/message_model.dart';
 import '../models/friend_model.dart';
 import '../models/user_model.dart';
+import '../services/supabase_service.dart';
+import '../core/constants.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
   final ErrorHandler _errorHandler;
 
-  static const String booferId = '00000000-0000-4000-8000-000000000000';
+  static const String booferId = AppConstants.booferId;
 
   List<Message> _messages = [];
   bool _isLoading = false;
@@ -188,23 +190,44 @@ class ChatProvider with ChangeNotifier {
 
       print('📱 Loading real friends for user: ${currentUser.id}');
 
-      final friendRequestService = FriendRequestService.instance;
-      final friendUsers = await friendRequestService.getFriends(
+      final followService = FollowService.instance;
+      final friendUsers = await followService.getFriends(
         userId: currentUser.id,
       );
 
       print('✅ Loaded ${friendUsers.length} friends from Firestore');
 
+      // Fetch latest conversation data to get last messages
+      final supabaseService = SupabaseService.instance;
+      final conversationData = await supabaseService.getUserConversations(
+        currentUser.id,
+      );
+
+      // Create a map for quick lookup
+      final convMap = {
+        for (var conv in conversationData)
+          (conv['participants'] as List).firstWhere(
+            (id) => id != currentUser.id,
+            orElse: () => '',
+          ): conv,
+      };
+
       // Convert User objects to Friend objects
       _friends = friendUsers.map((user) {
+        final conv = convMap[user.id];
+
         return Friend(
           id: user.id,
           name: user.fullName,
           handle: user.handle,
           virtualNumber: user.virtualNumber ?? 'No number',
           avatar: user.profilePicture,
-          lastMessage: 'Start a conversation',
-          lastMessageTime: DateTime.now(),
+          lastMessage: conv?['lastMessage'] ?? 'Start a conversation',
+          lastMessageTime: conv != null
+              ? DateTime.parse(conv['lastMessageTime'])
+              : DateTime.now().subtract(
+                  const Duration(days: 30),
+                ), // Old if no messages
           unreadCount: 0,
           isOnline: user.status == UserStatus.online,
           isArchived: false,
@@ -213,6 +236,7 @@ class ChatProvider with ChangeNotifier {
 
       // ALWAYS add Boofer Official to the list if not already present
       if (!_friends.any((f) => f.id == booferId)) {
+        final booferConv = convMap[booferId];
         _friends.insert(
           0,
           Friend(
@@ -221,8 +245,10 @@ class ChatProvider with ChangeNotifier {
             handle: 'boofer',
             virtualNumber: 'BOOFER-001',
             avatar: '🛸',
-            lastMessage: 'Welcome to Boofer! 🛸',
-            lastMessageTime: DateTime.now(),
+            lastMessage: booferConv?['lastMessage'] ?? 'Welcome to Boofer! 🛸',
+            lastMessageTime: booferConv != null
+                ? DateTime.parse(booferConv['lastMessageTime'])
+                : DateTime.now(),
             unreadCount: 0,
             isOnline: true,
             isArchived: false,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 import '../services/supabase_service.dart';
 import '../services/user_service.dart';
@@ -10,9 +11,11 @@ import '../models/user_model.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
 import 'help_screen.dart';
-import 'friends_screen.dart';
 import 'user_search_screen.dart';
 import 'appearance_settings_screen.dart';
+import 'followers_screen.dart';
+import 'following_screen.dart';
+import '../providers/follow_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -225,6 +228,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
+      // Refresh follow stats
+      if (user != null) {
+        final followProvider = context.read<FollowProvider>();
+        await followProvider.loadFollowStats(user.id);
+      }
+
       setState(() {
         _currentUser = user;
         _fullNameController.text = user?.fullName ?? '';
@@ -432,13 +441,18 @@ Download Boofer for secure messaging!
                       ),
                     );
                     break;
-                  case 'friends':
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const FriendsScreen(),
-                      ),
-                    );
+                  case 'followers':
+                    if (_currentUser != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FollowersScreen(
+                            userId: _currentUser!.id,
+                            userName: _currentUser!.fullName,
+                          ),
+                        ),
+                      );
+                    }
                     break;
                   case 'discover':
                     Navigator.push(
@@ -460,12 +474,12 @@ Download Boofer for secure messaging!
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(
-                  value: 'friends',
+                  value: 'followers',
                   child: Row(
                     children: [
                       Icon(Icons.people_outline),
                       SizedBox(width: 12),
-                      Text('Friends'),
+                      Text('Followers'),
                     ],
                   ),
                 ),
@@ -860,38 +874,59 @@ Download Boofer for secure messaging!
   }
 
   Widget _buildStatsRow(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              '${_currentUser?.friendsCount ?? 0}',
-              'Friends',
-              Icons.people_outline,
-              theme,
-            ),
+    if (_currentUser == null) return const SizedBox.shrink();
+
+    return Consumer<FollowProvider>(
+      builder: (context, followProvider, child) {
+        final stats = followProvider.getFollowStats(_currentUser!.id);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => FollowersScreen(
+                        userId: _currentUser!.id,
+                        userName: _currentUser!.fullName,
+                      ),
+                    ),
+                  ),
+                  child: _buildStatCard(
+                    '${stats?.followersCount ?? 0}',
+                    'Followers',
+                    Icons.people_outline,
+                    theme,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => FollowingScreen(
+                        userId: _currentUser!.id,
+                        userName: _currentUser!.fullName,
+                      ),
+                    ),
+                  ),
+                  child: _buildStatCard(
+                    '${stats?.followingCount ?? 0}',
+                    'Following',
+                    Icons.person_outline,
+                    theme,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              '${_currentUser?.followerCount ?? 0}',
-              'Followers',
-              Icons.person_add_outlined,
-              theme,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              '${(_currentUser?.followingCount ?? 0) < 1 ? 1 : (_currentUser?.followingCount ?? 1)}',
-              'Following',
-              Icons.person_outline,
-              theme,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

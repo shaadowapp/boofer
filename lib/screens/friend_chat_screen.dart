@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import '../services/chat_service.dart';
-import '../services/friend_request_service.dart';
+import '../services/follow_service.dart';
 import '../services/user_service.dart';
+import '../core/constants.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
@@ -33,8 +35,7 @@ class FriendChatScreen extends StatefulWidget {
 
 class _FriendChatScreenState extends State<FriendChatScreen> {
   late final ChatService _chatService;
-  final FriendRequestService _friendRequestService =
-      FriendRequestService.instance;
+  final FollowService _followService = FollowService.instance;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
 
@@ -44,8 +45,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   bool _loading = true;
   bool _canChat = false;
   bool _isBlocked = false;
-  bool _isFriend = false;
-  bool _friendRequestSent = false;
+  bool _isMutual = false;
+  bool _isFollowing = false;
   User? _recipientUser;
   late StreamSubscription<List<Message>> _messagesSubscription;
   late StreamSubscription<Message> _newMessageSubscription;
@@ -86,16 +87,19 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       );
 
       // Check relationship status
-      final relationData = await _friendRequestService.getRelationshipStatus(
-        currentUser.id,
-        widget.recipientId,
+      final relationshipStatus = await _followService.getRelationshipStatus(
+        currentUserId: currentUser.id,
+        targetUserId: widget.recipientId,
       );
 
-      final relationshipStatus = relationData['status'] as String;
+      final isBoofer = widget.recipientId == AppConstants.booferId;
+      final isMutual = relationshipStatus == 'mutual';
+      final isFollowing = relationshipStatus == 'following';
 
-      final isFriend = relationshipStatus == 'friends';
-      final canChat = isFriend; // For now chat is only for friends
-      final friendRequestSent = relationshipStatus == 'request_sent';
+      // Can chat if it's Boofer OR if mutual follow
+      // (Optionally allow if following, but user said "boofer common friend" so mutual is safer for others)
+      final canChat = isBoofer || isMutual;
+
       const isBlocked = false; // TODO: Implement block check if needed
 
       // Create recipient user object
@@ -110,15 +114,25 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         isDiscoverable: true,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        profilePicture:
+            widget.recipientAvatar != null &&
+                widget.recipientAvatar!.startsWith('http')
+            ? widget.recipientAvatar
+            : null,
+        avatar:
+            widget.recipientAvatar != null &&
+                !widget.recipientAvatar!.startsWith('http')
+            ? widget.recipientAvatar
+            : null,
       );
 
       setState(() {
         _currentUserId = currentUser.id;
         _conversationId = conversationId;
         _canChat = canChat;
-        _isFriend = isFriend;
+        _isMutual = isMutual;
         _isBlocked = isBlocked;
-        _friendRequestSent = friendRequestSent;
+        _isFollowing = isFollowing || isMutual;
         _recipientUser = recipientUser;
         _loading = false;
       });
@@ -131,8 +145,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         _messagesSubscription = _chatService.messagesStream.listen((messages) {
           if (mounted) {
             setState(() {
-              // Combine real messages with demo messages for now
-              _messages = [..._messages, ...messages];
+              _messages = messages;
             });
             _scrollToBottom();
           }
@@ -270,117 +283,265 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        _scrollController.jumpTo(0.0);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appearance = Provider.of<AppearanceProvider>(context);
+    final isOfficial =
+        widget.recipientId == '00000000-0000-4000-8000-000000000000';
+
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onTap: _showUserProfile,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.recipientName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (widget.recipientHandle != null)
-                Text(
-                  '@${widget.recipientHandle}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.normal,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        elevation: 0,
-        actions: [
-          // Show voice and video call buttons only if they are friends
-          if (_isFriend) ...[
-            IconButton(
-              onPressed: _startVoiceCall,
-              icon: const Icon(Icons.call),
-              tooltip: 'Voice call',
-            ),
-            IconButton(
-              onPressed: _startVideoCall,
-              icon: const Icon(Icons.videocam),
-              tooltip: 'Video call',
-            ),
+      extendBodyBehindAppBar: true,
+      appBar: _buildModernAppBar(theme, isOfficial),
+      body: appearance.getWallpaperWidget(
+        child: Column(
+          children: [
+            Expanded(child: _buildMessagesList()),
+            _buildModernInputArea(theme),
           ],
-          // Show add friend button if not friends, not blocked, and no pending request
-          if (!_isFriend && !_isBlocked && !_friendRequestSent)
-            IconButton(
-              onPressed: _sendFriendRequest,
-              icon: const Icon(Icons.person_add),
-              tooltip: 'Follow',
-            ),
-          // Show pending status if friend request was sent
-          if (!_isFriend && !_isBlocked && _friendRequestSent)
-            const IconButton(
-              onPressed: null, // Disabled
-              icon: Icon(Icons.hourglass_empty),
-              tooltip: 'Friend request sent',
-            ),
-          // Always show the 3-dot menu button
-          IconButton(
-            onPressed: _showMoreOptionsBottomSheet,
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'More options',
-          ),
-        ],
+        ),
       ),
-      body: _buildBody(),
     );
   }
 
-  Widget _buildBody() {
-    final appearanceProvider = Provider.of<AppearanceProvider>(context);
+  PreferredSizeWidget _buildModernAppBar(ThemeData theme, bool isOfficial) {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kToolbarHeight + 8),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AppBar(
+            backgroundColor: theme.scaffoldBackgroundColor.withOpacity(0.7),
+            elevation: 0,
+            centerTitle: false,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: InkWell(
+              onTap: _navigateToProfile,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
+                  children: [
+                    Hero(
+                      tag: 'avatar_${widget.recipientId}',
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: theme.colorScheme.primary.withOpacity(
+                          0.1,
+                        ),
+                        backgroundImage:
+                            widget.recipientAvatar != null &&
+                                widget.recipientAvatar!.startsWith('http')
+                            ? NetworkImage(widget.recipientAvatar!)
+                            : null,
+                        child:
+                            widget.recipientAvatar != null &&
+                                !widget.recipientAvatar!.startsWith('http') &&
+                                (widget.recipientAvatar!.length <= 2 ||
+                                    widget.recipientAvatar!.runes.length <= 2)
+                            ? Text(
+                                widget.recipientAvatar!,
+                                style: const TextStyle(fontSize: 18),
+                              )
+                            : (widget.recipientAvatar == null ||
+                                      widget.recipientAvatar!.isEmpty ||
+                                      !widget.recipientAvatar!.startsWith(
+                                        'http',
+                                      )
+                                  ? Text(
+                                      widget.recipientName[0].toUpperCase(),
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.recipientName,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isOfficial) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.verified,
+                                  size: 16,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            _isMutual ? 'Online' : 'Click to view profile',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: _isMutual
+                                  ? Colors.green
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                      0.6,
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              if (_isMutual) ...[
+                IconButton(
+                  icon: const Icon(Icons.videocam_outlined),
+                  onPressed: _startVideoCall,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.call_outlined),
+                  onPressed: _startVoiceCall,
+                ),
+              ],
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: _showMoreOptionsBottomSheet,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-    if (_loading) {
-      return appearanceProvider.getWallpaperWidget(
-            child: const Center(child: CircularProgressIndicator()),
-          ) ??
-          Container(child: const Center(child: CircularProgressIndicator()));
-    }
+  void _navigateToProfile() {
+    Navigator.pushNamed(context, '/profile', arguments: widget.recipientId);
+  }
 
+  Widget _buildModernInputArea(ThemeData theme) {
     if (!_canChat) {
-      return appearanceProvider.getWallpaperWidget(
-            child: _buildFriendOnlyScreen(),
-          ) ??
-          Container(child: _buildFriendOnlyScreen());
+      return _buildFriendOnlyScreen();
     }
 
-    return appearanceProvider.getWallpaperWidget(
-          child: Column(
-            children: [
-              Expanded(child: _buildMessagesList()),
-              _buildChatInput(),
-            ],
+    if (_isBlocked) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        color: theme.colorScheme.errorContainer.withOpacity(0.3),
+        child: const Center(
+          child: Text(
+            'You have blocked this user',
+            style: TextStyle(color: Colors.red),
           ),
-        ) ??
-        Container(
-          child: Column(
-            children: [
-              Expanded(child: _buildMessagesList()),
-              _buildChatInput(),
-            ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        12,
+        8,
+        12,
+        12 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor.withOpacity(0.2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.1),
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    color: theme.colorScheme.primary,
+                  ),
+                  onPressed: _showAttachmentOptions,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: const InputDecoration(
+                      hintText: 'Type a message...',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    maxLines: 5,
+                    minLines: 1,
+                    onChanged: (value) {
+                      setState(() {});
+                    },
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _messageController.text.trim().isEmpty
+                      ? IconButton(
+                          key: const ValueKey('mic'),
+                          icon: Icon(
+                            Icons.mic_none,
+                            color: theme.colorScheme.primary,
+                          ),
+                          onPressed: () {},
+                        )
+                      : Container(
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            key: const ValueKey('send'),
+                            icon: const Icon(
+                              Icons.send,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            onPressed: () {
+                              final text = _messageController.text;
+                              if (text.trim().isNotEmpty) {
+                                _handleSendMessage(text);
+                                _messageController.clear();
+                              }
+                            },
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
-        );
+        ),
+      ),
+    );
   }
 
   Widget _buildFriendOnlyScreen() {
@@ -391,8 +552,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     return Center(
       child: FriendOnlyMessageWidget(
         user: _recipientUser!,
-        onFriendRequestSent: () {
-          // Refresh the chat state after friend request is sent
+        onFollowChanged: () {
+          // Refresh the chat state after follow status changes
           _initializeChat();
         },
       ),
@@ -400,19 +561,31 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   Widget _buildMessagesList() {
+    if (_loading && _messages.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     if (_messages.isEmpty) {
       return _buildEmptyState();
     }
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      reverse: true,
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + kToolbarHeight + 20,
+        bottom: 20,
+      ),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
-        final message = _messages[index];
+        // With reverse: true, index 0 is the bottom (latest)
+        final message = _messages[_messages.length - 1 - index];
         return MessageBubble(
           message: message,
           currentUserId: _currentUserId!,
+          senderName: message.senderId == _currentUserId
+              ? null
+              : widget.recipientName,
           onTap: () => _handleMessageTap(message),
           onLongPress: () => _handleMessageLongPress(message),
         );
@@ -443,76 +616,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.outline,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChatInput() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              onSubmitted: (text) {
-                _handleSendMessage(text);
-                _messageController.clear();
-              },
-              textInputAction: TextInputAction.send,
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () {
-              final text = _messageController.text;
-              if (text.trim().isNotEmpty) {
-                _handleSendMessage(text);
-                _messageController.clear();
-              }
-            },
-            icon: const Icon(Icons.send),
-            style: IconButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () {
-              // Handle attachment
-              _showAttachmentOptions();
-            },
-            icon: const Icon(Icons.attach_file),
-            style: IconButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -699,10 +802,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   Future<void> _startVoiceCall() async {
     if (_currentUserId == null) return;
 
-    if (!_isFriend) {
+    if (!_isMutual) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can only call friends'),
+          content: Text('You can only call mutual follows'),
           backgroundColor: Colors.red,
         ),
       );
@@ -721,10 +824,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   Future<void> _startVideoCall() async {
     if (_currentUserId == null) return;
 
-    if (!_isFriend) {
+    if (!_isMutual) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You can only call friends'),
+          content: Text('You can only call mutual follows'),
           backgroundColor: Colors.red,
         ),
       );
@@ -740,25 +843,25 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     );
   }
 
-  Future<void> _sendFriendRequest() async {
+  Future<void> _sendFollowRequest() async {
     if (_currentUserId == null) return;
 
     try {
       // Show loading state
       setState(() {
-        _friendRequestSent = true;
+        _isFollowing = true;
       });
 
-      // Send friend request
-      await _friendRequestService.sendFriendRequest(
-        fromUserId: _currentUserId!,
-        toUserId: widget.recipientId,
+      // Follow the user
+      await _followService.followUser(
+        followerId: _currentUserId!,
+        followingId: widget.recipientId,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Friend request sent to ${widget.recipientName}'),
+            content: Text('You are now following ${widget.recipientName}'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
@@ -767,13 +870,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     } catch (e) {
       // Revert state on error
       setState(() {
-        _friendRequestSent = false;
+        _isFollowing = false;
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send friend request: $e'),
+            content: Text('Failed to follow user: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -806,8 +909,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         // await _friendshipService.blockUser(_currentUserId!, widget.recipientId);
         setState(() {
           _isBlocked = true;
-          _isFriend = false;
-          _friendRequestSent = false;
+          _isMutual = false;
+          _isFollowing = false;
         });
 
         if (mounted) {
@@ -941,30 +1044,32 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 _showUserProfile();
               },
             ),
-            // Show add friend option if not friends, not blocked, and no pending request
-            if (!_isFriend && !_isBlocked && !_friendRequestSent)
+            // Show add friend option if not mutual, not blocked, and not following
+            if (!_isMutual && !_isBlocked && !_isFollowing)
               _buildBottomSheetOption(
                 icon: Icons.person_add,
                 title: 'Follow',
                 onTap: () {
                   Navigator.pop(context);
-                  _sendFriendRequest();
+                  _sendFollowRequest();
                 },
               ),
-            // Show pending status if friend request was sent
-            if (!_isFriend && !_isBlocked && _friendRequestSent)
+            // Show following status if following but not mutual
+            if (!_isMutual && !_isBlocked && _isFollowing)
               _buildBottomSheetOption(
-                icon: Icons.hourglass_empty,
-                title: 'Friend request sent',
+                icon: Icons.check_circle_outline,
+                title: 'Following',
                 onTap: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Friend request is pending')),
+                    const SnackBar(
+                      content: Text('You are following this user'),
+                    ),
                   );
                 },
               ),
-            // Show media & files only for friends
-            if (_isFriend)
+            // Show media & files only for mutual follows
+            if (_isMutual)
               _buildBottomSheetOption(
                 icon: Icons.photo_library,
                 title: 'Media & files',

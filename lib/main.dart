@@ -10,7 +10,7 @@ import 'providers/username_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/auth_state_provider.dart';
 import 'providers/supabase_user_provider.dart';
-import 'providers/friend_request_provider.dart';
+import 'providers/follow_provider.dart';
 import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
 
@@ -102,7 +102,7 @@ class BooferApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => AuthStateProvider()),
         ChangeNotifierProvider(create: (_) => SupabaseUserProvider()),
-        ChangeNotifierProvider(create: (_) => FriendRequestProvider()),
+        ChangeNotifierProvider(create: (_) => FollowProvider()),
         ChangeNotifierProvider(
           create: (_) => ChatProvider(
             chatService: chatService,

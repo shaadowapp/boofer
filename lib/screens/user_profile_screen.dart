@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/user_service.dart';
-import '../services/friend_request_service.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart';
+import '../providers/follow_provider.dart';
+import '../widgets/follow_button.dart';
+import 'package:provider/provider.dart';
 import 'friend_chat_screen.dart';
 
 /// Dynamic user profile screen (like Instagram)
@@ -19,8 +21,7 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  final FriendRequestService _friendRequestService =
-      FriendRequestService.instance;
+  // Removed FriendRequestService
   final SupabaseService _supabaseService = SupabaseService.instance;
 
   static const String booferId = '00000000-0000-4000-8000-000000000000';
@@ -30,8 +31,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   User? _currentUser;
   bool _isLoading = true;
   bool _isOwnProfile = false;
-  String _relationshipStatus = 'none';
-  String? _requestId;
   bool _loadingAction = false;
 
   @override
@@ -57,15 +56,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _profileUser = await _supabaseService.getUserProfile(widget.userId);
       }
 
-      // Load friendship status if viewing another user
+      // Load follow stats if viewing another user
       if (!_isOwnProfile && _currentUser != null && _profileUser != null) {
-        final relationData = await _friendRequestService.getRelationshipStatus(
-          _currentUser!.id,
-          _profileUser!.id,
-        );
-
-        _relationshipStatus = relationData['status'] as String;
-        _requestId = relationData['requestId'] as String?;
+        final followProvider = context.read<FollowProvider>();
+        await followProvider.loadFollowStats(widget.userId);
+        await followProvider.checkFollowStatus([widget.userId]);
       }
 
       setState(() => _isLoading = false);
@@ -255,6 +250,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     }
 
+    // Check if hero avatar exists
+    if (_profileUser?.avatar != null && _profileUser!.avatar!.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: theme.colorScheme.primary.withOpacity(0.1),
+        ),
+        child: Text(
+          _profileUser!.avatar!,
+          style: TextStyle(fontSize: size * 0.5),
+        ),
+      );
+    }
+
     return _buildInitialsAvatar(size, theme);
   }
 
@@ -387,172 +399,68 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final isFriend = _relationshipStatus == 'friends';
-
     return Row(
       children: [
-        // Follow/Following/Requested button
-        Expanded(flex: isFriend ? 1 : 2, child: _buildFollowButton(theme)),
+        // Follow/Following button
+        Expanded(child: _buildFollowButton(theme)),
 
-        // Message button (only if friends)
-        if (isFriend) ...[
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _openChat,
-              icon: const Icon(Icons.message_outlined, size: 18),
-              label: const Text('Message'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 24,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30), // Pill shape
-                ),
+        const SizedBox(width: 12),
+
+        // Message button
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _openChat,
+            icon: const Icon(Icons.message_outlined, size: 18),
+            label: const Text('Message'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30), // Pill shape
               ),
             ),
           ),
-        ],
+        ),
       ],
     );
   }
 
   Widget _buildFollowButton(ThemeData theme) {
-    // SPECIAL CASE: Boofer Official cannot be unfollowed
-    if (_isBoofer) {
-      return OutlinedButton(
-        onPressed: null, // Disabled
-        style: OutlinedButton.styleFrom(
-          foregroundColor: theme.colorScheme.primary,
-          side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
-            const SizedBox(width: 4),
-            const Text('Followed'),
-          ],
-        ),
-      );
-    }
-
-    switch (_relationshipStatus) {
-      case 'none':
-        return ElevatedButton(
-          onPressed: _sendFollowRequest,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30), // Pill shape
-            ),
-          ),
-          child: const Text('Follow'),
-        );
-
-      case 'request_sent':
-        return OutlinedButton(
-          onPressed: null,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30), // Pill shape
-            ),
-          ),
-          child: const Text('Requested'),
-        );
-
-      case 'request_received':
-        return ElevatedButton(
-          onPressed: _acceptRequest,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade600,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30), // Pill shape
-            ),
-          ),
-          child: const Text('Accept Request'),
-        );
-
-      case 'friends':
-        return OutlinedButton(
-          onPressed: null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.green.shade700,
-            side: BorderSide(color: Colors.green.shade300),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30), // Pill shape
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check, size: 18, color: Colors.green.shade700),
-              const SizedBox(width: 4),
-              const Text('Following'),
-            ],
-          ),
-        );
-
-      default:
-        return ElevatedButton(
-          onPressed: _sendFollowRequest,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30), // Pill shape
-            ),
-          ),
-          child: const Text('Follow'),
-        );
-    }
+    if (_profileUser == null) return const SizedBox.shrink();
+    return FollowButton(user: _profileUser!);
   }
 
   Widget _buildStatsRow(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              '${_profileUser?.friendsCount ?? 0}',
-              'Friends',
-              Icons.people_outline,
-              theme,
-            ),
+    if (_profileUser == null) return const SizedBox.shrink();
+
+    return Consumer<FollowProvider>(
+      builder: (context, followProvider, child) {
+        final stats = followProvider.getFollowStats(_profileUser!.id);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  '${stats?.followersCount ?? 0}',
+                  'Followers',
+                  Icons.people_outline,
+                  theme,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  '${stats?.followingCount ?? 0}',
+                  'Following',
+                  Icons.person_outline,
+                  theme,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              '${_profileUser?.followerCount ?? 0}',
-              'Followers',
-              Icons.person_add_outlined,
-              theme,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              '${_profileUser?.followingCount ?? 0}',
-              'Following',
-              Icons.person_outline,
-              theme,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -684,58 +592,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   // Actions
-  Future<void> _sendFollowRequest() async {
-    if (_currentUser == null || _profileUser == null) return;
-
-    setState(() => _loadingAction = true);
-
-    final success = await _friendRequestService.sendFriendRequest(
-      fromUserId: _currentUser!.id,
-      toUserId: _profileUser!.id,
-      message: 'Hi! I\'d like to connect with you.',
-    );
-
-    if (mounted) {
-      if (success) {
-        await _loadProfile();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Follow request sent to ${_profileUser!.displayName}',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      setState(() => _loadingAction = false);
-    }
-  }
-
-  Future<void> _acceptRequest() async {
-    if (_currentUser == null || _requestId == null) return;
-
-    setState(() => _loadingAction = true);
-
-    final success = await _friendRequestService.acceptFriendRequest(
-      requestId: _requestId!,
-      userId: _currentUser!.id,
-    );
-
-    if (mounted) {
-      if (success) {
-        await _loadProfile();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'You are now friends with ${_profileUser!.displayName}',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      setState(() => _loadingAction = false);
-    }
-  }
 
   void _openChat() {
     if (_profileUser == null) return;

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../widgets/friendship_status_widget.dart';
+import 'follow_button.dart';
 
-/// Widget shown when trying to message someone who isn't a friend
+/// Widget shown when trying to message someone who isn't a mutual follow
 class FriendOnlyMessageWidget extends StatelessWidget {
   final User user;
-  final VoidCallback? onFriendRequestSent;
+  final VoidCallback? onFollowChanged;
 
   const FriendOnlyMessageWidget({
     super.key,
     required this.user,
-    this.onFriendRequestSent,
+    this.onFollowChanged,
   });
 
   @override
@@ -35,7 +35,7 @@ class FriendOnlyMessageWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Friends Only',
+            'Connections Only',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.primary,
@@ -43,17 +43,14 @@ class FriendOnlyMessageWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You can only send messages to friends. Send a friend request to ${user.displayName} to start chatting.',
+            'Private messaging is restricted to mutual follows. Follow ${user.displayName} to start the connection.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          FriendshipStatusWidget(
-            user: user,
-            onStatusChanged: onFriendRequestSent,
-          ),
+          FollowButton(user: user, onStatusChanged: onFollowChanged),
           const SizedBox(height: 16),
           Row(
             children: [

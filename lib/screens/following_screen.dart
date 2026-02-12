@@ -9,11 +9,7 @@ class FollowingScreen extends StatefulWidget {
   final String userId;
   final String? userName;
 
-  const FollowingScreen({
-    super.key,
-    required this.userId,
-    this.userName,
-  });
+  const FollowingScreen({super.key, required this.userId, this.userName});
 
   @override
   State<FollowingScreen> createState() => _FollowingScreenState();
@@ -24,7 +20,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FriendRequestProvider>().loadFollowing(widget.userId);
+      context.read<FollowProvider>().loadFollowing(widget.userId);
     });
   }
 
@@ -33,22 +29,20 @@ class _FollowingScreenState extends State<FollowingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.userName != null 
+          widget.userName != null
               ? '${widget.userName} Following'
               : 'Following',
         ),
         elevation: 0,
       ),
-      body: Consumer<FriendRequestProvider>(
+      body: Consumer<FollowProvider>(
         builder: (context, followProvider, child) {
           final following = followProvider.getFollowing(widget.userId);
           final isLoading = followProvider.isLoading;
           final error = followProvider.error;
 
           if (isLoading && following.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (error != null && following.isEmpty) {
@@ -77,7 +71,10 @@ class _FollowingScreenState extends State<FollowingScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      followProvider.loadFollowing(widget.userId, refresh: true);
+                      followProvider.loadFollowing(
+                        widget.userId,
+                        refresh: true,
+                      );
                     },
                     child: const Text('Retry'),
                   ),
@@ -149,7 +146,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
   Widget _buildFollowingItem(
     BuildContext context,
     User user,
-    FriendRequestProvider followProvider,
+    FollowProvider followProvider,
   ) {
     final currentUserId = followProvider.currentUserId;
     final isCurrentUser = user.id == currentUserId;
@@ -164,21 +161,26 @@ class _FollowingScreenState extends State<FollowingScreen> {
             // User avatar
             CircleAvatar(
               radius: 24,
-              backgroundImage: user.profilePicture != null
+              backgroundImage:
+                  user.profilePicture != null &&
+                      user.profilePicture!.startsWith('http')
                   ? NetworkImage(user.profilePicture!)
                   : null,
-              child: user.profilePicture == null
-                  ? Text(
-                      user.initials,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              child: user.avatar != null && user.avatar!.isNotEmpty
+                  ? Text(user.avatar!)
+                  : (user.profilePicture == null ||
+                            !user.profilePicture!.startsWith('http')
+                        ? Text(
+                            user.initials,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null),
             ),
             const SizedBox(width: 12),
-            
+
             // User info
             Expanded(
               child: Column(
@@ -208,7 +210,7 @@ class _FollowingScreenState extends State<FollowingScreen> {
                 ],
               ),
             ),
-            
+
             // Unfollow button
             if (!isCurrentUser && canUnfollow) ...[
               const SizedBox(width: 12),

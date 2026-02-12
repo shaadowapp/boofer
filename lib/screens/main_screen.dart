@@ -19,7 +19,7 @@ import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
 
 import '../providers/auth_state_provider.dart';
-import '../providers/friend_request_provider.dart';
+import '../providers/follow_provider.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/profile_picture_service.dart';
@@ -27,9 +27,9 @@ import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../providers/username_provider.dart';
-import '../services/connection_service.dart';
 import '../utils/svg_icons.dart';
 import '../services/notification_service.dart';
+import '../services/follow_service.dart';
 import '../l10n/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
@@ -46,8 +46,6 @@ class _MainScreenState extends State<MainScreen> {
   bool _isSearching = false;
   List<User> _filteredUsers = [];
   List<User> _allUsers = [];
-  final ConnectionService _connectionService = ConnectionService.instance;
-  int _pendingRequestsCount = 0;
   User? _currentUser; // Store current user for profile picture
   StreamSubscription<String?>?
   _profilePictureSubscription; // Listen to profile picture changes
@@ -69,19 +67,7 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _initializeMainScreen();
-    _loadPendingRequests();
     _initializeProviders();
-
-    // Listen to connection request updates
-    _connectionService.connectionRequestsStream.listen((requests) {
-      if (mounted) {
-        setState(() {
-          _pendingRequestsCount = _connectionService
-              .getPendingRequests()
-              .length;
-        });
-      }
-    });
 
     // Listen to profile picture updates (broadcast)
     _profilePictureSubscription = ProfilePictureService
@@ -160,6 +146,9 @@ class _MainScreenState extends State<MainScreen> {
             _currentAvatar = userProfile.avatar;
           });
 
+          // Ensure following Boofer Official
+          FollowService.instance.ensureFollowingBoofer(userProfile.id);
+
           // Load avatar color from local storage
           final storedUserData = await LocalStorageService.getString(
             'current_user',
@@ -179,21 +168,15 @@ class _MainScreenState extends State<MainScreen> {
           }
         }
 
-        // Initialize FriendRequestProvider
+        // Initialize FollowProvider
         if (userProfile != null) {
-          final friendRequestProvider = context.read<FriendRequestProvider>();
-          friendRequestProvider.initialize(userProfile.id);
+          final followProvider = context.read<FollowProvider>();
+          followProvider.initialize(userProfile.id);
         }
       }
     } catch (e) {
       // Error handled silently
     }
-  }
-
-  void _loadPendingRequests() {
-    setState(() {
-      _pendingRequestsCount = _connectionService.getPendingRequests().length;
-    });
   }
 
   Future<void> _initializeMainScreen() async {
@@ -519,24 +502,33 @@ class _MainScreenState extends State<MainScreen> {
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.primary.withOpacity(0.1),
-                  backgroundImage: user.profilePicture != null
+                  backgroundImage:
+                      user.profilePicture != null &&
+                          user.profilePicture!.startsWith('http')
                       ? NetworkImage(user.profilePicture!)
                       : null,
-                  child: user.profilePicture == null
-                      ? Text(
-                          user.fullName
-                              .split(' ')
-                              .map((e) => e.isNotEmpty ? e[0] : '')
-                              .take(2)
-                              .join()
-                              .toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        )
-                      : null,
+                  child: user.avatar != null && user.avatar!.isNotEmpty
+                      ? Text(user.avatar!, style: const TextStyle(fontSize: 24))
+                      : (user.profilePicture == null ||
+                                !user.profilePicture!.startsWith('http')
+                            ? Text(
+                                user.fullName.isNotEmpty
+                                    ? user.fullName
+                                          .split(' ')
+                                          .map((e) => e.isNotEmpty ? e[0] : '')
+                                          .take(2)
+                                          .join()
+                                          .toUpperCase()
+                                    : user.handle.isNotEmpty
+                                    ? user.handle[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              )
+                            : null),
                 ),
                 if (user.status == UserStatus.online)
                   Positioned(
@@ -954,31 +946,6 @@ class _MainScreenState extends State<MainScreen> {
                         },
                         tooltip: 'Discover',
                       ),
-                      if (_pendingRequestsCount > 0)
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '$_pendingRequestsCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),

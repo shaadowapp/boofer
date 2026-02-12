@@ -8,7 +8,7 @@ import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
-import 'requested_screen.dart';
+
 import 'archived_chats_screen.dart';
 import 'archive_settings_screen.dart';
 import 'account_settings_screen.dart';
@@ -450,24 +450,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
 
                 // Account Actions
-                if (_matchesSearch('requested sign out logout'))
+                if (_matchesSearch('sign out logout'))
                   _buildSettingsSection(
                     context,
                     title: 'Actions',
                     children: [
-                      _buildColorfulTile(
-                        context,
-                        title: 'Sent Requests',
-                        subtitle: 'View sent friend requests',
-                        icon: Icons.person_add_outlined,
-                        color: Colors.blue,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const RequestedScreen(),
-                          ),
-                        ),
-                      ),
                       _buildColorfulTile(
                         context,
                         title: 'Sign Out',

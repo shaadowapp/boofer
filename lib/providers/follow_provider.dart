@@ -4,8 +4,8 @@ import '../models/user_model.dart';
 import '../models/friend_request_model.dart';
 import '../services/follow_service.dart';
 
-/// Provider for managing friend request system state (Instagram/Snapchat style)
-class FriendRequestProvider extends ChangeNotifier {
+/// Provider for managing follow system state (Instagram style)
+class FollowProvider extends ChangeNotifier {
   final FollowService _followService = FollowService.instance;
 
   // State
@@ -427,6 +427,3 @@ class FriendRequestProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-
-// Backward compatibility alias
-typedef FollowProvider = FriendRequestProvider;

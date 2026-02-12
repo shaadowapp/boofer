@@ -1,26 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 import '../screens/friend_chat_screen.dart';
+import 'follow_button.dart';
+import '../core/constants.dart';
 
 /// Unified friend profile card with 3 segments:
 /// 1. Profile picture (clickable -> opens profile screen)
-/// 2. User info (name, handle, virtual number) (clickable -> opens chat if friend)
-/// 3. Action button (Follow/Following/etc.) (only shown if not friend and showActionButton is true)
+/// 2. User info (name, handle, virtual number) (clickable -> opens chat)
+/// 3. Action button (Follow/Following button)
 class UnifiedFriendCard extends StatefulWidget {
   final User user;
   final VoidCallback? onStatusChanged;
   final bool showOnlineStatus;
-  final bool
-  showActionButton; // New parameter to control action button visibility
+  final bool showActionButton;
+  final VoidCallback? onTap;
 
   const UnifiedFriendCard({
     super.key,
     required this.user,
     this.onStatusChanged,
     this.showOnlineStatus = true,
-    this.showActionButton = true, // Default to true
+    this.showActionButton = true,
+    this.onTap,
   });
 
   @override
@@ -28,90 +31,68 @@ class UnifiedFriendCard extends StatefulWidget {
 }
 
 class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
-  final FriendRequestService _friendRequestService =
-      FriendRequestService.instance;
-  String _relationshipStatus = 'none';
-  String? _requestId;
-  bool _loading = false;
   String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _loadFriendshipStatus();
+    _loadCurrentUserId();
   }
 
-  Future<void> _loadFriendshipStatus() async {
+  Future<void> _loadCurrentUserId() async {
     final currentUser = await UserService.getCurrentUser();
-    if (currentUser == null) return;
-
-    if (mounted) {
+    if (currentUser != null && mounted) {
       setState(() {
         _currentUserId = currentUser.id;
-        _loading = true;
-      });
-    }
-
-    final relationData = await _friendRequestService.getRelationshipStatus(
-      currentUser.id,
-      widget.user.id,
-    );
-
-    if (mounted) {
-      setState(() {
-        _relationshipStatus = relationData['status'] as String;
-        _requestId = relationData['requestId'] as String?;
-        _loading = false;
       });
     }
   }
-
-  bool get _isFriend => _relationshipStatus == 'friends';
-  bool get _shouldShowButton =>
-      widget.showActionButton &&
-      _currentUserId != null &&
-      _currentUserId != widget.user.id &&
-      !_isFriend;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(
-          bottom: BorderSide(
-            color: theme.dividerColor.withOpacity(0.3),
-            width: 0.5,
+    return InkWell(
+      onTap: widget.onTap ?? _handleInfoTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            bottom: BorderSide(
+              color: theme.dividerColor.withOpacity(0.1),
+              width: 0.5,
+            ),
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          // SEGMENT 1: Profile Picture (clickable -> profile screen)
-          _buildProfilePictureSegment(theme),
+        child: Row(
+          children: [
+            // SEGMENT 1: Profile Picture
+            _buildProfilePictureSegment(theme),
 
-          const SizedBox(width: 16),
+            const SizedBox(width: 16),
 
-          // SEGMENT 2: User Info (clickable -> chat if friend)
-          Expanded(child: _buildUserInfoSegment(theme)),
+            // SEGMENT 2: User Info
+            Expanded(child: _buildUserInfoSegment(theme)),
 
-          // SEGMENT 3: Action Button (only if not friend)
-          if (_shouldShowButton) ...[
-            const SizedBox(width: 12),
-            _buildActionButtonSegment(),
+            const SizedBox(width: 8),
+
+            // SEGMENT 3: Action Button
+            if (widget.showActionButton && _currentUserId != widget.user.id)
+              FollowButton(
+                user: widget.user,
+                compact: true,
+                onStatusChanged: widget.onStatusChanged,
+              ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  /// SEGMENT 1: Profile Picture - Opens Profile Screen
   Widget _buildProfilePictureSegment(ThemeData theme) {
     return GestureDetector(
-      onTap: () => _openProfileScreen(),
+      onTap: _openProfileScreen,
       child: Stack(
         children: [
           CircleAvatar(
@@ -119,35 +100,43 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
             backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
             backgroundImage:
                 widget.user.profilePicture != null &&
-                    widget.user.profilePicture!.isNotEmpty
+                    widget.user.profilePicture!.startsWith('http')
                 ? NetworkImage(widget.user.profilePicture!)
                 : null,
-            child:
-                widget.user.profilePicture == null ||
-                    widget.user.profilePicture!.isEmpty
+            child: widget.user.avatar != null && widget.user.avatar!.isNotEmpty
                 ? Text(
-                    widget.user.initials,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary,
-                    ),
+                    widget.user.avatar!,
+                    style: const TextStyle(fontSize: 24),
                   )
-                : null,
+                : (widget.user.profilePicture == null ||
+                          !widget.user.profilePicture!.startsWith('http')
+                      ? Text(
+                          widget.user.fullName.isNotEmpty
+                              ? widget.user.fullName[0].toUpperCase()
+                              : widget.user.handle.isNotEmpty
+                              ? widget.user.handle[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null),
           ),
           if (widget.showOnlineStatus &&
               widget.user.status == UserStatus.online)
             Positioned(
-              bottom: 0,
-              right: 0,
+              right: 2,
+              bottom: 2,
               child: Container(
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50),
+                  color: Colors.green,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: theme.scaffoldBackgroundColor,
+                    color: theme.colorScheme.surface,
                     width: 2,
                   ),
                 ),
@@ -158,259 +147,67 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
     );
   }
 
-  /// SEGMENT 2: User Info - Opens Chat if Friend, otherwise does nothing
   Widget _buildUserInfoSegment(ThemeData theme) {
-    return GestureDetector(
-      onTap: () => _handleInfoTap(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Full name with badges
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  widget.user.displayName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                widget.user.fullName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (widget.user.id == '00000000-0000-4000-8000-000000000000') ...[
-                const SizedBox(width: 4),
-                // Special 'B' Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'B',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.verified,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            ),
+            if (widget.user.id == AppConstants.booferId) ...[
+              const SizedBox(width: 4),
+              Icon(Icons.verified, size: 16, color: theme.colorScheme.primary),
             ],
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          widget.user.formattedHandle,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            fontSize: 14,
           ),
-
-          const SizedBox(height: 4),
-
-          // User handle
+        ),
+        if (widget.user.virtualNumber != null) ...[
+          const SizedBox(height: 2),
           Text(
-            widget.user.formattedHandle,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.primary,
+            widget.user.virtualNumber!,
+            style: TextStyle(
+              color: theme.colorScheme.primary.withOpacity(0.8),
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
-
-          const SizedBox(height: 2),
-
-          // Virtual number
-          if (widget.user.virtualNumber != null &&
-              widget.user.virtualNumber!.isNotEmpty)
-            Text(
-              widget.user.virtualNumber!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
         ],
-      ),
+      ],
     );
   }
 
-  /// SEGMENT 3: Action Button - Only shown if not friend
-  Widget _buildActionButtonSegment() {
-    if (_loading) {
-      return const SizedBox(
-        width: 80,
-        height: 32,
-        child: Center(
-          child: SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-
-    switch (_relationshipStatus) {
-      case 'none':
-        return _buildFollowButton();
-      case 'request_sent':
-        return _buildRequestedButton();
-      case 'request_received':
-        return _buildAcceptButton();
-      case 'friends':
-        return const SizedBox.shrink(); // Don't show button for friends
-      case 'self':
-        return const SizedBox.shrink();
-      default:
-        return _buildFollowButton();
-    }
-  }
-
-  Widget _buildFollowButton() {
-    return ElevatedButton(
-      onPressed: _sendFriendRequest,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        minimumSize: const Size(90, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // Fully rounded
-        ),
-      ),
-      child: const Text(
-        'Follow',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  Widget _buildRequestedButton() {
-    return OutlinedButton(
-      onPressed: null,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.grey.shade600,
-        side: BorderSide(color: Colors.grey.shade300),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        minimumSize: const Size(90, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // Fully rounded
-        ),
-      ),
-      child: const Text(
-        'Requested',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      ),
-    );
-  }
-
-  Widget _buildAcceptButton() {
-    return ElevatedButton(
-      onPressed: _acceptRequest,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green.shade600,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        minimumSize: const Size(90, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // Fully rounded
-        ),
-      ),
-      child: const Text(
-        'Accept',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  // Navigation handlers
   void _openProfileScreen() {
-    Navigator.pushNamed(
-      context,
-      '/profile',
-      arguments: widget.user.id, // Pass user ID to profile screen
-    );
+    Navigator.pushNamed(context, '/profile', arguments: widget.user.id);
   }
 
   void _handleInfoTap() {
-    if (_isFriend) {
-      // Open chat screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => FriendChatScreen(
-            recipientId: widget.user.id,
-            recipientName: widget.user.displayName,
-            recipientHandle: widget.user.handle,
-            recipientAvatar: widget.user.profilePicture ?? '',
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FriendChatScreen(
+          recipientId: widget.user.id,
+          recipientName: widget.user.displayName,
+          recipientHandle: widget.user.handle,
+          recipientAvatar: widget.user.profilePicture ?? '',
         ),
-      );
-    }
-    // If not friend, do nothing (or optionally open profile)
-  }
-
-  Future<void> _sendFriendRequest() async {
-    if (_currentUserId == null) return;
-
-    setState(() => _loading = true);
-
-    final success = await _friendRequestService.sendFriendRequest(
-      fromUserId: _currentUserId!,
-      toUserId: widget.user.id,
-      message: 'Hi! I\'d like to connect with you.',
+      ),
     );
-
-    if (mounted) {
-      setState(() => _loading = false);
-
-      if (success) {
-        // Reload to get the requestId if needed
-        await _loadFriendshipStatus();
-        widget.onStatusChanged?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Follow request sent to ${widget.user.displayName}'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _acceptRequest() async {
-    if (_currentUserId == null || _requestId == null) return;
-
-    setState(() => _loading = true);
-
-    final success = await _friendRequestService.acceptFriendRequest(
-      requestId: _requestId!,
-      userId: _currentUserId!,
-    );
-
-    if (mounted) {
-      setState(() => _loading = false);
-
-      if (success) {
-        await _loadFriendshipStatus();
-        widget.onStatusChanged?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'You are now friends with ${widget.user.displayName}',
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
   }
 }

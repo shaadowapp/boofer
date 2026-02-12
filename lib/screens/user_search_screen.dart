@@ -1,12 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import '../services/supabase_service.dart';
-import '../providers/friend_request_provider.dart';
 import '../widgets/unified_friend_card.dart';
-import 'friend_requests_screen.dart';
 
 class UserSearchScreen extends StatefulWidget {
   const UserSearchScreen({super.key});
@@ -22,7 +19,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   List<User> _suggestedUsers = [];
   List<User> _trendingUsers = [];
   List<User> _recentSearches = [];
-  final Map<String, bool> _followingStatus = {};
+
   bool _loading = false;
   bool _hasSearched = false;
   String? _currentUserId;
@@ -162,56 +159,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         title: const Text('Discover'),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
-        actions: [
-          // Friend Requests button with badge
-          Consumer<FriendRequestProvider>(
-            builder: (context, provider, child) {
-              final receivedCount = provider.receivedRequests.length;
-
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.person_add_outlined),
-                    tooltip: 'Requests',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const FriendRequestsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  if (receivedCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.error,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          receivedCount > 9 ? '9+' : receivedCount.toString(),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onError,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
