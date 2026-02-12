@@ -6,7 +6,7 @@ import 'dart:math' as math;
 
 enum ChatBubbleShape { rounded, square, standard }
 
-enum NavBarStyle { simple, modern, ios, bubble, liquid, neon }
+enum NavBarStyle { simple, modern, ios, bubble, liquid }
 
 class AppearanceProvider extends ChangeNotifier {
   Color _accentColor = const Color(0xFF3B82F6);
