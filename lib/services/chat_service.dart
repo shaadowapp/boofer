@@ -4,33 +4,42 @@ import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
 import '../models/message_model.dart';
 import '../models/network_state.dart';
-import 'friendship_service.dart';
+import '../services/friend_request_service.dart';
+import '../services/supabase_service.dart';
 
 /// Privacy-focused chat service for local message management
 class ChatService {
   final DatabaseManager _database;
   final ErrorHandler _errorHandler;
-  final FriendshipService _friendshipService = FriendshipService.instance;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final Map<String, List<Message>> _messageCache = {};
-  final StreamController<List<Message>> _messagesController = StreamController<List<Message>>.broadcast();
-  final StreamController<Message> _newMessageController = StreamController<Message>.broadcast();
-  final StreamController<NetworkState> _networkStateController = StreamController<NetworkState>.broadcast();
-  
+  final StreamController<List<Message>> _messagesController =
+      StreamController<List<Message>>.broadcast();
+  final StreamController<Message> _newMessageController =
+      StreamController<Message>.broadcast();
+  final StreamController<NetworkState> _networkStateController =
+      StreamController<NetworkState>.broadcast();
+
   Stream<List<Message>> get messagesStream => _messagesController.stream;
   Stream<Message> get newMessageStream => _newMessageController.stream;
   Stream<NetworkState> get networkState => _networkStateController.stream;
-  
+
   ChatService({
     required DatabaseManager database,
     required ErrorHandler errorHandler,
-  }) : _database = database, _errorHandler = errorHandler {
+  }) : _database = database,
+       _errorHandler = errorHandler {
     // Initialize with default network state
-    _networkStateController.add(NetworkState.initial().copyWith(
-      hasInternetConnection: true,
-      isOnlineServiceActive: true,
-    ));
+    _networkStateController.add(
+      NetworkState.initial().copyWith(
+        hasInternetConnection: true,
+        isOnlineServiceActive: true,
+      ),
+    );
   }
-  
+
   /// Load messages for a conversation
   Future<void> loadMessages(String conversationId, String userId) async {
     try {
@@ -38,6 +47,15 @@ class ChatService {
       final canAccess = await canAccessConversation(conversationId, userId);
       if (!canAccess) {
         throw Exception('You don\'t have access to this conversation.');
+      }
+
+      // Subscribe to real-time updates from Supabase
+      final parts = conversationId.split('_');
+      if (parts.length == 3) {
+        _supabaseService.listenToMessages(conversationId, (messages) {
+          _messageCache[conversationId] = messages;
+          _messagesController.add(messages);
+        });
       }
 
       final results = await _database.query(
@@ -48,21 +66,26 @@ class ChatService {
         ''',
         [conversationId],
       );
-      
+
       final messages = results.map((json) => Message.fromJson(json)).toList();
       _messageCache[conversationId] = messages;
       _messagesController.add(messages);
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to load messages: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to load messages: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
 
   /// Validate if user can access a conversation
-  Future<bool> canAccessConversation(String conversationId, String userId) async {
+  Future<bool> canAccessConversation(
+    String conversationId,
+    String userId,
+  ) async {
     try {
       // Extract user IDs from conversation ID (format: conv_userId1_userId2)
       final parts = conversationId.split('_');
@@ -84,12 +107,15 @@ class ChatService {
       }
 
       // Check if users are friends
-      return await _friendshipService.areFriends(userId1, userId2);
+      return await _friendRequestService.areFriends(
+        userId1: userId1,
+        userId2: userId2,
+      );
     } catch (e) {
       return false;
     }
   }
-  
+
   /// Send a new message
   Future<Message?> sendMessage({
     required String conversationId,
@@ -102,9 +128,14 @@ class ChatService {
     try {
       // Validate friendship before sending message
       if (receiverId != null && receiverId != senderId) {
-        final canSend = await _friendshipService.canSendMessage(senderId, receiverId);
+        final canSend = await _friendRequestService.areFriends(
+          userId1: senderId,
+          userId2: receiverId,
+        );
         if (!canSend) {
-          throw Exception('You can only send messages to friends. Send a friend request first.');
+          throw Exception(
+            'You can only send messages to friends. Send a friend request first.',
+          );
         }
       }
 
@@ -122,7 +153,18 @@ class ChatService {
         type: type,
         mediaUrl: mediaUrl,
       );
-      
+
+      // Send to Supabase if receiverId is provided
+      if (receiverId != null) {
+        await _supabaseService.sendMessage(
+          conversationId: conversationId,
+          senderId: senderId,
+          receiverId: receiverId,
+          text: content,
+          type: type,
+        );
+      }
+
       // Save to database
       await _database.insert('messages', {
         'id': message.id,
@@ -137,29 +179,31 @@ class ChatService {
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       });
-      
+
       // Update cache
       if (_messageCache.containsKey(conversationId)) {
         _messageCache[conversationId]!.add(message);
       } else {
         _messageCache[conversationId] = [message];
       }
-      
+
       // Notify listeners
       _messagesController.add(_messageCache[conversationId]!);
       _newMessageController.add(message);
-      
+
       return message;
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to send message: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to send message: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       return null;
     }
   }
-  
+
   /// Mark message as read
   Future<void> markMessageAsRead(String messageId) async {
     try {
@@ -172,7 +216,7 @@ class ChatService {
         where: 'id = ?',
         whereArgs: [messageId],
       );
-      
+
       // Update cache
       for (final messages in _messageCache.values) {
         final messageIndex = messages.indexWhere((m) => m.id == messageId);
@@ -185,14 +229,16 @@ class ChatService {
         }
       }
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to mark message as read: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to mark message as read: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
-  
+
   /// Delete a message
   Future<void> deleteMessage(String messageId) async {
     try {
@@ -201,56 +247,65 @@ class ChatService {
         where: 'id = ?',
         whereArgs: [messageId],
       );
-      
+
       // Remove from cache
       for (final conversationId in _messageCache.keys) {
         _messageCache[conversationId]!.removeWhere((m) => m.id == messageId);
         _messagesController.add(_messageCache[conversationId]!);
       }
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to delete message: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to delete message: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
-  
+
   /// Search messages
-  Future<List<Message>> searchMessages(String query, {String? conversationId}) async {
+  Future<List<Message>> searchMessages(
+    String query, {
+    String? conversationId,
+  }) async {
     try {
       String sql = '''
         SELECT * FROM messages 
         WHERE text LIKE ?
       ''';
       final List<dynamic> args = ['%$query%'];
-      
+
       if (conversationId != null) {
         sql += ' AND conversation_id = ?';
         args.add(conversationId);
       }
-      
+
       sql += ' ORDER BY timestamp DESC LIMIT 50';
-      
+
       final results = await _database.query(sql, args);
       return results.map((json) => Message.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to search messages: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to search messages: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       return [];
     }
   }
-  
+
   /// Get messages for a conversation
   List<Message> getMessages(String conversationId) {
     return _messageCache[conversationId] ?? [];
   }
-  
+
   /// Get recent conversations (only with friends)
-  Future<List<Map<String, dynamic>>> getRecentConversations(String userId) async {
+  Future<List<Map<String, dynamic>>> getRecentConversations(
+    String userId,
+  ) async {
     try {
       final results = await _database.query(
         '''
@@ -267,7 +322,7 @@ class ChatService {
         ''',
         [userId, userId],
       );
-      
+
       // Filter conversations to only include friends
       final validConversations = <Map<String, dynamic>>[];
       for (final conversation in results) {
@@ -276,18 +331,20 @@ class ChatService {
           validConversations.add(conversation);
         }
       }
-      
+
       return validConversations;
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to get recent conversations: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get recent conversations: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       return [];
     }
   }
-  
+
   /// Get unread message count for a conversation
   Future<int> getUnreadCount(String conversationId, String userId) async {
     try {
@@ -300,24 +357,26 @@ class ChatService {
         ''',
         [conversationId, userId, MessageStatus.read.name],
       );
-      
+
       return results.isNotEmpty ? (results.first['count'] as int) : 0;
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to get unread count: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get unread count: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       return 0;
     }
   }
-  
+
   /// Create or get conversation ID for two users
   String getConversationId(String userId1, String userId2) {
     final sortedIds = [userId1, userId2]..sort();
     return 'conv_${sortedIds[0]}_${sortedIds[1]}';
   }
-  
+
   void dispose() {
     _messagesController.close();
     _newMessageController.close();

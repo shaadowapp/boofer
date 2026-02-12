@@ -111,6 +111,17 @@ class LocalStorageService {
     }
   }
 
+  /// KPI: Strictly remove everything from local storage
+  static Future<void> clearAll() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear(); // Wipes all SharedPreferences
+      await _secureStorage.deleteAll(); // Wipes all SecureStorage
+    } catch (e) {
+      throw Exception('Failed to clear all local data: $e');
+    }
+  }
+
   /// Update specific onboarding fields
   static Future<void> updateUserName(String userName) async {
     try {

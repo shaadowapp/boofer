@@ -1,14 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import '../services/supabase_service.dart';
 
 class WritePostScreen extends StatefulWidget {
   final User currentUser;
 
-  const WritePostScreen({
-    super.key,
-    required this.currentUser,
-  });
+  const WritePostScreen({super.key, required this.currentUser});
 
   @override
   State<WritePostScreen> createState() => _WritePostScreenState();
@@ -73,28 +71,48 @@ class _WritePostScreenState extends State<WritePostScreen> {
       _isPosting = true;
     });
 
-    // Simulate posting delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (mounted) {
-      setState(() {
-        _isPosting = false;
-      });
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Post published successfully! 🎉'),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      final success = await SupabaseService.instance.createPost(
+        authorId: widget.currentUser.id,
+        caption: _captionController.text.trim(),
+        imageUrl:
+            _selectedImageType, // Using image style as placeholder for now
       );
 
-      // Go back to home screen
-      Navigator.pop(context, {
-        'caption': _captionController.text.trim(),
-        'imageType': _selectedImageType,
-        'author': widget.currentUser,
-      });
+      if (mounted) {
+        setState(() {
+          _isPosting = false;
+        });
+
+        if (success) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Post published successfully! 🎉'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Go back to home screen
+          Navigator.pop(context, true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to publish post. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPosting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -132,17 +150,18 @@ class _WritePostScreenState extends State<WritePostScreen> {
             // User info
             _buildUserInfo(),
             const SizedBox(height: 24),
-            
+
             // Caption input
             _buildCaptionInput(),
             const SizedBox(height: 24),
-            
+
             // Image selection
             _buildImageSelection(),
             const SizedBox(height: 24),
-            
+
             // Preview
-            if (_selectedImageType != null || _captionController.text.isNotEmpty)
+            if (_selectedImageType != null ||
+                _captionController.text.isNotEmpty)
               _buildPreview(),
           ],
         ),
@@ -155,7 +174,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
       children: [
         CircleAvatar(
           radius: 24,
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.primary.withOpacity(0.1),
           child: Text(
             widget.currentUser.initials,
             style: TextStyle(
@@ -171,9 +192,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
           children: [
             Text(
               widget.currentUser.displayName,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             Text(
               widget.currentUser.formattedHandle,
@@ -193,9 +214,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
       children: [
         Text(
           'What\'s on your mind?',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -204,9 +225,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
           maxLength: 500,
           decoration: InputDecoration(
             hintText: 'Share your thoughts, experiences, or moments...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
@@ -215,7 +234,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
               ),
             ),
             filled: true,
-            fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            fillColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
           ),
           onChanged: (value) {
             setState(() {}); // Rebuild to update preview
@@ -231,9 +252,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
       children: [
         Text(
           'Choose Image Style',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Text(
@@ -256,7 +277,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
           itemBuilder: (context, index) {
             final option = _imageOptions[index];
             final isSelected = _selectedImageType == option['type'];
-            
+
             return GestureDetector(
               onTap: () {
                 setState(() {
@@ -284,11 +305,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            option['icon'],
-                            color: Colors.white,
-                            size: 32,
-                          ),
+                          Icon(option['icon'], color: Colors.white, size: 32),
                           const SizedBox(height: 8),
                           Text(
                             option['name'],
@@ -334,9 +351,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
       children: [
         Text(
           'Preview',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
         Container(
@@ -362,7 +379,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1),
                       child: Text(
                         widget.currentUser.initials,
                         style: TextStyle(
@@ -379,15 +398,17 @@ class _WritePostScreenState extends State<WritePostScreen> {
                         children: [
                           Text(
                             widget.currentUser.displayName,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           Text(
                             'Just now',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.6),
+                                ),
                           ),
                         ],
                       ),
@@ -395,7 +416,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
                   ],
                 ),
               ),
-              
+
               // Preview image
               if (_selectedImageType != null)
                 Container(
@@ -407,7 +428,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
                     child: _buildPreviewImage(),
                   ),
                 ),
-              
+
               // Preview caption
               if (_captionController.text.isNotEmpty)
                 Padding(
@@ -417,22 +438,24 @@ class _WritePostScreenState extends State<WritePostScreen> {
                       children: [
                         TextSpan(
                           text: '${widget.currentUser.displayName} ',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                         ),
                         TextSpan(
                           text: _captionController.text,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              
+
               const SizedBox(height: 16),
             ],
           ),
@@ -446,7 +469,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
       (opt) => opt['type'] == _selectedImageType,
       orElse: () => _imageOptions[0],
     );
-    
+
     if (_selectedImageType == 'pattern') {
       return _buildPatternPreview(option['colors']);
     } else {
@@ -467,11 +490,7 @@ class _WritePostScreenState extends State<WritePostScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 48,
-              color: Colors.white.withOpacity(0.8),
-            ),
+            Icon(icon, size: 48, color: Colors.white.withOpacity(0.8)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -496,11 +515,9 @@ class _WritePostScreenState extends State<WritePostScreen> {
 
   Widget _buildPatternPreview(List<Color> colors) {
     final random = Random(42); // Fixed seed for consistent preview
-    
+
     return Container(
-      decoration: BoxDecoration(
-        color: colors[0],
-      ),
+      decoration: BoxDecoration(color: colors[0]),
       child: Stack(
         children: [
           // Pattern background

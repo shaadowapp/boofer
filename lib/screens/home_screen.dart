@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/user_service.dart';
+import '../services/supabase_service.dart';
 import '../models/user_model.dart';
 import '../providers/username_provider.dart';
 import 'user_search_screen.dart';
@@ -54,27 +55,56 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadCurrentUserFromDatabase() async {
     try {
-      // Get current user data from UserService
+      final supabaseService = SupabaseService.instance;
+
+      // Get current user data
       final currentUser = await UserService.getCurrentUser();
+
       if (currentUser != null && mounted) {
         setState(() {
           _currentUser = currentUser;
           _userNumber = currentUser.virtualNumber;
-          // Load real data from Firestore instead of demo data
-          _nearbyUsers = [];
-          _suggestedUsers = [];
-          _feedPosts = [];
-          _isLoading = false;
         });
-        print('✅ Loaded current user: ${currentUser.fullName}');
+
+        // Fetch other data in parallel
+        final results = await Future.wait([
+          supabaseService.getNearbyUsers(),
+          supabaseService.getSuggestedUsers(),
+          supabaseService.getFeedPosts(),
+        ]);
+
+        if (mounted) {
+          setState(() {
+            _nearbyUsers = results[0] as List<User>;
+            _suggestedUsers = results[1] as List<User>;
+            _feedPosts = (results[2] as List<Map<String, dynamic>>).map((
+              postData,
+            ) {
+              final authorData = postData['author'] as Map<String, dynamic>;
+              return Post(
+                id: postData['id'].toString(),
+                author: User.fromJson(authorData),
+                caption: postData['caption'],
+                imageUrl: postData['image_url'],
+                createdAt: DateTime.parse(postData['created_at']),
+                likes: postData['likes_count'] ?? 0,
+                comments: postData['comments_count'] ?? 0,
+                isLiked: false, // In a real app, check if current user liked it
+              );
+            }).toList();
+            _isLoading = false;
+          });
+        }
+
+        print('✅ Loaded environment from Supabase');
       } else {
-        print('⚠️ No current user found in database');
+        print('⚠️ No current user found');
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('❌ Error loading current user: $e');
+      print('❌ Error loading data from Supabase: $e');
       setState(() {
         _isLoading = false;
       });
@@ -200,10 +230,10 @@ class _HomeScreenState extends State<HomeScreen> {
         status: UserStatus.offline,
       ),
     ];
-    
+
     final posts = <Post>[];
     final random = Random();
-    
+
     final captions = [
       'Just finished an amazing coffee painting! ☕🎨',
       'Beautiful sunset from my travels today 🌅',
@@ -224,19 +254,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
     for (int i = 0; i < 15; i++) {
       final author = friends[random.nextInt(friends.length)];
-      posts.add(Post(
-        id: 'post_$i',
-        author: author,
-        caption: captions[random.nextInt(captions.length)],
-        imageUrl: 'demo_image_$i', // Demo image placeholder
-        createdAt: DateTime.now().subtract(Duration(
-          hours: random.nextInt(48),
-          minutes: random.nextInt(60),
-        )),
-        likes: random.nextInt(100) + 5,
-        comments: random.nextInt(20) + 1,
-        isLiked: random.nextBool(),
-      ));
+      posts.add(
+        Post(
+          id: 'post_$i',
+          author: author,
+          caption: captions[random.nextInt(captions.length)],
+          imageUrl: 'demo_image_$i', // Demo image placeholder
+          createdAt: DateTime.now().subtract(
+            Duration(hours: random.nextInt(48), minutes: random.nextInt(60)),
+          ),
+          likes: random.nextInt(100) + 5,
+          comments: random.nextInt(20) + 1,
+          isLiked: random.nextBool(),
+        ),
+      );
     }
 
     // Sort posts by creation time (newest first)
@@ -259,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildMinimalProfileCard(),
                 ),
               ),
-              
+
               // Feed Posts - Simplified for testing
               SliverList(
                 delegate: SliverChildBuilderDelegate(
@@ -268,20 +299,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (index < _feedPosts.length) {
                       return _buildPostCard(_feedPosts[index]);
                     }
-                    
+
                     // Show discovery sections after posts
                     if (index == _feedPosts.length) {
-                      return _buildDiscoverySection('People Nearby', _nearbyUsers, Icons.location_on);
+                      return _buildDiscoverySection(
+                        'People Nearby',
+                        _nearbyUsers,
+                        Icons.location_on,
+                      );
                     }
-                    
+
                     if (index == _feedPosts.length + 1) {
-                      return _buildDiscoverySection('Suggested for You', _suggestedUsers, Icons.people_outline);
+                      return _buildDiscoverySection(
+                        'Suggested for You',
+                        _suggestedUsers,
+                        Icons.people_outline,
+                      );
                     }
-                    
+
                     // End of feed message
                     return _buildEndOfFeedMessage();
                   },
-                  childCount: _feedPosts.length + 3, // posts + 2 discovery sections + 1 end message
+                  childCount:
+                      _feedPosts.length +
+                      3, // posts + 2 discovery sections + 1 end message
                 ),
               ),
             ],
@@ -292,7 +333,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => WritePostScreen(currentUser: _currentUser!),
+                    builder: (context) =>
+                        WritePostScreen(currentUser: _currentUser!),
                   ),
                 );
               } else {
@@ -332,7 +374,9 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withOpacity(0.1),
                 child: Text(
                   _currentUser?.initials ?? 'AJ',
                   style: TextStyle(
@@ -363,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(width: 16),
-          
+
           // User Details
           Expanded(
             child: Column(
@@ -377,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                
+
                 // Handle
                 Text(
                   _currentUser?.formattedHandle ?? '@alex_johnson',
@@ -387,46 +431,54 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                
+
                 // Virtual Number
                 Row(
                   children: [
                     Icon(
                       Icons.phone_android,
                       size: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _currentUser?.virtualNumber ?? 'VN-2024-001',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                
+
                 // Status and Bio
                 Row(
                   children: [
                     Icon(
-                      _currentUser?.status == UserStatus.online 
-                          ? Icons.circle 
+                      _currentUser?.status == UserStatus.online
+                          ? Icons.circle
                           : Icons.circle_outlined,
                       size: 12,
-                      color: _currentUser?.status == UserStatus.online 
-                          ? Colors.green 
-                          : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      color: _currentUser?.status == UserStatus.online
+                          ? Colors.green
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.5),
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        _currentUser?.status == UserStatus.online 
+                        _currentUser?.status == UserStatus.online
                             ? 'Online • ${_currentUser?.bio ?? "🎨 Digital artist & coffee enthusiast"}'
                             : 'Offline • ${_currentUser?.bio ?? "🎨 Digital artist & coffee enthusiast"}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -437,9 +489,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Explore Button
           Container(
             decoration: BoxDecoration(
@@ -456,7 +508,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -534,7 +589,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         _formatPostTime(post.createdAt),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -550,7 +607,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          
+
           // Post Image - Instagram/Facebook style
           if (post.imageUrl != null)
             Container(
@@ -562,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildPostImage(post),
               ),
             ),
-          
+
           // Post Actions - Instagram style with theme-aware colors
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -576,8 +633,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   icon: Icon(
                     post.isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: post.isLiked 
-                        ? Colors.red 
+                    color: post.isLiked
+                        ? Colors.red
                         : Theme.of(context).colorScheme.onSurface,
                     size: 28,
                   ),
@@ -620,18 +677,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          
+
           // Likes count
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               '${post.likes} likes',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          
+
           // Post Caption
           if (post.caption != null)
             Padding(
@@ -656,7 +713,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          
+
           // Comments preview
           if (post.comments > 0)
             Padding(
@@ -664,11 +721,13 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text(
                 'View all ${post.comments} comments',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ),
-          
+
           const SizedBox(height: 16),
         ],
       ),
@@ -679,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Create different image styles based on post ID for variety
     final random = Random(post.id.hashCode);
     final imageType = random.nextInt(4);
-    
+
     switch (imageType) {
       case 0:
         return _buildGradientImage(post, [Colors.purple, Colors.pink]);
@@ -703,7 +762,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Icons.photo_camera,
       Icons.collections,
     ];
-    
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -751,11 +810,9 @@ class _HomeScreenState extends State<HomeScreen> {
       Colors.amber,
       Colors.deepPurple,
     ];
-    
+
     return Container(
-      decoration: BoxDecoration(
-        color: colors[random.nextInt(colors.length)],
-      ),
+      decoration: BoxDecoration(color: colors[random.nextInt(colors.length)]),
       child: Stack(
         children: [
           // Pattern background
@@ -868,8 +925,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildDiscoveryUserCard(User user) {
     final random = Random(user.id.hashCode);
-    final followerCount = ['1.2K', '5.8K', '12.3K', '890', '25.1K', '3.4K'][random.nextInt(6)];
-    
+    final followerCount = [
+      '1.2K',
+      '5.8K',
+      '12.3K',
+      '890',
+      '25.1K',
+      '3.4K',
+    ][random.nextInt(6)];
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -891,18 +955,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            
+
             // Name
             Text(
               user.displayName,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            
+
             // Bio
             Text(
               user.bio ?? '',
@@ -913,7 +977,7 @@ class _HomeScreenState extends State<HomeScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            
+
             // Followers
             Text(
               '$followerCount followers',
@@ -922,9 +986,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const Spacer(),
-            
+
             // Follow Button
             SizedBox(
               width: double.infinity,
@@ -948,10 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: const Text(
                   'Follow',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ),

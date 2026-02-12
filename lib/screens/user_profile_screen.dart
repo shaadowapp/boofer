@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/user_service.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
+import '../services/supabase_service.dart';
 import '../models/user_model.dart';
 import 'friend_chat_screen.dart';
 
@@ -12,23 +12,23 @@ import 'friend_chat_screen.dart';
 class UserProfileScreen extends StatefulWidget {
   final String userId; // User ID to display
 
-  const UserProfileScreen({
-    super.key,
-    required this.userId,
-  });
+  const UserProfileScreen({super.key, required this.userId});
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  final SupabaseService _supabaseService = SupabaseService.instance;
+
   User? _profileUser;
   User? _currentUser;
   bool _isLoading = true;
   bool _isOwnProfile = false;
-  FriendshipStatus _friendshipStatus = FriendshipStatus.none;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loadingAction = false;
 
   @override
@@ -43,39 +43,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       // Load current user
       _currentUser = await UserService.getCurrentUser();
-      
+
       // Check if viewing own profile
       _isOwnProfile = _currentUser?.id == widget.userId;
-      
+
       // Load profile user data
       if (_isOwnProfile) {
         _profileUser = _currentUser;
       } else {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.userId)
-            .get();
-        
-        if (doc.exists) {
-          _profileUser = User.fromJson(doc.data()!);
-        }
+        _profileUser = await _supabaseService.getUserProfile(widget.userId);
       }
-      
+
       // Load friendship status if viewing another user
       if (!_isOwnProfile && _currentUser != null && _profileUser != null) {
-        _friendshipStatus = await _friendshipService.getFriendshipStatus(
+        final relationData = await _friendRequestService.getRelationshipStatus(
           _currentUser!.id,
           _profileUser!.id,
         );
+
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
       }
-      
+
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
       }
     }
   }
@@ -83,7 +79,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
@@ -140,39 +136,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _profileUser == null
-              ? _buildErrorState()
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-                      
-                      // Profile Header with Avatar
-                      _buildProfileHeader(theme),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Name and Bio Section
-                      _buildNameBioSection(theme),
-                      
-                      const SizedBox(height: 20),
-                      
-                      // Action Buttons (Edit Profile OR Follow/Message)
-                      _buildActionButtons(theme),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Stats Row
-                      _buildStatsRow(theme),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Additional Info Cards
-                      _buildInfoCards(theme),
-                      
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
+          ? _buildErrorState()
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 24),
+
+                  // Profile Header with Avatar
+                  _buildProfileHeader(theme),
+
+                  const SizedBox(height: 16),
+
+                  // Name and Bio Section
+                  _buildNameBioSection(theme),
+
+                  const SizedBox(height: 20),
+
+                  // Action Buttons (Edit Profile OR Follow/Message)
+                  _buildActionButtons(theme),
+
+                  const SizedBox(height: 24),
+
+                  // Stats Row
+                  _buildStatsRow(theme),
+
+                  const SizedBox(height: 24),
+
+                  // Additional Info Cards
+                  _buildInfoCards(theme),
+
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
     );
   }
 
@@ -223,12 +219,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Widget _buildAvatar({double size = 90}) {
     final theme = Theme.of(context);
-    
+
     // Check if profile picture exists
-    final hasRealProfilePicture = _profileUser?.profilePicture != null && 
+    final hasRealProfilePicture =
+        _profileUser?.profilePicture != null &&
         _profileUser!.profilePicture!.isNotEmpty &&
         !_profileUser!.profilePicture!.contains('ui-avatars.com');
-    
+
     if (hasRealProfilePicture) {
       return Container(
         width: size,
@@ -253,7 +250,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
       );
     }
-    
+
     return _buildInitialsAvatar(size, theme);
   }
 
@@ -264,10 +261,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
+          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -308,16 +302,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(
-                Icons.verified,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.verified, size: 20, color: theme.colorScheme.primary),
             ],
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Bio (removed handle from here)
           Text(
             _profileUser?.bio ?? '',
@@ -370,16 +360,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final isFriend = _friendshipStatus == FriendshipStatus.friends;
+    final isFriend = _relationshipStatus == 'friends';
 
     return Row(
       children: [
         // Follow/Following/Requested button
-        Expanded(
-          flex: isFriend ? 1 : 2,
-          child: _buildFollowButton(theme),
-        ),
-        
+        Expanded(flex: isFriend ? 1 : 2, child: _buildFollowButton(theme)),
+
         // Message button (only if friends)
         if (isFriend) ...[
           const SizedBox(width: 12),
@@ -389,7 +376,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               icon: const Icon(Icons.message_outlined, size: 18),
               label: const Text('Message'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 24,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30), // Pill shape
                 ),
@@ -402,8 +392,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildFollowButton(ThemeData theme) {
-    switch (_friendshipStatus) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return ElevatedButton(
           onPressed: _sendFollowRequest,
           style: ElevatedButton.styleFrom(
@@ -416,8 +406,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           child: const Text('Follow'),
         );
-      
-      case FriendshipStatus.requestSent:
+
+      case 'request_sent':
         return OutlinedButton(
           onPressed: null,
           style: OutlinedButton.styleFrom(
@@ -428,8 +418,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           child: const Text('Requested'),
         );
-      
-      case FriendshipStatus.requestReceived:
+
+      case 'request_received':
         return ElevatedButton(
           onPressed: _acceptRequest,
           style: ElevatedButton.styleFrom(
@@ -442,8 +432,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           child: const Text('Accept Request'),
         );
-      
-      case FriendshipStatus.friends:
+
+      case 'friends':
         return OutlinedButton(
           onPressed: null,
           style: OutlinedButton.styleFrom(
@@ -463,24 +453,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ],
           ),
         );
-      
-      case FriendshipStatus.blocked:
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-          decoration: BoxDecoration(
-            color: Colors.red.shade100,
-            borderRadius: BorderRadius.circular(30), // Pill shape
-            border: Border.all(color: Colors.red.shade300),
-          ),
-          child: Center(
-            child: Text(
-              'Blocked',
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontWeight: FontWeight.w500,
-              ),
+
+      default:
+        return ElevatedButton(
+          onPressed: _sendFollowRequest,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30), // Pill shape
             ),
           ),
+          child: const Text('Follow'),
         );
     }
   }
@@ -490,40 +475,49 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Expanded(child: _buildStatCard(
-            '${_profileUser?.friendsCount ?? 0}', 
-            'Friends', 
-            Icons.people_outline, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${_profileUser?.friendsCount ?? 0}',
+              'Friends',
+              Icons.people_outline,
+              theme,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: _buildStatCard(
-            '${_profileUser?.followerCount ?? 0}', 
-            'Followers', 
-            Icons.person_add_outlined, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${_profileUser?.followerCount ?? 0}',
+              'Followers',
+              Icons.person_add_outlined,
+              theme,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: _buildStatCard(
-            '${_profileUser?.followingCount ?? 0}', 
-            'Following', 
-            Icons.person_outline, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${_profileUser?.followingCount ?? 0}',
+              'Following',
+              Icons.person_outline,
+              theme,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String value, String label, IconData icon, ThemeData theme) {
+  Widget _buildStatCard(
+    String value,
+    String label,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.1),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
       ),
       child: Column(
         children: [
@@ -571,7 +565,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildInfoCard(ThemeData theme, {
+  Widget _buildInfoCard(
+    ThemeData theme, {
     required IconData icon,
     required String title,
     required String value,
@@ -581,9 +576,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.1),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -623,7 +616,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown';
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[date.month - 1]} ${date.year}';
   }
 
@@ -633,34 +639,57 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     setState(() => _loadingAction = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUser!.id,
-      _profileUser!.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUser!.id,
+      toUserId: _profileUser!.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
     if (mounted) {
-      setState(() => _loadingAction = false);
-
       if (success) {
-        setState(() => _friendshipStatus = FriendshipStatus.requestSent);
+        await _loadProfile();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Follow request sent to ${_profileUser!.displayName}'),
+            content: Text(
+              'Follow request sent to ${_profileUser!.displayName}',
+            ),
             backgroundColor: Colors.green,
           ),
         );
       }
+      setState(() => _loadingAction = false);
     }
   }
 
   Future<void> _acceptRequest() async {
-    await _loadProfile();
+    if (_currentUser == null || _requestId == null) return;
+
+    setState(() => _loadingAction = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUser!.id,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadProfile();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You are now friends with ${_profileUser!.displayName}',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      setState(() => _loadingAction = false);
+    }
   }
 
   void _openChat() {
     if (_profileUser == null) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -677,7 +706,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void _shareProfile() {
     if (_profileUser == null) return;
 
-    final profileText = '''
+    final profileText =
+        '''
 Check out ${_isOwnProfile ? 'my' : '${_profileUser!.displayName}\'s'} Boofer profile!
 
 Name: ${_profileUser!.fullName.isNotEmpty ? _profileUser!.fullName : _profileUser!.formattedHandle}
@@ -686,7 +716,7 @@ Bio: ${_profileUser!.bio}
 
 Download Boofer for secure messaging!
 ''';
-    
+
     Clipboard.setData(ClipboardData(text: profileText));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -701,7 +731,9 @@ Download Boofer for secure messaging!
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Block User'),
-        content: Text('Are you sure you want to block ${_profileUser?.displayName}?'),
+        content: Text(
+          'Are you sure you want to block ${_profileUser?.displayName}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -711,9 +743,9 @@ Download Boofer for secure messaging!
             onPressed: () {
               Navigator.pop(context);
               // TODO: Implement block functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User blocked')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('User blocked')));
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Block'),
@@ -738,9 +770,9 @@ Download Boofer for secure messaging!
             onPressed: () {
               Navigator.pop(context);
               // TODO: Implement report functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Report submitted')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Report submitted')));
             },
             child: const Text('Report'),
           ),

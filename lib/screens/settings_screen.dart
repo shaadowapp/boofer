@@ -64,8 +64,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
-  @override
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
@@ -729,25 +727,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showSignOutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sign Out'),
         content: const Text(
           'Are you sure you want to sign out? You will need to sign in again to access your account.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
 
               // Show loading indicator
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) => const AlertDialog(
+                builder: (loadingContext) => const AlertDialog(
                   content: Row(
                     children: [
                       CircularProgressIndicator(),
@@ -759,16 +757,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
 
               try {
+                // Use a local navigator reference before the async gap
+                final navigator = Navigator.of(context);
+                final rootNavigator = Navigator.of(
+                  context,
+                  rootNavigator: true,
+                );
+
                 final authProvider = context.read<AuthProvider>();
                 await authProvider.signOut();
 
                 if (context.mounted) {
-                  Navigator.pop(context); // Close loading dialog
+                  // 1. Pop the loading dialog using the root navigator
+                  rootNavigator.pop();
 
-                  // Navigate to onboarding screen
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/onboarding', (route) => false);
+                  // 2. Navigate to onboarding and clear stack
+                  navigator.pushNamedAndRemoveUntil(
+                    '/onboarding',
+                    (route) => false,
+                  );
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -779,7 +786,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               } catch (e) {
                 if (context.mounted) {
-                  Navigator.pop(context); // Close loading dialog
+                  Navigator.of(
+                    context,
+                    rootNavigator: true,
+                  ).pop(); // Close loading dialog
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

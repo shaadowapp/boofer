@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
 import 'home_screen.dart';
@@ -19,7 +19,6 @@ import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
 
 import '../providers/auth_state_provider.dart';
-import '../providers/firestore_user_provider.dart';
 import '../providers/friend_request_provider.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
@@ -58,7 +57,6 @@ class _MainScreenState extends State<MainScreen> {
   late final PageController _pageController = PageController(
     initialPage: _baseIndex + ((_currentIndex + 1) % 4),
   );
-  StreamSubscription<DocumentSnapshot>? _userDocSubscription;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -91,62 +89,17 @@ class _MainScreenState extends State<MainScreen> {
         .profilePictureStream
         .listen((profilePictureUrl) {
           if (mounted) {
-            print('🔄 Profile picture stream update: $profilePictureUrl');
             setState(() {});
           }
         });
 
-    // Listen directly to Firestore for real-time user updates
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final customUserId = await LocalStorageService.getString(
-        'custom_user_id',
-      );
-      if (customUserId != null && mounted) {
-        _userDocSubscription = FirebaseFirestore.instance
-            .collection('users')
-            .doc(customUserId)
-            .snapshots()
-            .listen((snapshot) {
-              if (snapshot.exists && mounted) {
-                final userData = snapshot.data()!;
-                final updatedUser = User.fromJson(userData);
-                final avatarColor = userData['avatarColor'] as String?;
-
-                print(
-                  '🔥 Real-time Firestore update: ${updatedUser.handle}, avatar: ${updatedUser.avatar}, color: $avatarColor',
-                );
-
-                setState(() {
-                  _currentUser = updatedUser;
-                  _currentAvatar = updatedUser.avatar;
-                  _currentAvatarColor = avatarColor;
-                });
-
-                // Update local storage with avatar color
-                UserService.setCurrentUser(updatedUser).then((_) async {
-                  if (avatarColor != null) {
-                    final storedUserData = await LocalStorageService.getString(
-                      'current_user',
-                    );
-                    if (storedUserData != null) {
-                      try {
-                        final userJson = jsonDecode(storedUserData);
-                        userJson['avatarColor'] = avatarColor;
-                        await LocalStorageService.setString(
-                          'current_user',
-                          jsonEncode(userJson),
-                        );
-                        print(
-                          '🎨 Avatar color saved to local storage: $avatarColor',
-                        );
-                      } catch (e) {
-                        print('❌ Error saving avatar color: $e');
-                      }
-                    }
-                  }
-                });
-              }
-            });
+    // Listen for current user updates from local storage/UserService
+    UserService.getCurrentUser().then((user) {
+      if (user != null && mounted) {
+        setState(() {
+          _currentUser = user;
+          _currentAvatar = user.avatar;
+        });
       }
     });
 
@@ -161,7 +114,6 @@ class _MainScreenState extends State<MainScreen> {
     _pageController.dispose();
     _searchController.dispose();
     _profilePictureSubscription?.cancel();
-    _userDocSubscription?.cancel();
     super.dispose();
   }
 
@@ -197,8 +149,6 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _initializeUserData() async {
     try {
-      print('🔄 Initializing user data...');
-
       // Get current user data
       final authProvider = context.read<AuthStateProvider>();
       if (authProvider.isAuthenticated) {
@@ -209,9 +159,6 @@ class _MainScreenState extends State<MainScreen> {
             _currentUser = userProfile;
             _currentAvatar = userProfile.avatar;
           });
-          print('✅ User data loaded: ${userProfile.fullName}');
-          print('📸 Profile picture: ${userProfile.profilePicture}');
-          print('😊 Avatar: ${userProfile.avatar}');
 
           // Load avatar color from local storage
           final storedUserData = await LocalStorageService.getString(
@@ -225,29 +172,11 @@ class _MainScreenState extends State<MainScreen> {
                 setState(() {
                   _currentAvatarColor = avatarColor;
                 });
-                print('🎨 Avatar color loaded: $avatarColor');
               }
             } catch (e) {
-              print('❌ Error parsing avatar color: $e');
+              // Error handled silently
             }
           }
-        }
-
-        // Get from FirestoreUserProvider
-        final firestoreUserProvider = context.read<FirestoreUserProvider>();
-        if (firestoreUserProvider.currentUser != null) {
-          if (mounted) {
-            setState(() {
-              _currentUser = firestoreUserProvider.currentUser;
-              _currentAvatar = firestoreUserProvider.currentUser!.avatar;
-            });
-          }
-          print(
-            '📸 Firestore profile picture: ${firestoreUserProvider.currentUser!.profilePicture}',
-          );
-          print(
-            '😊 Firestore avatar: ${firestoreUserProvider.currentUser!.avatar}',
-          );
         }
 
         // Initialize FriendRequestProvider
@@ -257,7 +186,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error initializing user data: $e');
+      // Error handled silently
     }
   }
 
@@ -449,29 +378,16 @@ class _MainScreenState extends State<MainScreen> {
     switch (_currentIndex) {
       case 0:
         // Home tab - open write post screen
-        try {
-          final userProvider = context.read<FirestoreUserProvider>();
-          final currentUser = userProvider.currentUser;
-
-          if (currentUser != null && mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => WritePostScreen(currentUser: currentUser),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Please complete your profile first'),
-              ),
-            );
-          }
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to open post creator. Please try again.'),
+        if (_currentUser != null && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => WritePostScreen(currentUser: _currentUser!),
             ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please complete your profile first')),
           );
         }
         break;
@@ -907,7 +823,7 @@ class _MainScreenState extends State<MainScreen> {
       try {
         avatarBgColor = Color(int.parse(_currentAvatarColor!, radix: 16));
       } catch (e) {
-        print('❌ Error parsing avatar color: $e');
+        // Error handled silently
       }
     }
 
@@ -1153,24 +1069,17 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: _isSearching
                 ? _buildSearchResults()
-                : Consumer<FirestoreUserProvider>(
-                    builder: (context, userProvider, child) {
-                      _allUsers = userProvider.allUsers;
-                      _filteredUsers = _allUsers;
-
-                      return PageView.builder(
-                        controller: _pageController,
-                        onPageChanged: _onPageChanged,
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        dragStartBehavior: DragStartBehavior.down,
-                        itemBuilder: (context, index) {
-                          // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
-                          int screenIndex = (index + 3) % 4;
-                          return _screens[screenIndex];
-                        },
-                      );
+                : PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: _onPageChanged,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    dragStartBehavior: DragStartBehavior.down,
+                    itemBuilder: (context, index) {
+                      // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
+                      int screenIndex = (index + 3) % 4;
+                      return _screens[screenIndex];
                     },
                   ),
           ),
@@ -1519,7 +1428,8 @@ class _MainScreenState extends State<MainScreen> {
     bool isProfile = false,
   }) {
     final isSelected = _currentIndex == index;
-    final color = Theme.of(context).colorScheme.primary;
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
 
     final double page = _pageController.hasClients
         ? (_pageController.page ?? _baseIndex.toDouble())

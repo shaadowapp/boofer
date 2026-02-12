@@ -1,16 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/network/supabase_config.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/archive_settings_provider.dart';
 import 'providers/username_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/auth_state_provider.dart';
-import 'providers/firestore_user_provider.dart';
+import 'providers/supabase_user_provider.dart';
 import 'providers/friend_request_provider.dart';
 import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
@@ -32,37 +31,14 @@ import 'l10n/app_localizations.dart';
 import 'services/notification_service.dart';
 import 'services/local_storage_service.dart';
 
-/// Background message handler for Firebase Messaging
-/// This must be a top-level function
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Initialize Firebase if not already initialized
-  await Firebase.initializeApp();
-
-  print('📬 Background message received: ${message.notification?.title}');
-
-  // Handle the message (notification is automatically shown by the system)
-  // You can add custom logic here if needed
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
-
-  // Set up background message handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Configure Firestore
-  try {
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-  } catch (e) {
-    print('⚠️ Firestore settings error: $e');
-  }
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
 
   // Fire-and-forget background service initializations
   // We don't await these to speed up app launch
@@ -92,11 +68,9 @@ void main() async {
       }
     }
   } catch (e) {
-    print('Error checking initial auth state: $e');
+    debugPrint('Error checking initial auth state: $e');
     // Fallback to onboarding on error
   }
-
-  print('🚀 Starting Boofer directly to: $initialRoute');
 
   runApp(BooferApp(initialRoute: initialRoute));
 }
@@ -127,7 +101,7 @@ class BooferApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => AuthStateProvider()),
-        ChangeNotifierProvider(create: (_) => FirestoreUserProvider()),
+        ChangeNotifierProvider(create: (_) => SupabaseUserProvider()),
         ChangeNotifierProvider(create: (_) => FriendRequestProvider()),
         ChangeNotifierProvider(
           create: (_) => ChatProvider(

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import '../services/supabase_service.dart';
 import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/profile_picture_service.dart';
+import '../services/moderation_service.dart';
 import '../models/user_model.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
@@ -58,21 +59,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
     {'emoji': '👴', 'color': const Color(0xFFE5E5E5), 'category': 'People'},
     {'emoji': '👵', 'color': const Color(0xFFFFE5E5), 'category': 'People'},
     {'emoji': '🧓', 'color': const Color(0xFFE5FFE5), 'category': 'People'},
-    
+
     // Expressions
-    {'emoji': '😊', 'color': const Color(0xFFFFE5B4), 'category': 'Expressions'},
-    {'emoji': '😎', 'color': const Color(0xFFB4E5FF), 'category': 'Expressions'},
-    {'emoji': '🤩', 'color': const Color(0xFFFFB4E5), 'category': 'Expressions'},
-    {'emoji': '🥳', 'color': const Color(0xFFE5FFB4), 'category': 'Expressions'},
-    {'emoji': '😇', 'color': const Color(0xFFFFD4B4), 'category': 'Expressions'},
-    {'emoji': '🤗', 'color': const Color(0xFFD4B4FF), 'category': 'Expressions'},
-    {'emoji': '🧐', 'color': const Color(0xFFB4FFD4), 'category': 'Expressions'},
-    {'emoji': '🤓', 'color': const Color(0xFFFFB4D4), 'category': 'Expressions'},
-    {'emoji': '😴', 'color': const Color(0xFFD4E5FF), 'category': 'Expressions'},
-    {'emoji': '🤔', 'color': const Color(0xFFFFE4D4), 'category': 'Expressions'},
-    {'emoji': '😌', 'color': const Color(0xFFE4FFD4), 'category': 'Expressions'},
-    {'emoji': '🥰', 'color': const Color(0xFFFFD4E4), 'category': 'Expressions'},
-    
+    {
+      'emoji': '😊',
+      'color': const Color(0xFFFFE5B4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '😎',
+      'color': const Color(0xFFB4E5FF),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🤩',
+      'color': const Color(0xFFFFB4E5),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🥳',
+      'color': const Color(0xFFE5FFB4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '😇',
+      'color': const Color(0xFFFFD4B4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🤗',
+      'color': const Color(0xFFD4B4FF),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🧐',
+      'color': const Color(0xFFB4FFD4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🤓',
+      'color': const Color(0xFFFFB4D4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '😴',
+      'color': const Color(0xFFD4E5FF),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🤔',
+      'color': const Color(0xFFFFE4D4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '😌',
+      'color': const Color(0xFFE4FFD4),
+      'category': 'Expressions',
+    },
+    {
+      'emoji': '🥰',
+      'color': const Color(0xFFFFD4E4),
+      'category': 'Expressions',
+    },
+
     // Animals
     {'emoji': '😺', 'color': const Color(0xFFD4FFB4), 'category': 'Animals'},
     {'emoji': '🐶', 'color': const Color(0xFFB4D4FF), 'category': 'Animals'},
@@ -86,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     {'emoji': '🐰', 'color': const Color(0xFFFFE4E4), 'category': 'Animals'},
     {'emoji': '🦝', 'color': const Color(0xFFD4D4E4), 'category': 'Animals'},
     {'emoji': '🐸', 'color': const Color(0xFFD4FFD4), 'category': 'Animals'},
-    
+
     // Fantasy & Fun
     {'emoji': '👽', 'color': const Color(0xFFB4FFB4), 'category': 'Fantasy'},
     {'emoji': '🤖', 'color': const Color(0xFFB4D4E5), 'category': 'Fantasy'},
@@ -106,16 +155,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserData();
-    
+
     // Listen to profile picture updates
-    _profilePictureSubscription = ProfilePictureService.instance.profilePictureStream.listen((url) {
-      if (mounted && _currentUser != null && url != _currentUser!.profilePicture) {
-        print('📸 Profile screen received update: $url');
-        setState(() {
-          _currentUser = _currentUser!.copyWith(profilePicture: url);
+    _profilePictureSubscription = ProfilePictureService
+        .instance
+        .profilePictureStream
+        .listen((url) {
+          if (mounted &&
+              _currentUser != null &&
+              url != _currentUser!.profilePicture) {
+            print('📸 Profile screen received update: $url');
+            setState(() {
+              _currentUser = _currentUser!.copyWith(profilePicture: url);
+            });
+          }
         });
-      }
-    });
   }
 
   @override
@@ -134,37 +188,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       User? user = await UserService.getCurrentUser();
-      
+
       if (user == null) {
-        final customUserId = await LocalStorageService.getString('custom_user_id');
-        
+        final customUserId = await LocalStorageService.getString(
+          'custom_user_id',
+        );
+
         if (customUserId != null) {
-          final doc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(customUserId)
-              .get();
-          
-          if (doc.exists) {
-            user = User.fromJson(doc.data()!);
+          final freshUser = await SupabaseService.instance.getUserProfile(
+            customUserId,
+          );
+
+          if (freshUser != null) {
+            user = freshUser;
             await UserService.setCurrentUser(user);
-            print('📸 Loaded user from Firestore - Profile picture: ${user.profilePicture}');
+            print(
+              '📸 Loaded user from Supabase - Profile picture: ${user.profilePicture}',
+            );
           }
         }
       } else {
-        // Refresh from Firestore to get latest data
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.id)
-            .get();
-        
-        if (doc.exists) {
-          final freshUser = User.fromJson(doc.data()!);
+        // Refresh from Supabase to get latest data
+        final freshUser = await SupabaseService.instance.getUserProfile(
+          user.id,
+        );
+
+        if (freshUser != null) {
           await UserService.setCurrentUser(freshUser);
           user = freshUser;
-          print('📸 Refreshed user from Firestore - Profile picture: ${user.profilePicture}');
+          print(
+            '📸 Refreshed user from Supabase - Profile picture: ${user.profilePicture}',
+          );
         }
       }
-      
+
       setState(() {
         _currentUser = user;
         _fullNameController.text = user?.fullName ?? '';
@@ -173,16 +230,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _selectedAvatar = user?.avatar ?? '';
         _isLoading = false;
       });
-      
-      print('✅ Profile loaded - Name: ${user?.fullName}, Picture: ${user?.profilePicture}');
+
+      print(
+        '✅ Profile loaded - Name: ${user?.fullName}, Picture: ${user?.profilePicture}',
+      );
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
       }
     }
   }
@@ -195,33 +254,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
+      final updatedFullName = _fullNameController.text.trim();
+      final updatedHandle = _handleController.text.trim().replaceAll('@', '');
+      final updatedBio = _bioController.text.trim();
+
+      // Validation
+      final nameError = ModerationService.validateField(
+        'Name',
+        updatedFullName,
+      );
+      if (nameError != null) throw nameError;
+
+      final handleError = ModerationService.validateField(
+        'Handle',
+        updatedHandle,
+      );
+      if (handleError != null) throw handleError;
+
+      final bioError = ModerationService.validateField('Bio', updatedBio);
+      if (bioError != null) throw bioError;
+
       final updatedUser = _currentUser!.copyWith(
-        fullName: _fullNameController.text.trim(),
-        handle: _handleController.text.trim(),
-        bio: _bioController.text.trim(),
+        fullName: updatedFullName,
+        handle: updatedHandle,
+        bio: updatedBio,
         avatar: _selectedAvatar,
         updatedAt: DateTime.now(),
       );
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(updatedUser.id)
-          .update({
-        'fullName': updatedUser.fullName,
-        'handle': updatedUser.handle,
-        'bio': updatedUser.bio,
-        'avatar': updatedUser.avatar,
-        'updatedAt': updatedUser.updatedAt.toIso8601String(),
-      });
+      final success = await SupabaseService.instance.createUserProfile(
+        updatedUser,
+      );
+
+      if (success == null)
+        throw Exception('Failed to update profile in Supabase');
 
       // Update local storage and broadcast profile picture change
       await UserService.setCurrentUser(updatedUser);
-      
+
       // Also update ProfilePictureService to broadcast the change
       // Note: ProfilePictureService stores the profilePicture URL, not avatar emoji
       // But we still need to trigger a refresh for the UI
-      await ProfilePictureService.instance.updateProfilePicture(updatedUser.profilePicture);
-      
+      await ProfilePictureService.instance.updateProfilePicture(
+        updatedUser.profilePicture,
+      );
+
       setState(() {
         _currentUser = updatedUser;
         _isEditing = false;
@@ -241,9 +318,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
       }
     }
   }
@@ -270,7 +347,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _shareProfile() {
     if (_currentUser == null) return;
 
-    final profileText = '''
+    final profileText =
+        '''
 Check out my Boofer profile!
 
 Name: ${_currentUser!.fullName.isNotEmpty ? _currentUser!.fullName : _currentUser!.formattedHandle}
@@ -279,7 +357,7 @@ Bio: ${_currentUser!.bio}
 
 Download Boofer for secure messaging!
 ''';
-    
+
     Clipboard.setData(ClipboardData(text: profileText));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -292,7 +370,7 @@ Download Boofer for secure messaging!
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
@@ -309,7 +387,7 @@ Download Boofer for secure messaging!
             ),
             TextButton(
               onPressed: _isLoading ? null : _saveProfile,
-              child: _isLoading 
+              child: _isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -330,37 +408,49 @@ Download Boofer for secure messaging!
                   case 'settings':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
                     );
                     break;
                   case 'archive':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const ArchivedChatsScreen(),
+                      ),
                     );
                     break;
                   case 'help':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const HelpScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const HelpScreen(),
+                      ),
                     );
                     break;
                   case 'friends':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const FriendsScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const FriendsScreen(),
+                      ),
                     );
                     break;
                   case 'discover':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const UserSearchScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const UserSearchScreen(),
+                      ),
                     );
                     break;
                   case 'appearance':
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const AppearanceSettingsScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const AppearanceSettingsScreen(),
+                      ),
                     );
                     break;
                 }
@@ -440,35 +530,35 @@ Download Boofer for secure messaging!
                 child: Column(
                   children: [
                     const SizedBox(height: 24),
-                    
+
                     // Profile Header with Avatar
                     _buildProfileHeader(theme),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Name and Bio Section
                     _buildNameBioSection(theme),
-                    
+
                     const SizedBox(height: 20),
-                    
-                  // Action Buttons
-                  _buildActionButtons(theme),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Stats Row (Instagram style)
-                  _buildStatsRow(theme),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Additional Info Cards
-                  _buildInfoCards(theme),
-                  
-                  const SizedBox(height: 24),
-                ],
+
+                    // Action Buttons
+                    _buildActionButtons(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Stats Row (Instagram style)
+                    _buildStatsRow(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Additional Info Cards
+                    _buildInfoCards(theme),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
-          ),
     );
   }
 
@@ -476,7 +566,7 @@ Download Boofer for secure messaging!
     return Column(
       children: [
         GestureDetector(
-          onTap: _showAvatarPicker,
+          onTap: _isEditing ? _showAvatarPicker : null,
           child: Stack(
             children: [
               Container(
@@ -492,26 +582,27 @@ Download Boofer for secure messaging!
                 ),
                 child: _buildAvatar(size: 120),
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.colorScheme.surface,
-                      width: 3,
+              if (_isEditing)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.colorScheme.surface,
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.edit,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.edit,
-                    color: Colors.white,
-                    size: 20,
-                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -521,12 +612,13 @@ Download Boofer for secure messaging!
 
   Widget _buildAvatar({double size = 90}) {
     final theme = Theme.of(context);
-    
+
     // Check if profile picture is a real uploaded image (not UI-avatars generated)
-    final hasRealProfilePicture = _currentUser?.profilePicture != null && 
+    final hasRealProfilePicture =
+        _currentUser?.profilePicture != null &&
         _currentUser!.profilePicture!.isNotEmpty &&
         !_currentUser!.profilePicture!.contains('ui-avatars.com');
-    
+
     // First priority: Show actual uploaded profile picture
     if (hasRealProfilePicture) {
       return Container(
@@ -542,7 +634,9 @@ Download Boofer for secure messaging!
         child: ClipOval(
           child: Image.network(
             _currentUser!.profilePicture!,
-            key: ValueKey(_currentUser!.profilePicture), // Force rebuild on URL change
+            key: ValueKey(
+              _currentUser!.profilePicture,
+            ), // Force rebuild on URL change
             width: size,
             height: size,
             fit: BoxFit.cover,
@@ -551,7 +645,8 @@ Download Boofer for secure messaging!
               return Center(
                 child: CircularProgressIndicator(
                   value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
                       : null,
                 ),
               );
@@ -565,7 +660,7 @@ Download Boofer for secure messaging!
         ),
       );
     }
-    
+
     // Second priority: Show emoji avatar or initials
     return _buildEmojiOrInitialsAvatar(size, theme);
   }
@@ -577,7 +672,7 @@ Download Boofer for secure messaging!
         (a) => a['emoji'] == _selectedAvatar,
         orElse: () => _avatarOptions[0],
       );
-      
+
       return Container(
         width: size,
         height: size,
@@ -597,14 +692,11 @@ Download Boofer for secure messaging!
           ),
         ),
         child: Center(
-          child: Text(
-            _selectedAvatar,
-            style: TextStyle(fontSize: size * 0.5),
-          ),
+          child: Text(_selectedAvatar, style: TextStyle(fontSize: size * 0.5)),
         ),
       );
     }
-    
+
     // Fallback: Show initials
     return Container(
       width: size,
@@ -612,10 +704,7 @@ Download Boofer for secure messaging!
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
+          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -637,80 +726,58 @@ Download Boofer for secure messaging!
     );
   }
 
-  Widget _buildStatColumn(String value, String label, ThemeData theme) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildNameBioSection(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          // Name with verification badge
+          // Name
           if (!_isEditing)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Text(
-                    _currentUser?.fullName ?? '',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.verified,
-                  size: 20,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            Text(
+              _currentUser?.fullName ?? '',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
             ),
-          
-          if (_isEditing)
+
+          if (_isEditing) ...[
             TextField(
               controller: _fullNameController,
               textAlign: TextAlign.center,
               decoration: InputDecoration(
-                labelText: 'Name',
+                labelText: 'Full Name',
+                hintText: 'Enter your name',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _handleController,
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                labelText: 'Username Handle',
+                hintText: 'Choose a handle',
+                prefixText: '@',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
-          
+          ],
+
           const SizedBox(height: 12),
-          
-          // Bio (removed handle from here since it's in navbar)
+
+          // Bio
           if (!_isEditing)
             Text(
               _currentUser?.bio ?? '',
               style: theme.textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
-          
+
           if (_isEditing)
             TextField(
               controller: _bioController,
@@ -718,6 +785,7 @@ Download Boofer for secure messaging!
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 labelText: 'Bio',
+                hintText: 'Tell us about yourself',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -731,7 +799,7 @@ Download Boofer for secure messaging!
 
   Widget _buildActionButtons(ThemeData theme) {
     if (_isEditing) return const SizedBox.shrink();
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: ElevatedButton.icon(
@@ -756,40 +824,49 @@ Download Boofer for secure messaging!
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Expanded(child: _buildStatCard(
-            '${_currentUser?.friendsCount ?? 0}', 
-            'Friends', 
-            Icons.people_outline, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${_currentUser?.friendsCount ?? 0}',
+              'Friends',
+              Icons.people_outline,
+              theme,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: _buildStatCard(
-            '${_currentUser?.followerCount ?? 0}', 
-            'Followers', 
-            Icons.person_add_outlined, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${_currentUser?.followerCount ?? 0}',
+              'Followers',
+              Icons.person_add_outlined,
+              theme,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: _buildStatCard(
-            '${_currentUser?.followingCount ?? 0}', 
-            'Following', 
-            Icons.person_outline, 
-            theme
-          )),
+          Expanded(
+            child: _buildStatCard(
+              '${(_currentUser?.followingCount ?? 0) < 1 ? 1 : (_currentUser?.followingCount ?? 1)}',
+              'Following',
+              Icons.person_outline,
+              theme,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String value, String label, IconData icon, ThemeData theme) {
+  Widget _buildStatCard(
+    String value,
+    String label,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.1),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
       ),
       child: Column(
         children: [
@@ -859,9 +936,7 @@ Download Boofer for secure messaging!
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.1),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -901,14 +976,27 @@ Download Boofer for secure messaging!
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown';
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[date.month - 1]} ${date.year}';
   }
 
   Widget _buildAvatarPickerSheet() {
     final theme = Theme.of(context);
     final categories = ['People', 'Expressions', 'Animals', 'Fantasy'];
-    
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
       decoration: BoxDecoration(
@@ -927,7 +1015,7 @@ Download Boofer for secure messaging!
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           Padding(
             padding: const EdgeInsets.all(24),
             child: Row(
@@ -961,7 +1049,7 @@ Download Boofer for secure messaging!
               ],
             ),
           ),
-          
+
           Expanded(
             child: DefaultTabController(
               length: categories.length,
@@ -970,7 +1058,8 @@ Download Boofer for secure messaging!
                   TabBar(
                     isScrollable: true,
                     labelColor: theme.colorScheme.primary,
-                    unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+                    unselectedLabelColor: theme.colorScheme.onSurface
+                        .withOpacity(0.6),
                     indicatorColor: theme.colorScheme.primary,
                     tabs: categories.map((cat) => Tab(text: cat)).toList(),
                   ),
@@ -980,78 +1069,31 @@ Download Boofer for secure messaging!
                         final categoryAvatars = _avatarOptions
                             .where((a) => a['category'] == category)
                             .toList();
-                        
+
                         return GridView.builder(
                           padding: const EdgeInsets.all(24),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                              ),
                           itemCount: categoryAvatars.length,
                           itemBuilder: (context, index) {
                             final avatar = categoryAvatars[index];
-                            final isSelected = _selectedAvatar == avatar['emoji'];
-                            
+                            final isSelected =
+                                _selectedAvatar == avatar['emoji'];
+
                             return GestureDetector(
-                              onTap: () async {
+                              onTap: () {
                                 final selectedEmoji = avatar['emoji'] as String;
                                 setState(() {
                                   _selectedAvatar = selectedEmoji;
                                 });
-                                
+
                                 // Close the bottom sheet first
                                 if (mounted) {
                                   Navigator.pop(context);
-                                }
-                                
-                                // Save immediately to Firestore
-                                if (_currentUser != null) {
-                                  try {
-                                    final selectedEmoji = avatar['emoji'] as String;
-                                    final selectedColor = (avatar['color'] as Color).value.toRadixString(16).padLeft(8, '0');
-                                    
-                                    print('📸 Saving emoji avatar: $selectedEmoji with color: $selectedColor');
-                                    
-                                    await FirebaseFirestore.instance
-                                        .collection('users')
-                                        .doc(_currentUser!.id)
-                                        .update({
-                                      'avatar': selectedEmoji,
-                                      'avatarColor': selectedColor,
-                                      'updatedAt': DateTime.now().toIso8601String(),
-                                    });
-                                    
-                                    final updatedUser = _currentUser!.copyWith(
-                                      avatar: selectedEmoji,
-                                      updatedAt: DateTime.now(),
-                                    );
-                                    
-                                    await UserService.setCurrentUser(updatedUser);
-                                    
-                                    if (mounted) {
-                                      setState(() {
-                                        _currentUser = updatedUser;
-                                      });
-                                      
-                                      print('✅ Emoji avatar saved with color!');
-                                      
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Avatar updated!'),
-                                          backgroundColor: Colors.green,
-                                          duration: Duration(seconds: 1),
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    print('❌ Error saving avatar: $e');
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Error: $e')),
-                                      );
-                                    }
-                                  }
                                 }
                               },
                               child: AnimatedContainer(
@@ -1061,7 +1103,9 @@ Download Boofer for secure messaging!
                                   gradient: LinearGradient(
                                     colors: [
                                       avatar['color'] as Color,
-                                      (avatar['color'] as Color).withOpacity(0.7),
+                                      (avatar['color'] as Color).withOpacity(
+                                        0.7,
+                                      ),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -1069,13 +1113,16 @@ Download Boofer for secure messaging!
                                   border: Border.all(
                                     color: isSelected
                                         ? theme.colorScheme.primary
-                                        : theme.colorScheme.outline.withOpacity(0.2),
+                                        : theme.colorScheme.outline.withOpacity(
+                                            0.2,
+                                          ),
                                     width: isSelected ? 3 : 2,
                                   ),
                                   boxShadow: isSelected
                                       ? [
                                           BoxShadow(
-                                            color: theme.colorScheme.primary.withOpacity(0.3),
+                                            color: theme.colorScheme.primary
+                                                .withOpacity(0.3),
                                             blurRadius: 8,
                                             offset: const Offset(0, 4),
                                           ),

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import '../services/chat_service.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/friend_only_message_widget.dart';
@@ -33,10 +33,11 @@ class FriendChatScreen extends StatefulWidget {
 
 class _FriendChatScreenState extends State<FriendChatScreen> {
   late final ChatService _chatService;
-  final FriendshipService _friendshipService = FriendshipService.instance;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
-  
+
   String? _currentUserId;
   String? _conversationId;
   List<Message> _messages = [];
@@ -84,28 +85,24 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         widget.recipientId,
       );
 
-      // Check if users can chat (are friends)
-      final canChat = await _friendshipService.canSendMessage(
+      // Check relationship status
+      final relationData = await _friendRequestService.getRelationshipStatus(
         currentUser.id,
         widget.recipientId,
       );
 
-      // Check friendship status
-      final isFriend = await _friendshipService.areFriends(
-        currentUser.id,
-        widget.recipientId,
-      );
+      final relationshipStatus = relationData['status'] as String;
 
-      // Check if user is blocked (mock implementation for now)
-      const isBlocked = false; // TODO: Implement when FriendshipService has isBlocked method
-
-      // Check if friend request was already sent (mock implementation for now)
-      const friendRequestSent = false; // TODO: Implement when FriendshipService has hasPendingFriendRequest method
+      final isFriend = relationshipStatus == 'friends';
+      final canChat = isFriend; // For now chat is only for friends
+      final friendRequestSent = relationshipStatus == 'request_sent';
+      const isBlocked = false; // TODO: Implement block check if needed
 
       // Create recipient user object
       final recipientUser = User(
         id: widget.recipientId,
-        email: '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
+        email:
+            '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
         virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
         handle: widget.recipientName.toLowerCase().replaceAll(' ', '_'),
         fullName: widget.recipientName,
@@ -129,7 +126,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (canChat) {
         // Load demo messages for UI design
         _loadDemoMessages(conversationId, currentUser.id);
-        
+
         // Set up message stream listeners (for real implementation)
         _messagesSubscription = _chatService.messagesStream.listen((messages) {
           if (mounted) {
@@ -141,7 +138,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           }
         });
 
-        _newMessageSubscription = _chatService.newMessageStream.listen((message) {
+        _newMessageSubscription = _chatService.newMessageStream.listen((
+          message,
+        ) {
           if (mounted && message.conversationId == conversationId) {
             setState(() {
               _messages.add(message);
@@ -167,14 +166,22 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   void _loadDemoMessages(String conversationId, String currentUserId) {
     // Generate demo messages for UI design
-    final demoMessages = _generateDemoMessages(conversationId, currentUserId, widget.recipientId);
+    final demoMessages = _generateDemoMessages(
+      conversationId,
+      currentUserId,
+      widget.recipientId,
+    );
     setState(() {
       _messages = demoMessages;
     });
     _scrollToBottom();
   }
 
-  List<Message> _generateDemoMessages(String conversationId, String currentUserId, String recipientId) {
+  List<Message> _generateDemoMessages(
+    String conversationId,
+    String currentUserId,
+    String recipientId,
+  ) {
     final now = DateTime.now();
     return [
       Message(
@@ -284,12 +291,18 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             children: [
               Text(
                 widget.recipientName,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               if (widget.recipientHandle != null)
                 Text(
                   '@${widget.recipientHandle}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
             ],
           ),
@@ -337,53 +350,42 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   Widget _buildBody() {
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
-    
+
     if (_loading) {
       return appearanceProvider.getWallpaperWidget(
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      ) ?? Container(
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+            child: const Center(child: CircularProgressIndicator()),
+          ) ??
+          Container(child: const Center(child: CircularProgressIndicator()));
     }
 
     if (!_canChat) {
       return appearanceProvider.getWallpaperWidget(
-        child: _buildFriendOnlyScreen(),
-      ) ?? Container(
-        child: _buildFriendOnlyScreen(),
-      );
+            child: _buildFriendOnlyScreen(),
+          ) ??
+          Container(child: _buildFriendOnlyScreen());
     }
 
     return appearanceProvider.getWallpaperWidget(
-      child: Column(
-        children: [
-          Expanded(
-            child: _buildMessagesList(),
+          child: Column(
+            children: [
+              Expanded(child: _buildMessagesList()),
+              _buildChatInput(),
+            ],
           ),
-          _buildChatInput(),
-        ],
-      ),
-    ) ?? Container(
-      child: Column(
-        children: [
-          Expanded(
-            child: _buildMessagesList(),
+        ) ??
+        Container(
+          child: Column(
+            children: [
+              Expanded(child: _buildMessagesList()),
+              _buildChatInput(),
+            ],
           ),
-          _buildChatInput(),
-        ],
-      ),
-    );
+        );
   }
 
   Widget _buildFriendOnlyScreen() {
     if (_recipientUser == null) {
-      return const Center(
-        child: Text('User not found'),
-      );
+      return const Center(child: Text('User not found'));
     }
 
     return Center(
@@ -471,7 +473,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
@@ -517,7 +521,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   Future<void> _handleSendMessage(String text) async {
-    if (text.trim().isEmpty || _currentUserId == null || _conversationId == null) {
+    if (text.trim().isEmpty ||
+        _currentUserId == null ||
+        _conversationId == null) {
       return;
     }
 
@@ -587,7 +593,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   Widget _buildMessageContextMenu(Message message) {
     final isOwnMessage = message.senderId == _currentUserId;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -684,34 +690,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
-      ),
-    );
-  }
-
-  Future<void> _startCall() async {
-    if (_currentUserId == null) return;
-
-    final canCall = await _friendshipService.canCall(_currentUserId!, widget.recipientId);
-    
-    if (!canCall) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You can only call friends'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Implement call functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Calling ${widget.recipientName}...'),
-        backgroundColor: Colors.green,
       ),
     );
   }
@@ -733,10 +713,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       SnackBar(
         content: Text('Voice calling ${widget.recipientName}...'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'Cancel',
-          onPressed: () {},
-        ),
+        action: SnackBarAction(label: 'Cancel', onPressed: () {}),
       ),
     );
   }
@@ -758,10 +735,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       SnackBar(
         content: Text('Video calling ${widget.recipientName}...'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'Cancel',
-          onPressed: () {},
-        ),
+        action: SnackBarAction(label: 'Cancel', onPressed: () {}),
       ),
     );
   }
@@ -776,9 +750,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       });
 
       // Send friend request
-      await _friendshipService.sendFriendRequest(
-        _currentUserId!,
-        widget.recipientId,
+      await _friendRequestService.sendFriendRequest(
+        fromUserId: _currentUserId!,
+        toUserId: widget.recipientId,
       );
 
       if (mounted) {
@@ -818,7 +792,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         setState(() {
           _isBlocked = false;
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -835,7 +809,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           _isFriend = false;
           _friendRequestSent = false;
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -849,7 +823,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to ${_isBlocked ? 'unblock' : 'block'} user: $e'),
+            content: Text(
+              'Failed to ${_isBlocked ? 'unblock' : 'block'} user: $e',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -887,7 +863,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.1),
                     child: widget.recipientAvatar != null
                         ? ClipOval(
                             child: Image.network(
@@ -895,14 +873,17 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                               width: 48,
                               height: 48,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Text(
-                                widget.recipientName[0].toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Text(
+                                    widget.recipientName[0].toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  ),
                             ),
                           )
                         : Text(
@@ -921,23 +902,28 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                       children: [
                         Text(
                           widget.recipientName,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         if (widget.recipientHandle != null)
                           Text(
                             '@${widget.recipientHandle}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.6),
+                                ),
                           )
                         else
                           Text(
                             'Tap to view profile',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.6),
+                                ),
                           ),
                       ],
                     ),
@@ -1015,14 +1001,14 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: isDestructive 
+          color: isDestructive
               ? Colors.red.withOpacity(0.1)
               : Theme.of(context).colorScheme.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
           icon,
-          color: isDestructive 
+          color: isDestructive
               ? Colors.red
               : Theme.of(context).colorScheme.primary,
           size: 20,
@@ -1031,7 +1017,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       title: Text(
         title,
         style: TextStyle(
-          color: isDestructive 
+          color: isDestructive
               ? Colors.red
               : Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w500,
@@ -1150,10 +1136,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
       ),
       title: Text(title),
       subtitle: Text(subtitle),
@@ -1163,9 +1146,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   void _showMediaCategory(String category) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening $category...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Opening $category...')));
   }
 
   void _showUserProfile() {
@@ -1216,7 +1199,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               Text(
                 '@${widget.recipientHandle}',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 
 /// Profile card for list view (like in search screen) - shows connect button on the right
@@ -23,8 +23,10 @@ class ListUserProfileCard extends StatefulWidget {
 }
 
 class _ListUserProfileCardState extends State<ListUserProfileCard> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  FriendshipStatus _status = FriendshipStatus.none;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loading = false;
   String? _currentUserId;
 
@@ -43,14 +45,15 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
       _loading = true;
     });
 
-    final status = await _friendshipService.getFriendshipStatus(
+    final relationData = await _friendRequestService.getRelationshipStatus(
       currentUser.id,
       widget.user.id,
     );
 
     if (mounted) {
       setState(() {
-        _status = status;
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
         _loading = false;
       });
     }
@@ -59,7 +62,7 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return InkWell(
       onTap: widget.onTap,
       borderRadius: BorderRadius.circular(16),
@@ -80,9 +83,9 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
           children: [
             // Avatar with online status
             _buildAvatar(),
-            
+
             const SizedBox(width: 16),
-            
+
             // User info
             Expanded(
               child: Column(
@@ -97,9 +100,9 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  
+
                   const SizedBox(height: 4),
-                  
+
                   // Handle
                   Text(
                     widget.user.formattedHandle,
@@ -108,7 +111,7 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  
+
                   if (widget.user.bio.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -123,12 +126,11 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
                 ],
               ),
             ),
-            
+
             const SizedBox(width: 12),
-            
+
             // Follow button on the right
-            if (_shouldShowButton())
-              _buildFollowButton(),
+            if (_shouldShowButton()) _buildFollowButton(),
           ],
         ),
       ),
@@ -137,7 +139,7 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
 
   Widget _buildAvatar() {
     final theme = Theme.of(context);
-    
+
     return Stack(
       children: [
         CircleAvatar(
@@ -192,17 +194,17 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
       );
     }
 
-    switch (_status) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return _buildFollowButtonWidget();
-      case FriendshipStatus.requestSent:
+      case 'request_sent':
         return _buildRequestedButton();
-      case FriendshipStatus.requestReceived:
+      case 'request_received':
         return _buildAcceptButton();
-      case FriendshipStatus.friends:
+      case 'friends':
         return _buildFriendsButton();
-      case FriendshipStatus.blocked:
-        return _buildBlockedButton();
+      default:
+        return _buildFollowButtonWidget();
     }
   }
 
@@ -214,16 +216,11 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         minimumSize: const Size(80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Follow',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -236,16 +233,11 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
         side: BorderSide(color: Colors.grey.shade300),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         minimumSize: const Size(80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Followed',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -258,16 +250,11 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         minimumSize: const Size(80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Accept',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -280,46 +267,18 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
         side: BorderSide(color: Colors.green.shade300),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         minimumSize: const Size(80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.check,
-            size: 14,
-            color: Colors.green.shade700,
-          ),
+          Icon(Icons.check, size: 14, color: Colors.green.shade700),
           const SizedBox(width: 4),
           const Text(
             'Friends',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBlockedButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Text(
-        'Blocked',
-        style: TextStyle(
-          color: Colors.red.shade700,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
       ),
     );
   }
@@ -329,19 +288,17 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
 
     setState(() => _loading = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUserId!,
-      widget.user.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUserId!,
+      toUserId: widget.user.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
     if (mounted) {
-      setState(() => _loading = false);
-
       if (success) {
-        setState(() => _status = FriendshipStatus.requestSent);
+        await _loadFriendshipStatus();
         widget.onStatusChanged?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Follow request sent to ${widget.user.displayName}'),
@@ -350,13 +307,30 @@ class _ListUserProfileCardState extends State<ListUserProfileCard> {
             duration: const Duration(seconds: 2),
           ),
         );
+      } else {
+        setState(() => _loading = false);
       }
     }
   }
 
   Future<void> _acceptRequest() async {
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+      } else {
+        setState(() => _loading = false);
+      }
+    }
   }
 }
 
@@ -382,8 +356,10 @@ class GridUserProfileCard extends StatefulWidget {
 }
 
 class _GridUserProfileCardState extends State<GridUserProfileCard> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  FriendshipStatus _status = FriendshipStatus.none;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loading = false;
   String? _currentUserId;
 
@@ -402,14 +378,15 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
       _loading = true;
     });
 
-    final status = await _friendshipService.getFriendshipStatus(
+    final relationData = await _friendRequestService.getRelationshipStatus(
       currentUser.id,
       widget.user.id,
     );
 
     if (mounted) {
       setState(() {
-        _status = status;
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
         _loading = false;
       });
     }
@@ -418,7 +395,7 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return InkWell(
       onTap: widget.onTap,
       borderRadius: BorderRadius.circular(16),
@@ -436,13 +413,14 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
           ],
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min, // Important: Use min to prevent overflow
+          mainAxisSize:
+              MainAxisSize.min, // Important: Use min to prevent overflow
           children: [
             // Avatar with online status
             _buildAvatar(),
-            
+
             const SizedBox(height: 12),
-            
+
             // Full name
             Text(
               widget.user.displayName,
@@ -453,9 +431,9 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            
+
             const SizedBox(height: 4),
-            
+
             // Handle
             Text(
               widget.user.formattedHandle,
@@ -465,9 +443,9 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Virtual number (always show for grid)
             Text(
               widget.user.virtualNumber ?? '',
@@ -476,7 +454,7 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             if (widget.showBio && widget.user.bio.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -489,15 +467,12 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
                 overflow: TextOverflow.ellipsis,
               ),
             ],
-            
+
             const SizedBox(height: 12),
-            
+
             // Follow button at bottom (removed Spacer to prevent overflow)
             if (_shouldShowButton())
-              SizedBox(
-                width: double.infinity,
-                child: _buildFollowButton(),
-              ),
+              SizedBox(width: double.infinity, child: _buildFollowButton()),
           ],
         ),
       ),
@@ -506,7 +481,7 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
 
   Widget _buildAvatar() {
     final theme = Theme.of(context);
-    
+
     return Stack(
       children: [
         CircleAvatar(
@@ -560,17 +535,17 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
       );
     }
 
-    switch (_status) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return _buildFollowButtonWidget();
-      case FriendshipStatus.requestSent:
+      case 'request_sent':
         return _buildRequestedButton();
-      case FriendshipStatus.requestReceived:
+      case 'request_received':
         return _buildAcceptButton();
-      case FriendshipStatus.friends:
+      case 'friends':
         return _buildFriendsButton();
-      case FriendshipStatus.blocked:
-        return _buildBlockedButton();
+      default:
+        return _buildFollowButtonWidget();
     }
   }
 
@@ -581,16 +556,11 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Follow',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -602,16 +572,11 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
         foregroundColor: Colors.grey.shade600,
         side: BorderSide(color: Colors.grey.shade300),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Followed',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -623,16 +588,11 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
         backgroundColor: Colors.green.shade600,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Text(
         'Accept',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -644,48 +604,18 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
         foregroundColor: Colors.green.shade700,
         side: BorderSide(color: Colors.green.shade300),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.check,
-            size: 16,
-            color: Colors.green.shade700,
-          ),
+          Icon(Icons.check, size: 16, color: Colors.green.shade700),
           const SizedBox(width: 4),
           const Text(
             'Friends',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBlockedButton() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Text(
-        'Blocked',
-        style: TextStyle(
-          color: Colors.red.shade700,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }
@@ -695,19 +625,17 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
 
     setState(() => _loading = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUserId!,
-      widget.user.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUserId!,
+      toUserId: widget.user.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
     if (mounted) {
-      setState(() => _loading = false);
-
       if (success) {
-        setState(() => _status = FriendshipStatus.requestSent);
+        await _loadFriendshipStatus();
         widget.onStatusChanged?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Follow request sent to ${widget.user.displayName}'),
@@ -716,12 +644,29 @@ class _GridUserProfileCardState extends State<GridUserProfileCard> {
             duration: const Duration(seconds: 2),
           ),
         );
+      } else {
+        setState(() => _loading = false);
       }
     }
   }
 
   Future<void> _acceptRequest() async {
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+      } else {
+        setState(() => _loading = false);
+      }
+    }
   }
 }

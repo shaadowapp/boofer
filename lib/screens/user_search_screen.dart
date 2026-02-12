@@ -2,9 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
 import '../services/user_service.dart';
-import '../providers/firestore_user_provider.dart';
+import '../services/supabase_service.dart';
 import '../providers/friend_request_provider.dart';
 import '../widgets/unified_friend_card.dart';
 import 'friend_requests_screen.dart';
@@ -18,8 +17,7 @@ class UserSearchScreen extends StatefulWidget {
 
 class _UserSearchScreenState extends State<UserSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  
+
   List<User> _searchResults = [];
   List<User> _suggestedUsers = [];
   List<User> _trendingUsers = [];
@@ -53,7 +51,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         _currentUserId = currentUser.id;
         _currentUserHandle = currentUser.handle;
       });
-      print('✅ Current user loaded: ${currentUser.handle} (ID: ${currentUser.id})');
+      print(
+        '✅ Current user loaded: ${currentUser.handle} (ID: ${currentUser.id})',
+      );
     }
   }
 
@@ -63,45 +63,34 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     });
 
     try {
-      // Get real users from Firestore ONLY
-      final userProvider = context.read<FirestoreUserProvider>();
-      
-      // Get discoverable users
-      final discoverableUsers = await userProvider.getDiscoverableUsers(limit: 20);
-      
+      final supabaseService = SupabaseService.instance;
+
+      // Get discoverable users from Supabase
+      final discoverableUsers = await supabaseService.searchUsers('');
+
       // Filter out current user by both ID and handle
       final filteredUsers = discoverableUsers.where((user) {
         final isDifferentId = user.id != _currentUserId;
         final isDifferentHandle = user.handle != _currentUserHandle;
         return isDifferentId && isDifferentHandle;
       }).toList();
-      
-      print('🔍 Filtering users:');
-      print('   - Total users: ${discoverableUsers.length}');
-      print('   - Current user ID: $_currentUserId');
-      print('   - Current user handle: $_currentUserHandle');
-      print('   - Filtered users: ${filteredUsers.length}');
-      
+
       // Shuffle and split into suggested and trending
       filteredUsers.shuffle();
-      
+
       final halfPoint = (filteredUsers.length / 2).ceil();
-      
+
       setState(() {
         _suggestedUsers = filteredUsers.take(halfPoint).toList();
         _trendingUsers = filteredUsers.skip(halfPoint).toList();
-        _recentSearches = []; // Could implement recent searches from local storage
+        _recentSearches = [];
         _loading = false;
       });
-      
-      print('✅ Loaded ${filteredUsers.length} real users from Firestore (current user excluded)');
-      print('   - Suggested: ${_suggestedUsers.length}');
-      print('   - Trending: ${_trendingUsers.length}');
-      
+
+      print('✅ Loaded ${filteredUsers.length} real users from Supabase');
     } catch (e) {
-      print('❌ Error loading real users: $e');
-      
-      // NO FALLBACK - Show empty state instead
+      print('❌ Error loading users from Supabase: $e');
+
       setState(() {
         _suggestedUsers = [];
         _trendingUsers = [];
@@ -134,20 +123,16 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     });
 
     try {
-      final userProvider = context.read<FirestoreUserProvider>();
-      final results = await userProvider.searchUsers(query);
-      
+      final supabaseService = SupabaseService.instance;
+      final results = await supabaseService.searchUsers(query);
+
       // Filter out current user by both ID and handle
       final filteredResults = results.where((user) {
         final isDifferentId = user.id != _currentUserId;
         final isDifferentHandle = user.handle != _currentUserHandle;
         return isDifferentId && isDifferentHandle;
       }).toList();
-      
-      print('🔍 Search results filtered:');
-      print('   - Total results: ${results.length}');
-      print('   - After filtering current user: ${filteredResults.length}');
-      
+
       if (mounted) {
         setState(() {
           _searchResults = filteredResults;
@@ -182,7 +167,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           Consumer<FriendRequestProvider>(
             builder: (context, provider, child) {
               final receivedCount = provider.receivedRequests.length;
-              
+
               return Stack(
                 children: [
                   IconButton(
@@ -263,15 +248,15 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
               ),
             ),
           ),
-          
+
           // Content
-          Expanded(
-            child: _buildContent(),
-          ),
+          Expanded(child: _buildContent()),
         ],
       ),
     );
@@ -296,7 +281,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   Widget _buildAllUsersContent() {
     // Show all users when not searching
     final allUsers = [..._suggestedUsers, ..._trendingUsers];
-    
+
     if (allUsers.isEmpty) {
       return RefreshIndicator(
         onRefresh: _loadExploreUsers,
@@ -311,7 +296,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   Icon(
                     Icons.people_outline,
                     size: 64,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -322,7 +309,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   Text(
                     'Check back later for new users',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                 ],

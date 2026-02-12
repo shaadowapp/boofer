@@ -5,7 +5,7 @@ import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
-import '../services/anonymous_auth_service.dart';
+import '../services/supabase_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/unified_friend_card.dart';
@@ -54,22 +54,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    
+
     // Handle case where localizations are not available
     if (l10n == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    
+
     return Scaffold(
       body: Consumer2<ChatProvider, ArchiveSettingsProvider>(
         builder: (context, chatProvider, archiveSettings, child) {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
-          
+
           if (activeChats.isEmpty) {
             return RefreshIndicator(
               onRefresh: () async {
@@ -86,21 +82,29 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         SvgIcons.sized(
                           SvgIcons.peopleOutline,
                           64,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No friends yet',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.5),
+                              ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Start connecting with people',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.5),
+                              ),
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
@@ -111,9 +115,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           icon: const Icon(Icons.explore_outlined),
                           label: const Text('Explore Users'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
                             ),
@@ -126,15 +135,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
             );
           }
-          
+
           return RefreshIndicator(
             onRefresh: () async {
               await chatProvider.refreshFriends();
             },
             child: ListView.builder(
-              itemCount: _calculateTotalItems(activeChats, archivedChats, archiveSettings),
+              itemCount: _calculateTotalItems(
+                activeChats,
+                archivedChats,
+                archiveSettings,
+              ),
               itemBuilder: (context, index) {
-                return _buildListItem(context, index, activeChats, archivedChats, archiveSettings, chatProvider, l10n);
+                return _buildListItem(
+                  context,
+                  index,
+                  activeChats,
+                  archivedChats,
+                  archiveSettings,
+                  chatProvider,
+                  l10n,
+                );
               },
             ),
           );
@@ -143,17 +164,23 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  int _calculateTotalItems(List<Friend> activeChats, List<Friend> archivedChats, ArchiveSettingsProvider archiveSettings) {
+  int _calculateTotalItems(
+    List<Friend> activeChats,
+    List<Friend> archivedChats,
+    ArchiveSettingsProvider archiveSettings,
+  ) {
     int totalItems = activeChats.length;
-    
+
     // Add archive button if there are archived chats and it should be shown
     if (archivedChats.isNotEmpty) {
-      if (archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats ||
-          archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats) {
+      if (archiveSettings.archiveButtonPosition ==
+              ArchiveButtonPosition.topOfChats ||
+          archiveSettings.archiveButtonPosition ==
+              ArchiveButtonPosition.bottomOfChats) {
         totalItems += 1;
       }
     }
-    
+
     return totalItems;
   }
 
@@ -167,44 +194,49 @@ class _LobbyScreenState extends State<LobbyScreen> {
     AppLocalizations l10n,
   ) {
     // Show archive button at the top if configured
-    if (archivedChats.isNotEmpty && 
-        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats &&
+    if (archivedChats.isNotEmpty &&
+        archiveSettings.archiveButtonPosition ==
+            ArchiveButtonPosition.topOfChats &&
         index == 0) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
-    
+
     // Show archive button at the bottom if configured
-    if (archivedChats.isNotEmpty && 
-        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.bottomOfChats &&
+    if (archivedChats.isNotEmpty &&
+        archiveSettings.archiveButtonPosition ==
+            ArchiveButtonPosition.bottomOfChats &&
         index == activeChats.length) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
-    
+
     // Calculate the actual friend index
     int friendIndex = index;
-    if (archivedChats.isNotEmpty && 
-        archiveSettings.archiveButtonPosition == ArchiveButtonPosition.topOfChats) {
+    if (archivedChats.isNotEmpty &&
+        archiveSettings.archiveButtonPosition ==
+            ArchiveButtonPosition.topOfChats) {
       friendIndex = index - 1;
     }
-    
+
     // Show friend tile
     if (friendIndex >= 0 && friendIndex < activeChats.length) {
       final friend = activeChats[friendIndex];
       return _buildFriendTile(friend, chatProvider, l10n);
     }
-    
+
     // Fallback - should not happen
     return const SizedBox.shrink();
   }
 
-  Widget _buildArchiveContactCard(BuildContext context, List<Friend> archivedChats, AppLocalizations l10n) {
+  Widget _buildArchiveContactCard(
+    BuildContext context,
+    List<Friend> archivedChats,
+    AppLocalizations l10n,
+  ) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const ArchivedChatsScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
         );
       },
       child: Container(
@@ -212,7 +244,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3), 
+              color: Theme.of(context).dividerColor.withOpacity(0.3),
               width: 0.5,
             ),
           ),
@@ -222,16 +254,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
             // Archive icon as avatar
             CircleAvatar(
               radius: 28,
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withOpacity(0.1),
               child: Icon(
                 Icons.archive,
                 color: Theme.of(context).colorScheme.primary,
                 size: 24,
               ),
             ),
-            
+
             const SizedBox(width: 16),
-            
+
             // Archive info
             Expanded(
               child: Column(
@@ -242,13 +276,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     children: [
                       Text(
                         '${l10n.archived} (${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'})',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Icon(
                         Icons.chevron_right,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.5),
                         size: 20,
                       ),
                     ],
@@ -257,7 +292,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   Text(
                     'View archived conversations',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -271,7 +308,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  Widget _buildFriendTile(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  Widget _buildFriendTile(
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
     // Convert Friend to User for UnifiedFriendCard
     final user = User(
       id: friend.id,
@@ -294,12 +335,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
       child: UnifiedFriendCard(
         user: user,
         showOnlineStatus: true,
-        showActionButton: false, // Hide action button in lobby (they're already friends)
+        showActionButton:
+            false, // Hide action button in lobby (they're already friends)
       ),
     );
   }
 
-  void _showChatOptionsBottomSheet(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  void _showChatOptionsBottomSheet(
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -320,13 +366,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            
+
             // Header with friend info
             Row(
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.1),
                   child: friend.avatar != null
                       ? ClipOval(
                           child: Image.network(
@@ -337,7 +385,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ),
                         )
                       : Text(
-                          friend.name.split(' ').map((e) => e[0]).take(2).join(),
+                          friend.name
+                              .split(' ')
+                              .map((e) => e[0])
+                              .take(2)
+                              .join(),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -354,9 +406,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         children: [
                           Text(
                             friend.name,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           // Unread eye indicator after name
                           if (friend.unreadCount > 0) ...[
@@ -364,8 +415,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             Icon(
                               Icons.visibility_off,
                               size: 16,
-                              color: chatProvider.isChatMuted(friend.id) 
-                                  ? Colors.orange 
+                              color: chatProvider.isChatMuted(friend.id)
+                                  ? Colors.orange
                                   : Theme.of(context).colorScheme.primary,
                             ),
                           ],
@@ -374,7 +425,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       Text(
                         friend.virtualNumber,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -382,14 +435,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Chat options
             _buildChatOption(
               context,
               icon: Icons.archive,
-              title: chatProvider.isChatArchived(friend.id) ? l10n.unarchiveChat : l10n.archiveChat,
+              title: chatProvider.isChatArchived(friend.id)
+                  ? l10n.unarchiveChat
+                  : l10n.archiveChat,
               onTap: () async {
                 Navigator.pop(context);
                 if (chatProvider.isChatArchived(friend.id)) {
@@ -401,11 +456,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 }
               },
             ),
-            
+
             _buildChatOption(
               context,
-              icon: chatProvider.isChatMuted(friend.id) ? Icons.volume_up : Icons.volume_off,
-              title: chatProvider.isChatMuted(friend.id) ? l10n.unmuteChat : l10n.muteChat,
+              icon: chatProvider.isChatMuted(friend.id)
+                  ? Icons.volume_up
+                  : Icons.volume_off,
+              title: chatProvider.isChatMuted(friend.id)
+                  ? l10n.unmuteChat
+                  : l10n.muteChat,
               onTap: () async {
                 Navigator.pop(context);
                 if (chatProvider.isChatMuted(friend.id)) {
@@ -417,11 +476,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 }
               },
             ),
-            
+
             _buildChatOption(
               context,
-              icon: friend.unreadCount > 0 ? Icons.mark_email_read : Icons.mark_email_unread,
-              title: friend.unreadCount > 0 ? l10n.markAsRead : l10n.markAsUnread,
+              icon: friend.unreadCount > 0
+                  ? Icons.mark_email_read
+                  : Icons.mark_email_unread,
+              title: friend.unreadCount > 0
+                  ? l10n.markAsRead
+                  : l10n.markAsUnread,
               onTap: () async {
                 Navigator.pop(context);
                 if (friend.unreadCount > 0) {
@@ -441,11 +504,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 }
               },
             ),
-            
+
             _buildChatOption(
               context,
               icon: Icons.block,
-              title: chatProvider.isUserBlocked(friend.id) ? l10n.unblockUser : l10n.blockUser,
+              title: chatProvider.isUserBlocked(friend.id)
+                  ? l10n.unblockUser
+                  : l10n.blockUser,
               isDestructive: !chatProvider.isUserBlocked(friend.id),
               onTap: () {
                 Navigator.pop(context);
@@ -456,7 +521,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 }
               },
             ),
-            
+
             _buildChatOption(
               context,
               icon: Icons.delete,
@@ -483,15 +548,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: isDestructive 
-            ? Colors.red.shade600 
+        color: isDestructive
+            ? Colors.red.shade600
             : Theme.of(context).colorScheme.onSurface,
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: isDestructive 
-              ? Colors.red.shade600 
+          color: isDestructive
+              ? Colors.red.shade600
               : Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w500,
         ),
@@ -500,7 +565,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  void _showBlockConfirmation(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  void _showBlockConfirmation(
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -528,12 +597,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  void _unblockUser(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) async {
+  void _unblockUser(
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) async {
     await chatProvider.unblockUser(friend.id);
     _showSnackBar(l10n.userUnblocked, Colors.green);
   }
 
-  void _showDeleteConfirmation(Friend friend, ChatProvider chatProvider, AppLocalizations l10n) {
+  void _showDeleteConfirmation(
+    Friend friend,
+    ChatProvider chatProvider,
+    AppLocalizations l10n,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -650,9 +727,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
           TextButton(
             onPressed: () async {
-              // Use anonymous auth service for logout
-              final anonymousAuth = AnonymousAuthService();
-              await anonymousAuth.signOut();
+              // Use Supabase for logout
+              await SupabaseService.instance.signOut();
               Navigator.pushReplacementNamed(context, '/onboarding');
             },
             child: const Text('Logout'),

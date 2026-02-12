@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/anonymous_auth_service.dart';
 import '../providers/auth_state_provider.dart';
-import '../providers/firestore_user_provider.dart';
 
 /// Privacy-focused onboarding screen with one-click anonymous signup
 class OnboardingScreen extends StatefulWidget {
@@ -15,34 +13,22 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isCreatingProfile = false;
   String _statusMessage = '';
+  int _selectedAge = 18; // Default age
 
   Future<void> _createAnonymousProfile() async {
     setState(() {
       _isCreatingProfile = true;
-      _statusMessage = 'Checking internet connection...';
+      _statusMessage = 'Creating virtual identity...';
     });
 
     try {
-      final authService = AnonymousAuthService();
+      final authProvider = context.read<AuthStateProvider>();
+      await authProvider.createAnonymousUser(age: _selectedAge);
 
-      setState(() {
-        _statusMessage = 'Creating virtual identity...';
-      });
-
-      final user = await authService.createAnonymousUser();
-
-      if (user != null) {
+      if (authProvider.isAuthenticated) {
         setState(() {
           _statusMessage = 'Profile created successfully!';
         });
-
-        // Update auth state
-        final authProvider = context.read<AuthStateProvider>();
-        await authProvider.checkAuthState();
-
-        // Initialize user provider
-        final userProvider = context.read<FirestoreUserProvider>();
-        await userProvider.initialize();
 
         await Future.delayed(const Duration(milliseconds: 500));
 
@@ -52,6 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       } else {
         setState(() {
           _statusMessage =
+              authProvider.errorMessage ??
               'Failed to create profile. Please check your internet connection and try again.';
           _isCreatingProfile = false;
         });
@@ -60,7 +47,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         if (mounted) {
           _showErrorDialog(
             'Signup Failed',
-            'Unable to create your profile. Please ensure you have an active internet connection and try again.',
+            authProvider.errorMessage ?? 'Unable to create your profile.',
           );
         }
       }
@@ -117,17 +104,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 // App Icon
                 const Icon(
                   Icons.chat_bubble_rounded,
-                  size: 100,
+                  size: 80,
                   color: Colors.white,
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 // App Name
                 const Text(
-                  'Boofer',
+                  'Boofer Guest',
                   style: TextStyle(
-                    fontSize: 48,
+                    fontSize: 40,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 1,
@@ -135,29 +122,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   textAlign: TextAlign.center,
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
                 // Tagline
                 const Text(
                   'Privacy-first messaging',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     color: Colors.white70,
                     fontWeight: FontWeight.w400,
                   ),
                   textAlign: TextAlign.center,
                 ),
 
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
 
-                // Privacy Features
+                // Privacy Features (more compact)
                 _buildFeatureItem(
                   icon: Icons.shield_outlined,
                   title: 'No Email Required',
                   description: 'Your privacy is our priority',
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 _buildFeatureItem(
                   icon: Icons.phone_android_outlined,
@@ -165,7 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   description: 'Auto-generated for your safety',
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 _buildFeatureItem(
                   icon: Icons.person_outline,
@@ -174,6 +161,76 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
 
                 const Spacer(),
+
+                // Age Selection Section
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Select Your Age',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              if (_selectedAge > 18) {
+                                setState(() => _selectedAge--);
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '$_selectedAge',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              if (_selectedAge < 99) {
+                                setState(() => _selectedAge++);
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.add_circle_outline,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
 
                 // Status Message
                 if (_statusMessage.isNotEmpty)

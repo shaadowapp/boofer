@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 import '../widgets/enhanced_user_profile_card.dart';
 import 'friend_chat_screen.dart';
@@ -15,7 +15,8 @@ class FriendsScreen extends StatefulWidget {
 }
 
 class _FriendsScreenState extends State<FriendsScreen> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
   List<User> _friends = [];
   bool _loading = true;
   String? _currentUserId;
@@ -25,9 +26,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
   void initState() {
     super.initState();
     _loadFriends();
-    
+
     // Listen to friends updates
-    _friendsSubscription = _friendshipService.friendsStream.listen((friends) {
+    _friendsSubscription = _friendRequestService.friendsStream.listen((
+      friends,
+    ) {
       if (mounted) {
         setState(() {
           _friends = friends;
@@ -52,7 +55,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       _loading = true;
     });
 
-    await _friendshipService.getFriends(currentUser.id);
+    _friendRequestService.listenToFriends(currentUser.id);
   }
 
   @override
@@ -62,10 +65,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
         title: Text('Friends (${_friends.length})'),
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: _loadFriends,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadFriends, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: _buildBody(),
@@ -74,9 +74,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_friends.isEmpty) {

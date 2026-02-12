@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 
 /// Widget that shows friendship status and provides actions
@@ -19,8 +19,10 @@ class FriendshipStatusWidget extends StatefulWidget {
 }
 
 class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  FriendshipStatus _status = FriendshipStatus.none;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loading = false;
   String? _currentUserId;
 
@@ -34,19 +36,22 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
     final currentUser = await UserService.getCurrentUser();
     if (currentUser == null) return;
 
-    setState(() {
-      _currentUserId = currentUser.id;
-      _loading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _currentUserId = currentUser.id;
+        _loading = true;
+      });
+    }
 
-    final status = await _friendshipService.getFriendshipStatus(
+    final relationData = await _friendRequestService.getRelationshipStatus(
       currentUser.id,
       widget.user.id,
     );
 
     if (mounted) {
       setState(() {
-        _status = status;
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
         _loading = false;
       });
     }
@@ -70,24 +75,26 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
   }
 
   Widget _buildStatusWidget() {
-    switch (_status) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return _buildSendRequestButton();
-      case FriendshipStatus.requestSent:
+      case 'request_sent':
         return _buildRequestSentWidget();
-      case FriendshipStatus.requestReceived:
+      case 'request_received':
         return _buildRequestReceivedWidget();
-      case FriendshipStatus.friends:
+      case 'friends':
         return _buildFriendsWidget();
-      case FriendshipStatus.blocked:
-        return _buildBlockedWidget();
+      case 'self':
+        return const SizedBox.shrink();
+      default:
+        return _buildSendRequestButton();
     }
   }
 
   Widget _buildSendRequestButton() {
     return ElevatedButton.icon(
       onPressed: _loading ? null : _sendFriendRequest,
-      icon: _loading 
+      icon: _loading
           ? const SizedBox(
               width: 18,
               height: 18,
@@ -181,50 +188,22 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
     );
   }
 
-  Widget _buildBlockedWidget() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.block, size: 16, color: Colors.red.shade700),
-          const SizedBox(width: 8),
-          Text(
-            'Blocked',
-            style: TextStyle(
-              color: Colors.red.shade700,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _sendFriendRequest() async {
     if (_currentUserId == null) return;
 
     setState(() => _loading = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUserId!,
-      widget.user.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUserId!,
+      toUserId: widget.user.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
     if (mounted) {
-      setState(() => _loading = false);
-
       if (success) {
-        setState(() => _status = FriendshipStatus.requestSent);
+        await _loadFriendshipStatus();
         widget.onStatusChanged?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Follow request sent to ${widget.user.displayName}'),
@@ -232,6 +211,7 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
           ),
         );
       } else {
+        setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to send follow request'),
@@ -243,14 +223,42 @@ class _FriendshipStatusWidgetState extends State<FriendshipStatusWidget> {
   }
 
   Future<void> _acceptRequest() async {
-    // This would need the request ID - for now, just reload status
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+      } else {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   Future<void> _declineRequest() async {
-    // This would need the request ID - for now, just reload status
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.rejectFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+      } else {
+        setState(() => _loading = false);
+      }
+    }
   }
 }

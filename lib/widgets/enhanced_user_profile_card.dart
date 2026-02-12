@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 
 enum ProfileCardStyle { grid, list }
@@ -27,12 +27,15 @@ class EnhancedUserProfileCard extends StatefulWidget {
   });
 
   @override
-  State<EnhancedUserProfileCard> createState() => _EnhancedUserProfileCardState();
+  State<EnhancedUserProfileCard> createState() =>
+      _EnhancedUserProfileCardState();
 }
 
 class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  FriendshipStatus _status = FriendshipStatus.none;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loading = false;
   String? _currentUserId;
 
@@ -48,19 +51,22 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
     final currentUser = await UserService.getCurrentUser();
     if (currentUser == null) return;
 
-    setState(() {
-      _currentUserId = currentUser.id;
-      _loading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _currentUserId = currentUser.id;
+        _loading = true;
+      });
+    }
 
-    final status = await _friendshipService.getFriendshipStatus(
+    final relationData = await _friendRequestService.getRelationshipStatus(
       currentUser.id,
       widget.user.id,
     );
 
     if (mounted) {
       setState(() {
-        _status = status;
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
         _loading = false;
       });
     }
@@ -68,14 +74,14 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.style == ProfileCardStyle.grid 
-        ? _buildGridStyle() 
+    return widget.style == ProfileCardStyle.grid
+        ? _buildGridStyle()
         : _buildListStyle();
   }
 
   Widget _buildGridStyle() {
     final theme = Theme.of(context);
-    
+
     return InkWell(
       onTap: widget.onTap,
       borderRadius: BorderRadius.circular(16),
@@ -93,13 +99,14 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
           ],
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min, // Important: Use min to prevent overflow
+          mainAxisSize:
+              MainAxisSize.min, // Important: Use min to prevent overflow
           children: [
             // Profile picture at top
             _buildAvatar(size: 32),
-            
+
             const SizedBox(height: 12),
-            
+
             // Full name (centered)
             Text(
               widget.user.displayName,
@@ -110,9 +117,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            
+
             const SizedBox(height: 4),
-            
+
             // User handle (small text, centered)
             Text(
               widget.user.formattedHandle,
@@ -122,9 +129,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Virtual number (centered)
             Text(
               widget.user.virtualNumber ?? '',
@@ -133,15 +140,12 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Follow button (centered) - removed Spacer to prevent overflow
             if (widget.showFollowButton && _shouldShowButton())
-              SizedBox(
-                width: double.infinity,
-                child: _buildFollowButton(),
-              ),
+              SizedBox(width: double.infinity, child: _buildFollowButton()),
           ],
         ),
       ),
@@ -150,7 +154,7 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   Widget _buildListStyle() {
     final theme = Theme.of(context);
-    
+
     return InkWell(
       onTap: widget.onTap,
       borderRadius: BorderRadius.circular(16),
@@ -171,9 +175,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
           children: [
             // Profile pic on left (1st section)
             _buildAvatar(size: 24),
-            
+
             const SizedBox(width: 16),
-            
+
             // 2nd section: full name with handle and virtual number below
             Expanded(
               child: Column(
@@ -199,9 +203,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  
+
                   const SizedBox(height: 4),
-                  
+
                   // Virtual number below
                   Text(
                     widget.user.virtualNumber ?? '',
@@ -212,9 +216,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
                 ],
               ),
             ),
-            
+
             const SizedBox(width: 12),
-            
+
             // 3rd section: follow button on right
             if (widget.showFollowButton && _shouldShowButton())
               _buildFollowButton(),
@@ -226,7 +230,7 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   Widget _buildAvatar({required double size}) {
     final theme = Theme.of(context);
-    
+
     return Stack(
       children: [
         CircleAvatar(
@@ -281,36 +285,34 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
       );
     }
 
-    switch (_status) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return _buildFollowButtonWidget();
-      case FriendshipStatus.requestSent:
+      case 'request_sent':
         return _buildRequestedButton();
-      case FriendshipStatus.requestReceived:
+      case 'request_received':
         return _buildAcceptButton();
-      case FriendshipStatus.friends:
+      case 'friends':
         return _buildFriendsButton();
-      case FriendshipStatus.blocked:
-        return _buildBlockedButton();
+      default:
+        return _buildFollowButtonWidget();
     }
   }
 
   Widget _buildFollowButtonWidget() {
     final isGrid = widget.style == ProfileCardStyle.grid;
-    
+
     return ElevatedButton(
       onPressed: _sendFriendRequest,
       style: ElevatedButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(
-          horizontal: isGrid ? 24 : 16, 
+          horizontal: isGrid ? 24 : 16,
           vertical: 8,
         ),
         minimumSize: Size(isGrid ? double.infinity : 80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text(
         'Follow',
@@ -324,20 +326,18 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   Widget _buildRequestedButton() {
     final isGrid = widget.style == ProfileCardStyle.grid;
-    
+
     return OutlinedButton(
       onPressed: null,
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.grey.shade600,
         side: BorderSide(color: Colors.grey.shade300),
         padding: EdgeInsets.symmetric(
-          horizontal: isGrid ? 24 : 16, 
+          horizontal: isGrid ? 24 : 16,
           vertical: 8,
         ),
         minimumSize: Size(isGrid ? double.infinity : 80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text(
         'Followed',
@@ -351,20 +351,18 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   Widget _buildAcceptButton() {
     final isGrid = widget.style == ProfileCardStyle.grid;
-    
+
     return ElevatedButton(
       onPressed: _acceptRequest,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.green.shade600,
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(
-          horizontal: isGrid ? 24 : 16, 
+          horizontal: isGrid ? 24 : 16,
           vertical: 8,
         ),
         minimumSize: Size(isGrid ? double.infinity : 80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text(
         'Accept',
@@ -378,20 +376,18 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
 
   Widget _buildFriendsButton() {
     final isGrid = widget.style == ProfileCardStyle.grid;
-    
+
     return OutlinedButton(
       onPressed: null,
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.green.shade700,
         side: BorderSide(color: Colors.green.shade300),
         padding: EdgeInsets.symmetric(
-          horizontal: isGrid ? 24 : 12, 
+          horizontal: isGrid ? 24 : 12,
           vertical: 8,
         ),
         minimumSize: Size(isGrid ? double.infinity : 80, 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Row(
         mainAxisSize: isGrid ? MainAxisSize.max : MainAxisSize.min,
@@ -415,47 +411,22 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
     );
   }
 
-  Widget _buildBlockedButton() {
-    final isGrid = widget.style == ProfileCardStyle.grid;
-    
-    return Container(
-      width: isGrid ? double.infinity : 80,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Text(
-        'Blocked',
-        style: TextStyle(
-          color: Colors.red.shade700,
-          fontSize: isGrid ? 14 : 11,
-          fontWeight: FontWeight.w500,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
   Future<void> _sendFriendRequest() async {
     if (_currentUserId == null) return;
 
     setState(() => _loading = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUserId!,
-      widget.user.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUserId!,
+      toUserId: widget.user.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
     if (mounted) {
-      setState(() => _loading = false);
-
       if (success) {
-        setState(() => _status = FriendshipStatus.requestSent);
+        await _loadFriendshipStatus();
         widget.onStatusChanged?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Follow request sent to ${widget.user.displayName}'),
@@ -464,13 +435,30 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
             duration: const Duration(seconds: 2),
           ),
         );
+      } else {
+        setState(() => _loading = false);
       }
     }
   }
 
   Future<void> _acceptRequest() async {
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+      } else {
+        setState(() => _loading = false);
+      }
+    }
   }
 }
 

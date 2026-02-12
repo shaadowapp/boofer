@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../services/friendship_service.dart';
+import '../services/friend_request_service.dart';
 import '../services/user_service.dart';
 import '../screens/friend_chat_screen.dart';
 
@@ -12,7 +12,8 @@ class UnifiedFriendCard extends StatefulWidget {
   final User user;
   final VoidCallback? onStatusChanged;
   final bool showOnlineStatus;
-  final bool showActionButton; // New parameter to control action button visibility
+  final bool
+  showActionButton; // New parameter to control action button visibility
 
   const UnifiedFriendCard({
     super.key,
@@ -27,8 +28,10 @@ class UnifiedFriendCard extends StatefulWidget {
 }
 
 class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
-  final FriendshipService _friendshipService = FriendshipService.instance;
-  FriendshipStatus _status = FriendshipStatus.none;
+  final FriendRequestService _friendRequestService =
+      FriendRequestService.instance;
+  String _relationshipStatus = 'none';
+  String? _requestId;
   bool _loading = false;
   String? _currentUserId;
 
@@ -42,34 +45,38 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
     final currentUser = await UserService.getCurrentUser();
     if (currentUser == null) return;
 
-    setState(() {
-      _currentUserId = currentUser.id;
-      _loading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _currentUserId = currentUser.id;
+        _loading = true;
+      });
+    }
 
-    final status = await _friendshipService.getFriendshipStatus(
+    final relationData = await _friendRequestService.getRelationshipStatus(
       currentUser.id,
       widget.user.id,
     );
 
     if (mounted) {
       setState(() {
-        _status = status;
+        _relationshipStatus = relationData['status'] as String;
+        _requestId = relationData['requestId'] as String?;
         _loading = false;
       });
     }
   }
 
-  bool get _isFriend => _status == FriendshipStatus.friends;
-  bool get _shouldShowButton => widget.showActionButton && 
-                                _currentUserId != null && 
-                                _currentUserId != widget.user.id && 
-                                !_isFriend;
+  bool get _isFriend => _relationshipStatus == 'friends';
+  bool get _shouldShowButton =>
+      widget.showActionButton &&
+      _currentUserId != null &&
+      _currentUserId != widget.user.id &&
+      !_isFriend;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -85,14 +92,12 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
         children: [
           // SEGMENT 1: Profile Picture (clickable -> profile screen)
           _buildProfilePictureSegment(theme),
-          
+
           const SizedBox(width: 16),
-          
+
           // SEGMENT 2: User Info (clickable -> chat if friend)
-          Expanded(
-            child: _buildUserInfoSegment(theme),
-          ),
-          
+          Expanded(child: _buildUserInfoSegment(theme)),
+
           // SEGMENT 3: Action Button (only if not friend)
           if (_shouldShowButton) ...[
             const SizedBox(width: 12),
@@ -112,12 +117,14 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
           CircleAvatar(
             radius: 28,
             backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-            backgroundImage: widget.user.profilePicture != null && 
-                            widget.user.profilePicture!.isNotEmpty
+            backgroundImage:
+                widget.user.profilePicture != null &&
+                    widget.user.profilePicture!.isNotEmpty
                 ? NetworkImage(widget.user.profilePicture!)
                 : null,
-            child: widget.user.profilePicture == null || 
-                   widget.user.profilePicture!.isEmpty
+            child:
+                widget.user.profilePicture == null ||
+                    widget.user.profilePicture!.isEmpty
                 ? Text(
                     widget.user.initials,
                     style: TextStyle(
@@ -128,7 +135,8 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                   )
                 : null,
           ),
-          if (widget.showOnlineStatus && widget.user.status == UserStatus.online)
+          if (widget.showOnlineStatus &&
+              widget.user.status == UserStatus.online)
             Positioned(
               bottom: 0,
               right: 0,
@@ -166,9 +174,9 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          
+
           const SizedBox(height: 4),
-          
+
           // User handle
           Text(
             widget.user.formattedHandle,
@@ -177,11 +185,11 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
               fontWeight: FontWeight.w500,
             ),
           ),
-          
+
           const SizedBox(height: 2),
-          
+
           // Virtual number
-          if (widget.user.virtualNumber != null && 
+          if (widget.user.virtualNumber != null &&
               widget.user.virtualNumber!.isNotEmpty)
             Text(
               widget.user.virtualNumber!,
@@ -210,17 +218,19 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       );
     }
 
-    switch (_status) {
-      case FriendshipStatus.none:
+    switch (_relationshipStatus) {
+      case 'none':
         return _buildFollowButton();
-      case FriendshipStatus.requestSent:
+      case 'request_sent':
         return _buildRequestedButton();
-      case FriendshipStatus.requestReceived:
+      case 'request_received':
         return _buildAcceptButton();
-      case FriendshipStatus.friends:
+      case 'friends':
         return const SizedBox.shrink(); // Don't show button for friends
-      case FriendshipStatus.blocked:
-        return _buildBlockedButton();
+      case 'self':
+        return const SizedBox.shrink();
+      default:
+        return _buildFollowButton();
     }
   }
 
@@ -238,10 +248,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       ),
       child: const Text(
         'Follow',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -260,10 +267,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       ),
       child: const Text(
         'Requested',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -282,29 +286,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       ),
       child: const Text(
         'Accept',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBlockedButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(20), // Fully rounded
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Text(
-        'Blocked',
-        style: TextStyle(
-          color: Colors.red.shade700,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -341,9 +323,9 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
 
     setState(() => _loading = true);
 
-    final success = await _friendshipService.sendFriendRequest(
-      _currentUserId!,
-      widget.user.id,
+    final success = await _friendRequestService.sendFriendRequest(
+      fromUserId: _currentUserId!,
+      toUserId: widget.user.id,
       message: 'Hi! I\'d like to connect with you.',
     );
 
@@ -351,9 +333,10 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       setState(() => _loading = false);
 
       if (success) {
-        setState(() => _status = FriendshipStatus.requestSent);
+        // Reload to get the requestId if needed
+        await _loadFriendshipStatus();
         widget.onStatusChanged?.call();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Follow request sent to ${widget.user.displayName}'),
@@ -367,7 +350,33 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
   }
 
   Future<void> _acceptRequest() async {
-    await _loadFriendshipStatus();
-    widget.onStatusChanged?.call();
+    if (_currentUserId == null || _requestId == null) return;
+
+    setState(() => _loading = true);
+
+    final success = await _friendRequestService.acceptFriendRequest(
+      requestId: _requestId!,
+      userId: _currentUserId!,
+    );
+
+    if (mounted) {
+      setState(() => _loading = false);
+
+      if (success) {
+        await _loadFriendshipStatus();
+        widget.onStatusChanged?.call();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You are now friends with ${widget.user.displayName}',
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }

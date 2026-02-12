@@ -17,6 +17,7 @@ class User {
   final UserStatus status;
   final DateTime? lastSeen;
   final String? location;
+  final int? age;
   final String? virtualNumber; // Virtual number for user identification
   final int followerCount;
   final int followingCount;
@@ -39,6 +40,7 @@ class User {
     this.status = UserStatus.offline,
     this.lastSeen,
     this.location,
+    this.age,
     this.virtualNumber,
     this.followerCount = 0,
     this.followingCount = 0,
@@ -69,9 +71,7 @@ class User {
 
   /// Check if profile is complete
   bool get isProfileComplete {
-    return id.isNotEmpty && 
-           email.isNotEmpty && 
-           handle.isNotEmpty;
+    return id.isNotEmpty && email.isNotEmpty && handle.isNotEmpty;
   }
 
   /// Get status display text
@@ -87,7 +87,7 @@ class User {
         if (lastSeen != null) {
           final now = DateTime.now();
           final difference = now.difference(lastSeen!);
-          
+
           if (difference.inMinutes < 1) {
             return 'Last seen just now';
           } else if (difference.inMinutes < 60) {
@@ -120,6 +120,7 @@ class User {
     UserStatus? status,
     DateTime? lastSeen,
     String? location,
+    int? age,
     String? virtualNumber,
     int? followerCount,
     int? followingCount,
@@ -142,11 +143,13 @@ class User {
       status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
       location: location ?? this.location,
+      age: age ?? this.age,
       virtualNumber: virtualNumber ?? this.virtualNumber,
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount ?? this.followingCount,
       friendsCount: friendsCount ?? this.friendsCount,
-      pendingReceivedRequests: pendingReceivedRequests ?? this.pendingReceivedRequests,
+      pendingReceivedRequests:
+          pendingReceivedRequests ?? this.pendingReceivedRequests,
       pendingSentRequests: pendingSentRequests ?? this.pendingSentRequests,
     );
   }
@@ -168,6 +171,7 @@ class User {
       'status': status.name,
       'lastSeen': lastSeen?.toIso8601String(),
       'location': location,
+      'age': age,
       'virtualNumber': virtualNumber,
       'followerCount': followerCount,
       'followingCount': followingCount,
@@ -185,7 +189,9 @@ class User {
       'handle': handle,
       'full_name': fullName,
       'bio': bio,
-      'is_discoverable': isDiscoverable ? 1 : 0, // Convert bool to int for SQLite
+      'is_discoverable': isDiscoverable
+          ? 1
+          : 0, // Convert bool to int for SQLite
       'last_username_change': lastUsernameChange?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -194,6 +200,7 @@ class User {
       'status': status.name,
       'last_seen': lastSeen?.toIso8601String(),
       'location': location,
+      'age': age,
       'virtual_number': virtualNumber,
       'follower_count': followerCount,
       'following_count': followingCount,
@@ -207,17 +214,23 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? '',
-      email: json['email'] ?? '', // Default to empty string if not present in Firestore
+      email:
+          json['email'] ??
+          '', // Default to empty string if not present in Firestore
       handle: json['handle'] ?? '',
       fullName: json['fullName'] ?? json['full_name'] ?? '',
       bio: json['bio'] ?? '',
-      isDiscoverable: json['isDiscoverable'] ?? 
-          (json['is_discoverable'] is int ? json['is_discoverable'] == 1 : json['is_discoverable']) ?? true,
-      lastUsernameChange: json['lastUsernameChange'] != null 
+      isDiscoverable:
+          json['isDiscoverable'] ??
+          (json['is_discoverable'] is int
+              ? json['is_discoverable'] == 1
+              : json['is_discoverable']) ??
+          true,
+      lastUsernameChange: json['lastUsernameChange'] != null
           ? DateTime.parse(json['lastUsernameChange'])
           : json['last_username_change'] != null
-              ? DateTime.parse(json['last_username_change'])
-              : null,
+          ? DateTime.parse(json['last_username_change'])
+          : null,
       createdAt: DateTime.parse(json['createdAt'] ?? json['created_at']),
       updatedAt: DateTime.parse(json['updatedAt'] ?? json['updated_at']),
       profilePicture: json['profilePicture'] ?? json['profile_picture'],
@@ -226,18 +239,23 @@ class User {
         (e) => e.name == json['status'],
         orElse: () => UserStatus.offline,
       ),
-      lastSeen: json['lastSeen'] != null 
+      lastSeen: json['lastSeen'] != null
           ? DateTime.parse(json['lastSeen'])
           : json['last_seen'] != null
-              ? DateTime.parse(json['last_seen'])
-              : null,
+          ? DateTime.parse(json['last_seen'])
+          : null,
       location: json['location'],
+      age: json['age'],
       virtualNumber: json['virtualNumber'] ?? json['virtual_number'],
       followerCount: json['followerCount'] ?? json['follower_count'] ?? 0,
       followingCount: json['followingCount'] ?? json['following_count'] ?? 0,
       friendsCount: json['friendsCount'] ?? json['friends_count'] ?? 0,
-      pendingReceivedRequests: json['pendingReceivedRequests'] ?? json['pending_received_requests'] ?? 0,
-      pendingSentRequests: json['pendingSentRequests'] ?? json['pending_sent_requests'] ?? 0,
+      pendingReceivedRequests:
+          json['pendingReceivedRequests'] ??
+          json['pending_received_requests'] ??
+          0,
+      pendingSentRequests:
+          json['pendingSentRequests'] ?? json['pending_sent_requests'] ?? 0,
     );
   }
 
@@ -272,14 +290,14 @@ class User {
       fullName: data['fullName'] ?? '',
       bio: data['bio'] ?? '',
       isDiscoverable: data['isDiscoverable'] ?? true,
-      lastUsernameChange: data['lastUsernameChange'] != null 
-          ? DateTime.parse(data['lastUsernameChange']) 
+      lastUsernameChange: data['lastUsernameChange'] != null
+          ? DateTime.parse(data['lastUsernameChange'])
           : null,
-      createdAt: data['createdAt'] != null 
-          ? DateTime.parse(data['createdAt']) 
+      createdAt: data['createdAt'] != null
+          ? DateTime.parse(data['createdAt'])
           : DateTime.now(),
-      updatedAt: data['updatedAt'] != null 
-          ? DateTime.parse(data['updatedAt']) 
+      updatedAt: data['updatedAt'] != null
+          ? DateTime.parse(data['updatedAt'])
           : DateTime.now(),
       profilePicture: data['profilePicture'],
       avatar: data['avatar'],
@@ -287,10 +305,11 @@ class User {
         (e) => e.toString() == 'UserStatus.${data['status'] ?? 'offline'}',
         orElse: () => UserStatus.offline,
       ),
-      lastSeen: data['lastSeen'] != null 
-          ? DateTime.parse(data['lastSeen']) 
+      lastSeen: data['lastSeen'] != null
+          ? DateTime.parse(data['lastSeen'])
           : null,
       location: data['location'],
+      age: data['age'],
       virtualNumber: data['virtualNumber'],
       followerCount: data['followerCount'] ?? 0,
       followingCount: data['followingCount'] ?? 0,
@@ -316,6 +335,7 @@ class User {
       'status': status.toString().split('.').last,
       'lastSeen': lastSeen?.toIso8601String(),
       'location': location,
+      'age': age,
       'virtualNumber': virtualNumber,
       'followerCount': followerCount,
       'followingCount': followingCount,

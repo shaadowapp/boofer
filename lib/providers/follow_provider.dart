@@ -6,7 +6,7 @@ import '../services/follow_service.dart';
 
 /// Provider for managing friend request system state (Instagram/Snapchat style)
 class FriendRequestProvider extends ChangeNotifier {
-  final FriendRequestService _friendRequestService = FriendRequestService.instance;
+  final FollowService _followService = FollowService.instance;
 
   // State
   String? _currentUserId;
@@ -15,7 +15,7 @@ class FriendRequestProvider extends ChangeNotifier {
   final Map<String, List<User>> _followersCache = {};
   final Map<String, List<User>> _followingCache = {};
   final Map<String, List<User>> _suggestedUsers = {};
-  
+
   bool _isLoading = false;
   String? _error;
 
@@ -67,16 +67,17 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final success = await _friendRequestService.followUser(
+      final success = await _followService.followUser(
         followerId: _currentUserId!,
         followingId: userId,
       );
 
       if (success) {
         _followingStatus[userId] = true;
-        
+
         // Update local stats optimistically
-        final currentStats = _followStats[_currentUserId!] ?? FollowStats.empty();
+        final currentStats =
+            _followStats[_currentUserId!] ?? FollowStats.empty();
         _followStats[_currentUserId!] = currentStats.copyWith(
           followingCount: currentStats.followingCount + 1,
           lastUpdated: DateTime.now(),
@@ -90,7 +91,7 @@ class FriendRequestProvider extends ChangeNotifier {
 
         // Refresh following list
         await _loadFollowing(_currentUserId!);
-        
+
         notifyListeners();
       }
 
@@ -111,30 +112,35 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final success = await _friendRequestService.unfollowUser(
+      final success = await _followService.unfollowUser(
         followerId: _currentUserId!,
         followingId: userId,
       );
 
       if (success) {
         _followingStatus[userId] = false;
-        
+
         // Update local stats optimistically
-        final currentStats = _followStats[_currentUserId!] ?? FollowStats.empty();
+        final currentStats =
+            _followStats[_currentUserId!] ?? FollowStats.empty();
         _followStats[_currentUserId!] = currentStats.copyWith(
-          followingCount: (currentStats.followingCount - 1).clamp(0, double.infinity).toInt(),
+          followingCount: (currentStats.followingCount - 1)
+              .clamp(0, double.infinity)
+              .toInt(),
           lastUpdated: DateTime.now(),
         );
 
         final targetStats = _followStats[userId] ?? FollowStats.empty();
         _followStats[userId] = targetStats.copyWith(
-          followersCount: (targetStats.followersCount - 1).clamp(0, double.infinity).toInt(),
+          followersCount: (targetStats.followersCount - 1)
+              .clamp(0, double.infinity)
+              .toInt(),
           lastUpdated: DateTime.now(),
         );
 
         // Refresh following list
         await _loadFollowing(_currentUserId!);
-        
+
         notifyListeners();
       }
 
@@ -164,7 +170,7 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final followers = await _friendRequestService.getFollowers(userId: userId);
+      final followers = await _followService.getFollowers(userId: userId);
       _followersCache[userId] = followers;
       notifyListeners();
     } catch (e) {
@@ -188,7 +194,9 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final suggested = await _friendRequestService.getSuggestedUsers(currentUserId: _currentUserId!);
+      final suggested = await _followService.getSuggestedUsers(
+        currentUserId: _currentUserId!,
+      );
       _suggestedUsers[_currentUserId!] = suggested;
       notifyListeners();
     } catch (e) {
@@ -203,7 +211,7 @@ class FriendRequestProvider extends ChangeNotifier {
     if (!refresh && _followStats.containsKey(userId)) return;
 
     try {
-      final counts = await _friendRequestService.getFollowCounts(userId);
+      final counts = await _followService.getFollowCounts(userId);
       _followStats[userId] = FollowStats(
         followersCount: counts['followers'] ?? 0,
         followingCount: counts['following'] ?? 0,
@@ -222,7 +230,7 @@ class FriendRequestProvider extends ChangeNotifier {
 
     try {
       for (final userId in userIds) {
-        final isFollowing = await _friendRequestService.isFollowing(
+        final isFollowing = await _followService.isFollowing(
           followerId: _currentUserId!,
           followingId: userId,
         );
@@ -239,7 +247,7 @@ class FriendRequestProvider extends ChangeNotifier {
     if (_currentUserId == null) return [];
 
     try {
-      return await _friendRequestService.getMutualFollowers(
+      return await _followService.getMutualFollowers(
         userId1: _currentUserId!,
         userId2: userId,
       );
@@ -257,22 +265,25 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final success = await _friendRequestService.removeFollower(
+      final success = await _followService.removeFollower(
         userId: _currentUserId!,
         followerId: followerId,
       );
 
       if (success) {
         // Update local stats
-        final currentStats = _followStats[_currentUserId!] ?? FollowStats.empty();
+        final currentStats =
+            _followStats[_currentUserId!] ?? FollowStats.empty();
         _followStats[_currentUserId!] = currentStats.copyWith(
-          followersCount: (currentStats.followersCount - 1).clamp(0, double.infinity).toInt(),
+          followersCount: (currentStats.followersCount - 1)
+              .clamp(0, double.infinity)
+              .toInt(),
           lastUpdated: DateTime.now(),
         );
 
         // Refresh followers list
         await loadFollowers(_currentUserId!, refresh: true);
-        
+
         notifyListeners();
       }
 
@@ -293,7 +304,7 @@ class FriendRequestProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final results = await _friendRequestService.batchFollowUsers(
+      final results = await _followService.batchFollowUsers(
         followerId: _currentUserId!,
         userIds: userIds,
       );
@@ -308,7 +319,7 @@ class FriendRequestProvider extends ChangeNotifier {
       // Refresh data
       await _loadFollowing(_currentUserId!);
       await loadFollowStats(_currentUserId!, refresh: true);
-      
+
       notifyListeners();
       return results;
     } catch (e) {
@@ -335,16 +346,16 @@ class FriendRequestProvider extends ChangeNotifier {
     if (!refresh && _followingCache.containsKey(userId)) return;
 
     try {
-      final following = await _friendRequestService.getFollowing(userId: userId);
+      final following = await _followService.getFollowing(userId: userId);
       _followingCache[userId] = following;
-      
+
       // Update following status for current user
       if (userId == _currentUserId) {
         for (final user in following) {
           _followingStatus[user.id] = true;
         }
       }
-      
+
       notifyListeners();
     } catch (e) {
       _setError('Failed to load following: $e');
@@ -355,30 +366,29 @@ class FriendRequestProvider extends ChangeNotifier {
     if (_currentUserId == null) return;
 
     // Listen to follow counts
-    final countsStream = _friendRequestService.listenToFollowCounts(_currentUserId!);
+    final countsStream = _followService.listenToFollowCounts(_currentUserId!);
     if (countsStream != null) {
-      _subscriptions['counts'] = countsStream.listen(
-        (counts) {
-          _followStats[_currentUserId!] = FollowStats(
-            followersCount: counts['followers'] ?? 0,
-            followingCount: counts['following'] ?? 0,
-            mutualFollowsCount: _followStats[_currentUserId!]?.mutualFollowsCount ?? 0,
-            lastUpdated: DateTime.now(),
-          );
-          notifyListeners();
-        },
-      );
+      _subscriptions['counts'] = countsStream.listen((counts) {
+        _followStats[_currentUserId!] = FollowStats(
+          followersCount: counts['followers'] ?? 0,
+          followingCount: counts['following'] ?? 0,
+          mutualFollowsCount:
+              _followStats[_currentUserId!]?.mutualFollowsCount ?? 0,
+          lastUpdated: DateTime.now(),
+        );
+        notifyListeners();
+      });
     }
 
     // Listen to following changes
-    final followingStream = _friendRequestService.listenToFollowing(_currentUserId!);
+    final followingStream = _followService.listenToFollowing(_currentUserId!);
     if (followingStream != null) {
-      _subscriptions['following'] = followingStream.listen(
-        (followingIds) async {
-          // Refresh following list when changes occur
-          await _loadFollowing(_currentUserId!, refresh: true);
-        },
-      );
+      _subscriptions['following'] = followingStream.listen((
+        followingIds,
+      ) async {
+        // Refresh following list when changes occur
+        await _loadFollowing(_currentUserId!, refresh: true);
+      });
     }
   }
 
@@ -413,7 +423,7 @@ class FriendRequestProvider extends ChangeNotifier {
       subscription.cancel();
     }
     _subscriptions.clear();
-    
+
     super.dispose();
   }
 }

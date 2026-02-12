@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/friend_request_provider.dart';
-import '../providers/firestore_user_provider.dart';
+import '../services/supabase_service.dart';
 import '../models/friend_request_model.dart';
 import '../models/user_model.dart';
 import '../widgets/unified_friend_card.dart';
@@ -20,7 +20,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<FriendRequestProvider>();
       provider.loadReceivedRequests(refresh: true);
@@ -35,8 +35,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
     }
 
     try {
-      final userProvider = context.read<FirestoreUserProvider>();
-      final user = await userProvider.getUserById(userId);
+      final user = await SupabaseService.instance.getUserProfile(userId);
       _userCache[userId] = user;
       return user;
     } catch (e) {
@@ -49,10 +48,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Requests'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Requests'), elevation: 0),
       body: _buildReceivedRequestsTab(),
     );
   }
@@ -78,7 +74,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
           return _buildEmptyState(
             icon: Icons.inbox_outlined,
             title: 'No requests',
-            subtitle: 'When people send you friend requests, they\'ll appear here',
+            subtitle:
+                'When people send you friend requests, they\'ll appear here',
           );
         }
 
@@ -130,7 +127,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -157,11 +156,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
-                        final success = await provider.acceptFriendRequest(request.id);
+                        final success = await provider.acceptFriendRequest(
+                          request.id,
+                        );
                         if (success && mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('You are now friends with ${user.displayName}'),
+                              content: Text(
+                                'You are now friends with ${user.displayName}',
+                              ),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -169,7 +172,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                       ),
                       child: const Text('Accept'),
                     ),
@@ -178,7 +183,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () async {
-                        final success = await provider.rejectFriendRequest(request.id);
+                        final success = await provider.rejectFriendRequest(
+                          request.id,
+                        );
                         if (success && mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -223,10 +230,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('Retry'),
-          ),
+          ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
@@ -257,10 +261,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen> {
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     Text(
                       subtitle,
