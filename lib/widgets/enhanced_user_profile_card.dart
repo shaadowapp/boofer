@@ -39,6 +39,9 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
   bool _loading = false;
   String? _currentUserId;
 
+  bool get _isBoofer =>
+      widget.user.id == '00000000-0000-4000-8000-000000000000';
+
   @override
   void initState() {
     super.initState();
@@ -108,14 +111,29 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
             const SizedBox(height: 12),
 
             // Full name (centered)
-            Text(
-              widget.user.displayName,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.user.displayName,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (_isBoofer) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.verified,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ],
             ),
 
             const SizedBox(height: 4),
@@ -183,25 +201,59 @@ class _EnhancedUserProfileCardState extends State<EnhancedUserProfileCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Full name with handle in parentheses
-                  RichText(
-                    text: TextSpan(
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                  // Full name with handle and badges
+                  Row(
+                    children: [
+                      Flexible(
+                        child: RichText(
+                          text: TextSpan(
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                            children: [
+                              TextSpan(text: widget.user.displayName),
+                              TextSpan(
+                                text: ' (${widget.user.formattedHandle})',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      children: [
-                        TextSpan(text: widget.user.displayName),
-                        TextSpan(
-                          text: ' (${widget.user.formattedHandle})',
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                      if (_isBoofer) ...[
+                        const SizedBox(width: 4),
+                        // Special 'B' Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
                             color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'B',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.verified,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                        ),
                       ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    ],
                   ),
 
                   const SizedBox(height: 4),

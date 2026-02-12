@@ -23,6 +23,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       FriendRequestService.instance;
   final SupabaseService _supabaseService = SupabaseService.instance;
 
+  static const String booferId = '00000000-0000-4000-8000-000000000000';
+  bool get _isBoofer => widget.userId == booferId;
+
   User? _profileUser;
   User? _currentUser;
   bool _isLoading = true;
@@ -157,10 +160,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Stats Row
-                  _buildStatsRow(theme),
-
-                  const SizedBox(height: 24),
+                  // Stats Row - Hidden for Boofer
+                  if (!_isBoofer) ...[
+                    _buildStatsRow(theme),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Additional Info Cards
                   _buildInfoCards(theme),
@@ -301,7 +305,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
+              if (_isBoofer) ...[
+                // Special 'B' Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'B',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              // Verified Badge (Always on for Boofer)
               Icon(Icons.verified, size: 20, color: theme.colorScheme.primary),
             ],
           ),
@@ -392,6 +419,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildFollowButton(ThemeData theme) {
+    // SPECIAL CASE: Boofer Official cannot be unfollowed
+    if (_isBoofer) {
+      return OutlinedButton(
+        onPressed: null, // Disabled
+        style: OutlinedButton.styleFrom(
+          foregroundColor: theme.colorScheme.primary,
+          side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 4),
+            const Text('Followed'),
+          ],
+        ),
+      );
+    }
+
     switch (_relationshipStatus) {
       case 'none':
         return ElevatedButton(

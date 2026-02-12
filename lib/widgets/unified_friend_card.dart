@@ -165,14 +165,48 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Full name
-          Text(
-            widget.user.displayName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          // Full name with badges
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  widget.user.displayName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (widget.user.id == '00000000-0000-4000-8000-000000000000') ...[
+                const SizedBox(width: 4),
+                // Special 'B' Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'B',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.verified,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
+            ],
           ),
 
           const SizedBox(height: 4),

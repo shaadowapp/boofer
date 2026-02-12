@@ -31,6 +31,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _selectedAvatar = '';
   StreamSubscription<String?>? _profilePictureSubscription;
 
+  bool get _isBoofer =>
+      _currentUser?.id == '00000000-0000-4000-8000-000000000000';
+
   // Modern diverse avatar options - gender inclusive
   final List<Map<String, dynamic>> _avatarOptions = [
     // People - Diverse skin tones and genders
@@ -546,10 +549,11 @@ Download Boofer for secure messaging!
 
                     const SizedBox(height: 24),
 
-                    // Stats Row (Instagram style)
-                    _buildStatsRow(theme),
-
-                    const SizedBox(height: 24),
+                    // Stats Row (Instagram style) - Hidden for Boofer
+                    if (!_isBoofer) ...[
+                      _buildStatsRow(theme),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Additional Info Cards
                     _buildInfoCards(theme),
@@ -731,14 +735,50 @@ Download Boofer for secure messaging!
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          // Name
+          // Name with badges
           if (!_isEditing)
-            Text(
-              _currentUser?.fullName ?? '',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    _currentUser?.fullName ?? '',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (_isBoofer) ...[
+                  // Special 'B' Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'B',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                // Verified Badge (Always on for Boofer)
+                Icon(
+                  Icons.verified,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
 
           if (_isEditing) ...[
