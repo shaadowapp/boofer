@@ -93,6 +93,55 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     {'id': 'gradient13', 'name': 'Forest', 'type': 'gradient'},
     {'id': 'gradient14', 'name': 'Rose Gold', 'type': 'gradient'},
     {'id': 'gradient15', 'name': 'Northern Lights', 'type': 'gradient'},
+    // Elegant Doodles
+    {
+      'id': 'doodle1',
+      'name': 'Geometric',
+      'type': 'doodle',
+      'color': const Color(0xFFF3F4F6),
+    },
+    {
+      'id': 'doodle2',
+      'name': 'Leaves',
+      'type': 'doodle',
+      'color': const Color(0xFFDCFCE7),
+    },
+    {
+      'id': 'doodle3',
+      'name': 'Stars',
+      'type': 'doodle',
+      'color': const Color(0xFFDEEDFF),
+    },
+    {
+      'id': 'doodle4',
+      'name': 'Curves',
+      'type': 'doodle',
+      'color': const Color(0xFFFFF4E6),
+    },
+    {
+      'id': 'doodle5',
+      'name': 'Hearts',
+      'type': 'doodle',
+      'color': const Color(0xFFF3E5F5),
+    },
+    {
+      'id': 'doodle6',
+      'name': 'Waves',
+      'type': 'doodle',
+      'color': const Color(0xFFFFEBEE),
+    },
+    {
+      'id': 'doodle7',
+      'name': 'Dots',
+      'type': 'doodle',
+      'color': const Color(0xFFE8F5E9),
+    },
+    {
+      'id': 'doodle8',
+      'name': 'Lines',
+      'type': 'doodle',
+      'color': const Color(0xFFFFF9C4),
+    },
   ];
 
   @override
@@ -368,6 +417,17 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                       title: 'Gradients',
                       wallpapers: _wallpapers
                           .where((w) => w['type'] == 'gradient')
+                          .toList(),
+                      appearanceProvider: appearanceProvider,
+                      theme: theme,
+                    ),
+
+                    // Doodles Section
+                    _buildWallpaperSubSection(
+                      context,
+                      title: 'Elegant Doodles',
+                      wallpapers: _wallpapers
+                          .where((w) => w['type'] == 'doodle')
                           .toList(),
                       appearanceProvider: appearanceProvider,
                       theme: theme,

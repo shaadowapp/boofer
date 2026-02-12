@@ -1156,6 +1156,8 @@ class _MainScreenState extends State<MainScreen> {
         return _buildBubbleNavBar();
       case NavBarStyle.liquid:
         return _buildLiquidNavBar();
+      case NavBarStyle.genz:
+        return _buildGenZNavBar();
     }
   }
 
@@ -1682,6 +1684,72 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenZNavBar() {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.15),
+            theme.colorScheme.secondary.withOpacity(0.15),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildGenZNavItem(0, Icons.home_rounded, 'Home'),
+          _buildGenZNavItem(1, Icons.chat_bubble_rounded, 'Chats'),
+          _buildGenZNavItem(2, Icons.call_rounded, 'Calls'),
+          _buildGenZNavItem(3, Icons.person_rounded, 'You'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenZNavItem(int index, IconData icon, String label) {
+    final theme = Theme.of(context);
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: isSelected
+            ? BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              )
+            : null,
+        child: Icon(
+          icon,
+          color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+          size: 26,
         ),
       ),
     );

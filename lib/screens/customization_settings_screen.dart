@@ -266,6 +266,17 @@ class _CustomizationSettingsScreenState
                             NavBarStyle.liquid,
                           ),
                         ),
+                        _buildNavBarOption(
+                          context,
+                          title: 'GenZ',
+                          style: NavBarStyle.genz,
+                          isSelected:
+                              appearanceProvider.navBarStyle ==
+                              NavBarStyle.genz,
+                          onTap: () => appearanceProvider.setNavBarStyle(
+                            NavBarStyle.genz,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -687,6 +698,8 @@ class _CustomizationSettingsScreenState
         return Icons.bubble_chart_rounded;
       case NavBarStyle.liquid:
         return Icons.water_drop_rounded;
+      case NavBarStyle.genz:
+        return Icons.auto_awesome_rounded;
     }
   }
 
@@ -702,6 +715,8 @@ class _CustomizationSettingsScreenState
         return _buildBubblePreview(context);
       case NavBarStyle.liquid:
         return _buildLiquidPreview(context);
+      case NavBarStyle.genz:
+        return _buildGenZPreview(context);
     }
   }
 
@@ -821,6 +836,31 @@ class _CustomizationSettingsScreenState
               _buildPreviewItem(context, 'You', false, NavBarStyle.liquid),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenZPreview(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.1),
+            theme.colorScheme.secondary.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildPreviewItem(context, 'Home', true, NavBarStyle.genz),
+          _buildPreviewItem(context, 'Chats', false, NavBarStyle.genz),
+          _buildPreviewItem(context, 'Calls', false, NavBarStyle.genz),
+          _buildPreviewItem(context, 'You', false, NavBarStyle.genz),
         ],
       ),
     );
@@ -1032,6 +1072,51 @@ class _CustomizationSettingsScreenState
       );
     }
 
+    if (style == NavBarStyle.genz) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: isSelected
+            ? BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              )
+            : null,
+        child: Icon(
+          _getIconForLabel(label),
+          color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+          size: 24,
+        ),
+      );
+    }
+
     return Container(child: icon);
+  }
+
+  IconData _getIconForLabel(String label) {
+    switch (label) {
+      case 'Home':
+        return Icons.home_rounded;
+      case 'Chats':
+        return Icons.chat_bubble_rounded;
+      case 'Calls':
+        return Icons.call_rounded;
+      case 'You':
+        return Icons.person_rounded;
+      default:
+        return Icons.circle;
+    }
   }
 }
