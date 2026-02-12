@@ -820,37 +820,49 @@ class _CustomizationSettingsScreenState
 
   Widget _buildLiquidPreview(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 0),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Simulated background pill like in actual UI
-          Positioned(
-            left:
-                (MediaQuery.of(context).size.width - 32) / 4 * 0 +
-                ((MediaQuery.of(context).size.width - 32) / 4 - 56) / 2,
-            top: 12,
-            width: 56,
-            height: 56,
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = constraints.maxWidth / 4;
+        return Container(
+          height: 80,
+          child: Stack(
             children: [
-              _buildPreviewItem(context, 'Home', true, NavBarStyle.liquid),
-              _buildPreviewItem(context, 'Chats', false, NavBarStyle.liquid),
-              _buildPreviewItem(context, 'Calls', false, NavBarStyle.liquid),
-              _buildPreviewItem(context, 'You', false, NavBarStyle.liquid),
+              // Simulated background pill like in actual UI
+              Positioned(
+                left: (itemWidth - 56) / 2, // Centered in first item
+                top: 12,
+                width: 56,
+                height: 56,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildPreviewItem(context, 'Home', true, NavBarStyle.liquid),
+                  _buildPreviewItem(
+                    context,
+                    'Chats',
+                    false,
+                    NavBarStyle.liquid,
+                  ),
+                  _buildPreviewItem(
+                    context,
+                    'Calls',
+                    false,
+                    NavBarStyle.liquid,
+                  ),
+                  _buildPreviewItem(context, 'You', false, NavBarStyle.liquid),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1059,15 +1071,17 @@ class _CustomizationSettingsScreenState
     }
 
     if (style == NavBarStyle.liquid) {
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        transform: isSelected
-            ? Matrix4.translationValues(0, -6, 0)
-            : Matrix4.identity(),
+      return Expanded(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(padding: const EdgeInsets.all(12), child: icon),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              transform: isSelected
+                  ? Matrix4.translationValues(0, -6, 0)
+                  : Matrix4.identity(),
+              child: Container(padding: const EdgeInsets.all(12), child: icon),
+            ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               height: isSelected ? 14 : 0,

@@ -17,7 +17,7 @@ import 'user_search_screen.dart';
 import 'write_post_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
-import '../providers/locale_provider.dart';
+
 import '../providers/auth_state_provider.dart';
 import '../providers/firestore_user_provider.dart';
 import '../providers/friend_request_provider.dart';
@@ -54,19 +54,23 @@ class _MainScreenState extends State<MainScreen> {
   _profilePictureSubscription; // Listen to profile picture changes
   String? _currentAvatar; // Store emoji avatar
   String? _currentAvatarColor; // Store emoji avatar color
-  StreamSubscription<DocumentSnapshot>?
-  _userDocSubscription; // Listen to Firestore user changes
+  late PageController _pageController;
+  final int _baseIndex = 1000000;
+  StreamSubscription<DocumentSnapshot>? _userDocSubscription;
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const LobbyScreen(), // This is the chat screen
+    const LobbyScreen(),
     const CallsScreen(),
-    const ProfileScreen(), // Profile screen as 4th tab
+    const ProfileScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(
+      initialPage: _baseIndex + ((_currentIndex + 1) % 4),
+    );
     _initializeMainScreen();
     _loadPendingRequests();
     _initializeProviders();
@@ -153,6 +157,45 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _searchController.dispose();
+    _profilePictureSubscription?.cancel();
+    _userDocSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    int navbarIndex = (index + 3) % 4;
+    if (_currentIndex != navbarIndex) {
+      setState(() {
+        _currentIndex = navbarIndex;
+      });
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void _onTabTapped(int index) {
+    if (_currentIndex == index) return;
+
+    int currentPage =
+        _pageController.page?.round() ??
+        (_baseIndex + ((_currentIndex + 1) % 4));
+    int currentOffset = currentPage % 4;
+    int targetOffset = (index + 1) % 4;
+
+    int diff = targetOffset - currentOffset;
+    if (diff > 2) diff -= 4;
+    if (diff <= -2) diff += 4;
+
+    _pageController.animateToPage(
+      currentPage + diff,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   Future<void> _initializeUserData() async {
     try {
       print('🔄 Initializing user data...');
@@ -223,15 +266,6 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _pendingRequestsCount = _connectionService.getPendingRequests().length;
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _profilePictureSubscription
-        ?.cancel(); // Cancel profile picture subscription
-    _userDocSubscription?.cancel(); // Cancel Firestore subscription
-    super.dispose();
   }
 
   Future<void> _initializeMainScreen() async {
@@ -1117,17 +1151,23 @@ class _MainScreenState extends State<MainScreen> {
                 },
               ),
             ),
-          // Main content
           Expanded(
             child: _isSearching
                 ? _buildSearchResults()
                 : Consumer<FirestoreUserProvider>(
                     builder: (context, userProvider, child) {
-                      // Update local users list when Firestore data changes
                       _allUsers = userProvider.allUsers;
                       _filteredUsers = _allUsers;
 
-                      return _screens[_currentIndex];
+                      return PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: _onPageChanged,
+                        itemBuilder: (context, index) {
+                          // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
+                          int screenIndex = (index + 3) % 4;
+                          return _screens[screenIndex];
+                        },
+                      );
                     },
                   ),
           ),
@@ -1164,9 +1204,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildSimpleNavBar() {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
-      onTap: (index) {
-        setState(() => _currentIndex = index);
-      },
+      onTap: _onTabTapped,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: Theme.of(context).colorScheme.primary,
       unselectedItemColor: Theme.of(
@@ -1390,10 +1428,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return GestureDetector(
-      onTap: () {
-        setState(() => _currentIndex = index);
-        HapticFeedback.lightImpact();
-      },
+      onTap: () => _onTabTapped(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
@@ -1481,10 +1516,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          setState(() => _currentIndex = index);
-          HapticFeedback.lightImpact();
-        },
+        onTap: () => _onTabTapped(index),
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1591,10 +1623,7 @@ class _MainScreenState extends State<MainScreen> {
     final color = Theme.of(context).colorScheme.primary;
 
     return GestureDetector(
-      onTap: () {
-        setState(() => _currentIndex = index);
-        HapticFeedback.lightImpact();
-      },
+      onTap: () => _onTabTapped(index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1666,12 +1695,7 @@ class _MainScreenState extends State<MainScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-        HapticFeedback.lightImpact();
-      },
+      onTap: () => _onTabTapped(index),
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -1779,7 +1803,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () => _onTabTapped(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
