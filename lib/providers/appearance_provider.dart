@@ -95,7 +95,7 @@ class AppearanceProvider extends ChangeNotifier {
       orElse: () => ChatBubbleShape.rounded,
     );
 
-    _useGradientAccent = useGradientAccentValue ?? false;
+    _useGradientAccent = useGradientAccentValue;
     _selectedGradientId = selectedGradientIdValue;
 
     _isInitialized = true;

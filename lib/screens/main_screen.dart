@@ -54,8 +54,10 @@ class _MainScreenState extends State<MainScreen> {
   _profilePictureSubscription; // Listen to profile picture changes
   String? _currentAvatar; // Store emoji avatar
   String? _currentAvatarColor; // Store emoji avatar color
-  late PageController _pageController;
   final int _baseIndex = 1000000;
+  late final PageController _pageController = PageController(
+    initialPage: _baseIndex + ((_currentIndex + 1) % 4),
+  );
   StreamSubscription<DocumentSnapshot>? _userDocSubscription;
 
   final List<Widget> _screens = [
@@ -68,9 +70,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(
-      initialPage: _baseIndex + ((_currentIndex + 1) % 4),
-    );
     _initializeMainScreen();
     _loadPendingRequests();
     _initializeProviders();
@@ -191,8 +190,8 @@ class _MainScreenState extends State<MainScreen> {
 
     _pageController.animateToPage(
       currentPage + diff,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOutQuart,
     );
   }
 
@@ -1162,6 +1161,7 @@ class _MainScreenState extends State<MainScreen> {
                       return PageView.builder(
                         controller: _pageController,
                         onPageChanged: _onPageChanged,
+                        physics: const BouncingScrollPhysics(),
                         itemBuilder: (context, index) {
                           // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
                           int screenIndex = (index + 3) % 4;
@@ -1459,47 +1459,54 @@ class _MainScreenState extends State<MainScreen> {
     final width = MediaQuery.of(context).size.width;
     final itemWidth = width / 4;
 
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.elasticOut,
-            left:
-                itemWidth * _currentIndex +
-                (itemWidth - 56) / 2, // Center the pill
-            top: 12,
-            width: 56,
-            height: 56,
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
+    return AnimatedBuilder(
+      animation: _pageController,
+      builder: (context, child) {
+        double page = _pageController.hasClients
+            ? (_pageController.page ?? _baseIndex.toDouble())
+            : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
+        double normalizedPage = (page + 3) % 4;
 
-          Row(
-            children: [
-              _buildLiquidNavItem(0, 'Home'),
-              _buildLiquidNavItem(1, 'Chats'),
-              _buildLiquidNavItem(2, 'Calls'),
-              _buildLiquidNavItem(3, 'You', isProfile: true),
+        return Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
             ],
           ),
-        ],
-      ),
+          child: Stack(
+            children: [
+              Positioned(
+                left:
+                    itemWidth * normalizedPage +
+                    (itemWidth - 56) / 2, // Follows scroll position
+                top: 12,
+                width: 56,
+                height: 56,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  _buildLiquidNavItem(0, 'Home'),
+                  _buildLiquidNavItem(1, 'Chats'),
+                  _buildLiquidNavItem(2, 'Calls'),
+                  _buildLiquidNavItem(3, 'You', isProfile: true),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1597,20 +1604,25 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBubbleNavBar() {
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildBubbleNavItem(0, 'Home'),
-            _buildBubbleNavItem(1, 'Chats'),
-            _buildBubbleNavItem(2, 'Calls'),
-            _buildBubbleNavItem(3, 'You', isProfile: true),
-          ],
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _pageController,
+      builder: (context, child) {
+        return Container(
+          color: Theme.of(context).colorScheme.surface,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: SafeArea(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildBubbleNavItem(0, 'Home'),
+                _buildBubbleNavItem(1, 'Chats'),
+                _buildBubbleNavItem(2, 'Calls'),
+                _buildBubbleNavItem(3, 'You', isProfile: true),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1624,63 +1636,82 @@ class _MainScreenState extends State<MainScreen> {
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.elasticOut,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? color.withValues(alpha: 0.15)
-                  : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: AnimatedScale(
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.elasticOut,
-              scale: isSelected ? 1.2 : 1.0,
-              child: isProfile
-                  ? SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: StreamBuilder<String?>(
-                        stream:
-                            ProfilePictureService.instance.profilePictureStream,
-                        initialData: ProfilePictureService
-                            .instance
-                            .currentProfilePicture,
-                        builder: (context, snapshot) =>
-                            _buildProfileIcon(isSelected, snapshot.data),
-                      ),
-                    )
-                  : _getSvgIcon(
-                      label,
-                      isSelected,
-                      isSelected
-                          ? color
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-            ),
-          ),
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: isSelected ? 1.0 : 0.0,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: isSelected ? 18 : 0,
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate individual item scale based on distance to current scroll position
+          double page = _pageController.hasClients
+              ? (_pageController.page ?? _baseIndex.toDouble())
+              : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
+          double normalizedPage = (page + 3) % 4;
+          double distance = (index - normalizedPage).abs();
+          // Handle wrapping distance for Profile <-> Home
+          if (distance > 2) distance = (4 - distance).abs();
+
+          double scale = 1.0 + (0.2 * (1.0 - distance.clamp(0.0, 1.0)));
+          double opacity = isSelected ? 1.0 : (1.0 - distance.clamp(0.0, 1.0));
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(
+                    alpha: 0.15 * (1.0 - distance.clamp(0.0, 1.0)),
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Transform.scale(
+                  scale: scale,
+                  child: isProfile
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: StreamBuilder<String?>(
+                            stream: ProfilePictureService
+                                .instance
+                                .profilePictureStream,
+                            initialData: ProfilePictureService
+                                .instance
+                                .currentProfilePicture,
+                            builder: (context, snapshot) =>
+                                _buildProfileIcon(isSelected, snapshot.data),
+                          ),
+                        )
+                      : _getSvgIcon(
+                          label,
+                          isSelected,
+                          Color.lerp(
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                                color,
+                                (1.0 - distance.clamp(0.0, 1.0)),
+                              ) ??
+                              color,
+                        ),
                 ),
               ),
-            ),
-          ),
-        ],
+              ClipRect(
+                child: Align(
+                  heightFactor: (1.0 - distance.clamp(0.0, 1.0)),
+                  child: Opacity(
+                    opacity: opacity.clamp(0.0, 1.0),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
