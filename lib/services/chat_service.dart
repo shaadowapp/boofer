@@ -112,13 +112,16 @@ class ChatService {
         return true;
       }
 
-      // Otherwise, check if users are mutual follows (friends)
+      // Otherwise, check if users have a follow relationship
       final status = await _followService.getFollowStatus(
         currentUserId: userId1,
         targetUserId: userId2,
       );
 
-      return status == 'mutual';
+      // Either user following the other is enough to allow access to the conversation
+      return status == 'mutual' ||
+          status == 'following' ||
+          status == 'follower';
     } catch (e) {
       return false;
     }
@@ -145,9 +148,9 @@ class ChatService {
             targetUserId: receiverId,
           );
 
-          if (status != 'mutual') {
+          if (status != 'mutual' && status != 'following') {
             throw Exception(
-              'Private messaging is restricted to mutual follows.',
+              'Private messaging requires you to follow the recipient.',
             );
           }
         }

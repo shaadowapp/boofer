@@ -38,9 +38,9 @@ class FollowProvider extends ChangeNotifier {
     return _isFollowedByStatus[userId] ?? false;
   }
 
-  /// Check if two users are friends (mutual follow)
+  /// Check if two users can chat (currently: either user follows the other)
   bool isFriends(String userId) {
-    return isFollowing(userId) && isFollowedBy(userId);
+    return isFollowing(userId) || isFollowedBy(userId);
   }
 
   /// Set following status locally (without API call) - used for cache seeding

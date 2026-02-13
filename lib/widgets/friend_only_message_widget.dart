@@ -35,7 +35,7 @@ class FriendOnlyMessageWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Connections Only',
+            'Follow to Message',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.primary,
@@ -43,7 +43,7 @@ class FriendOnlyMessageWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Private messaging is restricted to mutual follows. Follow ${user.displayName} to start the connection.',
+            'You need to follow ${user.displayName} to send messages and start a conversation.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),

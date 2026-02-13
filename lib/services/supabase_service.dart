@@ -317,47 +317,19 @@ class SupabaseService {
     try {
       debugPrint('🔍 Fetching discover users for $currentUserId');
 
-      final session = _supabase.auth.currentSession;
-      debugPrint(
-        '🔍 Supabase Auth Session: ${session != null ? "Active" : "None"} (User ID: ${session?.user.id})',
-      );
-
-      if (session == null) {
-        debugPrint(
-          '⚠️ Warning: No active Supabase session. RLS might block access.',
-        );
-      }
-
       // 1. Get all discoverable users (limit 50 for performance)
-      // Try to fetch WITHOUT filter first to verify access, if empty
-      var profilesQuery = _supabase
+      final profilesResponse = await _supabase
           .from('profiles')
           .select()
-          .eq('is_discoverable', true);
-
-      // If we have a user ID, exclude it
-      if (currentUserId.isNotEmpty) {
-        profilesQuery = profilesQuery.neq('id', currentUserId);
-      }
-
-      final profilesResponse = await profilesQuery.limit(50);
+          .eq('is_discoverable', true)
+          .neq('id', currentUserId)
+          .limit(50);
 
       debugPrint('🔍 Supabase returned ${profilesResponse.length} profiles');
 
-      if (profilesResponse.isEmpty) {
-        debugPrint(
-          '⚠️ No profiles found in Supabase (excluding current user). Check RLS policies or if profiles exist.',
-        );
-        return [];
-      } else {
-        // Only sort if we have data to avoid potential issues if list is empty (though unsafe sort shouldn't be an issue)
-        // Note: moved sorting to client side or keep simple for debug
-        (profilesResponse as List).sort(
-          (a, b) => (a['full_name'] ?? '').compareTo(b['full_name'] ?? ''),
-        );
-      }
+      if (profilesResponse.isEmpty) return [];
 
-      // 2. Get following IDs
+      // 2. Get following IDs for the current user to merge the status
       final followingResponse = await _supabase
           .from('follows')
           .select('following_id')
@@ -367,7 +339,7 @@ class SupabaseService {
           .map((e) => e['following_id'] as String)
           .toSet();
 
-      // 3. Merge
+      // 3. Merge follow status into profile data
       return (profilesResponse as List).map((profile) {
         final profileMap = profile as Map<String, dynamic>;
         return {

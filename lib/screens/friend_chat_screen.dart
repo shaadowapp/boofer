@@ -97,8 +97,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       final isMutual = relationshipStatus == 'mutual';
       final isFollowing = relationshipStatus == 'following';
 
-      // Can chat if it's Boofer OR if mutual follow
-      final canChat = isBoofer || isMutual;
+      // Can chat if it's Boofer OR if there's ANY follow relationship
+      final canChat = isBoofer || relationshipStatus != 'none';
 
       const isBlocked = false; // TODO: Implement block check if needed
 
