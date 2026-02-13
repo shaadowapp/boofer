@@ -13,6 +13,7 @@ import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
+import '../services/chat_cache_service.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -139,7 +140,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       if (canChat) {
         // Load demo messages for UI design
-        _loadDemoMessages(conversationId, currentUser.id);
+        _loadMessagesWithCache(conversationId, currentUser.id);
 
         // Set up message stream listeners (for real implementation)
         _messagesSubscription = _chatService.messagesStream.listen((messages) {
@@ -177,17 +178,56 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
-  void _loadDemoMessages(String conversationId, String currentUserId) {
-    // Generate demo messages for UI design
+  Future<void> _loadMessagesWithCache(
+    String conversationId,
+    String currentUserId,
+  ) async {
+    final cacheService = ChatCacheService.instance;
+
+    // STEP 1: Load from cache immediately
+    final cachedMessages = await cacheService.getCachedMessages(conversationId);
+    if (cachedMessages.isNotEmpty && mounted) {
+      setState(() {
+        _messages = cachedMessages
+            .map((json) => Message.fromJson(json))
+            .toList();
+      });
+      _scrollToBottom();
+      print('✅ Loaded ${cachedMessages.length} messages from cache (instant)');
+    }
+
+    // STEP 2: Check if cache is still valid
+    final isCacheValid = await cacheService.isMessagesCacheValid(
+      conversationId,
+    );
+
+    if (isCacheValid && cachedMessages.isNotEmpty) {
+      print('✅ Message cache is fresh (<1h), skipping network call');
+      return; // Cache is fresh, no need to fetch from network
+    }
+
+    // STEP 3: Cache is stale or empty, fetch from network in background
+    print('🔄 Message cache is stale or empty, fetching from network...');
+
+    // TODO: Replace with actual Supabase message fetching when implemented
+    // For now, generate demo messages and cache them
     final demoMessages = _generateDemoMessages(
       conversationId,
       currentUserId,
       widget.recipientId,
     );
-    setState(() {
-      _messages = demoMessages;
-    });
-    _scrollToBottom();
+
+    if (mounted) {
+      setState(() {
+        _messages = demoMessages;
+      });
+      _scrollToBottom();
+    }
+
+    // Cache the messages for next time
+    final messageMaps = demoMessages.map((msg) => msg.toJson()).toList();
+    await cacheService.cacheMessages(conversationId, messageMaps);
+    print('💾 Cached ${demoMessages.length} messages locally');
   }
 
   List<Message> _generateDemoMessages(

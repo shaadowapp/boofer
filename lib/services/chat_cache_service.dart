@@ -5,6 +5,7 @@ import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 import '../models/friend_model.dart';
 import '../services/local_storage_service.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// WhatsApp-style chat cache service for offline-first architecture
 /// Implements stale-while-revalidate pattern to minimize bandwidth usage
@@ -245,6 +246,116 @@ class ChatCacheService {
       return DateTime.parse(lastSyncStr);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Check if messages cache is valid for a conversation
+  Future<bool> isMessagesCacheValid(String conversationId) async {
+    try {
+      final lastSyncKey = 'last_messages_sync_$conversationId';
+      final lastSyncStr = await LocalStorageService.getString(lastSyncKey);
+      if (lastSyncStr == null) return false;
+
+      final lastSync = DateTime.parse(lastSyncStr);
+      final now = DateTime.now();
+
+      // Messages cache is valid for 1 hour (more frequent than friends)
+      return now.difference(lastSync) < const Duration(hours: 1);
+    } catch (e) {
+      debugPrint('Error checking messages cache validity: $e');
+      return false;
+    }
+  }
+
+  /// Get cached messages for a conversation
+  Future<List<Map<String, dynamic>>> getCachedMessages(
+    String conversationId,
+  ) async {
+    try {
+      final results = await _database.query(
+        '''
+        SELECT * FROM messages 
+        WHERE conversation_id = ? 
+        ORDER BY timestamp DESC
+        LIMIT 100
+        ''',
+        [conversationId],
+      );
+
+      debugPrint('✅ Loaded ${results.length} cached messages for conversation');
+      return results;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get cached messages: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return [];
+    }
+  }
+
+  /// Cache messages for a conversation
+  Future<void> cacheMessages(
+    String conversationId,
+    List<Map<String, dynamic>> messages,
+  ) async {
+    try {
+      if (messages.isEmpty) return;
+
+      // Don't delete old messages, just insert/update new ones
+      // This preserves message history
+      for (final message in messages) {
+        await _database.insert('messages', {
+          ...message,
+          'conversation_id': conversationId,
+          'created_at':
+              message['created_at'] ?? DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+
+      // Update last sync timestamp for this conversation
+      final lastSyncKey = 'last_messages_sync_$conversationId';
+      await LocalStorageService.setString(
+        lastSyncKey,
+        DateTime.now().toIso8601String(),
+      );
+
+      debugPrint('💾 Cached ${messages.length} messages for conversation');
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to cache messages: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+    }
+  }
+
+  /// Clear cached messages for a conversation (e.g., when deleting chat)
+  Future<void> clearConversationMessages(String conversationId) async {
+    try {
+      await _database.delete(
+        'messages',
+        where: 'conversation_id = ?',
+        whereArgs: [conversationId],
+      );
+
+      final lastSyncKey = 'last_messages_sync_$conversationId';
+      await LocalStorageService.remove(lastSyncKey);
+
+      debugPrint('✅ Cleared cached messages for conversation: $conversationId');
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to clear conversation messages: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
 }
