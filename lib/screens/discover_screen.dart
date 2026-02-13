@@ -7,6 +7,7 @@ import '../models/user_model.dart'; // Import User model
 import '../widgets/unified_friend_card.dart'; // Import UnifiedFriendCard
 import '../providers/follow_provider.dart';
 import 'user_profile_screen.dart'; // Import UserProfileScreen
+import 'manage_friends_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -176,6 +177,24 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         title: const Text('Discover People'),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManageFriendsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.people_outline, size: 20),
+            label: const Text('Manage'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _isLoading && _users.isEmpty
           ? const Center(child: CircularProgressIndicator())
