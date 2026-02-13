@@ -9,6 +9,7 @@ import '../models/message_model.dart';
 import '../models/friend_model.dart';
 import '../models/user_model.dart';
 import '../services/supabase_service.dart';
+import '../services/chat_cache_service.dart';
 import '../core/constants.dart';
 
 class ChatProvider with ChangeNotifier {
@@ -176,8 +177,9 @@ class ChatProvider with ChangeNotifier {
   final Set<String> _mutedChats = {};
   final Set<String> _blockedUsers = {};
   bool _friendsLoaded = false;
+  bool _isLoadingFromNetwork = false;
 
-  // Load real friends from Firestore
+  // Load real friends from Firestore with WhatsApp-style caching
   Future<void> _loadRealFriends() async {
     try {
       final currentUser = await UserService.getCurrentUser();
@@ -188,14 +190,37 @@ class ChatProvider with ChangeNotifier {
         return;
       }
 
-      print('📱 Loading real friends for user: ${currentUser.id}');
+      print('📱 Loading friends with cache-first strategy');
+
+      final cacheService = ChatCacheService.instance;
+
+      // STEP 1: Load from cache immediately (stale-while-revalidate)
+      final cachedFriends = await cacheService.getCachedFriends(currentUser.id);
+      if (cachedFriends.isNotEmpty) {
+        _friends = cachedFriends;
+        _friendsLoaded = true;
+        notifyListeners();
+        print('✅ Loaded ${cachedFriends.length} friends from cache (instant)');
+      }
+
+      // STEP 2: Check if cache is still valid
+      final isCacheValid = await cacheService.isFriendsCacheValid();
+
+      if (isCacheValid && cachedFriends.isNotEmpty) {
+        print('✅ Cache is fresh (<24h), skipping network call');
+        return; // Cache is fresh, no need to fetch from network
+      }
+
+      // STEP 3: Cache is stale or empty, fetch from network in background
+      print('🔄 Cache is stale or empty, fetching fresh data from network...');
+      _isLoadingFromNetwork = true;
 
       final followService = FollowService.instance;
       final friendUsers = await followService.getFriends(
         userId: currentUser.id,
       );
 
-      print('✅ Loaded ${friendUsers.length} friends from Firestore');
+      print('✅ Loaded ${friendUsers.length} friends from network');
 
       // Fetch latest conversation data to get last messages
       final supabaseService = SupabaseService.instance;
@@ -256,11 +281,17 @@ class ChatProvider with ChangeNotifier {
         );
       }
 
+      // STEP 4: Update cache with fresh data
+      await cacheService.cacheFriends(currentUser.id, _friends);
+      print('💾 Cached ${_friends.length} friends locally');
+
       _friendsLoaded = true;
+      _isLoadingFromNetwork = false;
       notifyListeners();
     } catch (e) {
       print('❌ Error loading friends: $e');
       _friendsLoaded = true;
+      _isLoadingFromNetwork = false;
       notifyListeners();
     }
   }

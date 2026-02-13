@@ -9,14 +9,15 @@ import '../models/app_error.dart';
 /// Professional database manager using SQLite
 class DatabaseManager {
   static DatabaseManager? _instance;
-  static DatabaseManager get instance => _instance ??= DatabaseManager._internal();
+  static DatabaseManager get instance =>
+      _instance ??= DatabaseManager._internal();
   DatabaseManager._internal();
 
   Database? _database;
   final ErrorHandler _errorHandler = ErrorHandler();
-  
+
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
 
   /// Get database instance
   Future<Database> get database async {
@@ -29,7 +30,7 @@ class DatabaseManager {
     try {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final databasePath = path.join(documentsDirectory.path, _databaseName);
-      
+
       return await openDatabase(
         databasePath,
         version: _databaseVersion,
@@ -38,11 +39,13 @@ class DatabaseManager {
         onConfigure: _onConfigure,
       );
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to initialize database: $e',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to initialize database: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -56,7 +59,7 @@ class DatabaseManager {
   /// Create database tables
   Future<void> _onCreate(Database db, int version) async {
     final batch = db.batch();
-    
+
     // Users table
     batch.execute('''
       CREATE TABLE users (
@@ -176,17 +179,71 @@ class DatabaseManager {
       )
     ''');
 
+    // Cached friends table (for offline-first chat list)
+    batch.execute('''
+      CREATE TABLE cached_friends (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        virtual_number TEXT,
+        avatar TEXT,
+        last_message TEXT,
+        last_message_time TEXT NOT NULL,
+        unread_count INTEGER NOT NULL DEFAULT 0,
+        is_online INTEGER NOT NULL DEFAULT 0,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        cached_at TEXT NOT NULL,
+        UNIQUE(user_id, friend_id)
+      )
+    ''');
+
+    // Cached conversations table (for offline-first conversation metadata)
+    batch.execute('''
+      CREATE TABLE cached_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        last_message TEXT,
+        last_message_time TEXT NOT NULL,
+        unread_count INTEGER NOT NULL DEFAULT 0,
+        cached_at TEXT NOT NULL,
+        UNIQUE(user_id, friend_id)
+      )
+    ''');
+
     // Create indexes for better performance
-    batch.execute('CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)');
+    batch.execute(
+      'CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)',
+    );
     batch.execute('CREATE INDEX idx_messages_sender_id ON messages(sender_id)');
     batch.execute('CREATE INDEX idx_messages_timestamp ON messages(timestamp)');
     batch.execute('CREATE INDEX idx_messages_status ON messages(status)');
     batch.execute('CREATE INDEX idx_messages_hash ON messages(message_hash)');
     batch.execute('CREATE INDEX idx_friends_user_id ON friends(user_id)');
     batch.execute('CREATE INDEX idx_friends_status ON friends(status)');
-    batch.execute('CREATE INDEX idx_connection_requests_to_user ON connection_requests(to_user_id)');
-    batch.execute('CREATE INDEX idx_conversation_participants_conversation ON conversation_participants(conversation_id)');
-    batch.execute('CREATE INDEX idx_error_logs_timestamp ON error_logs(timestamp)');
+    batch.execute(
+      'CREATE INDEX idx_connection_requests_to_user ON connection_requests(to_user_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_conversation_participants_conversation ON conversation_participants(conversation_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_error_logs_timestamp ON error_logs(timestamp)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_cached_friends_user_id ON cached_friends(user_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_cached_friends_last_message_time ON cached_friends(last_message_time)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_cached_conversations_user_id ON cached_conversations(user_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_cached_conversations_cached_at ON cached_conversations(cached_at)',
+    );
 
     await batch.commit(noResult: true);
   }
@@ -197,6 +254,55 @@ class DatabaseManager {
     if (oldVersion < 2) {
       // Add location column to users table
       await db.execute('ALTER TABLE users ADD COLUMN location TEXT');
+    }
+
+    if (oldVersion < 3) {
+      // Add cache tables for WhatsApp-style offline-first architecture
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cached_friends (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          friend_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          handle TEXT NOT NULL,
+          virtual_number TEXT,
+          avatar TEXT,
+          last_message TEXT,
+          last_message_time TEXT NOT NULL,
+          unread_count INTEGER NOT NULL DEFAULT 0,
+          is_online INTEGER NOT NULL DEFAULT 0,
+          is_archived INTEGER NOT NULL DEFAULT 0,
+          cached_at TEXT NOT NULL,
+          UNIQUE(user_id, friend_id)
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cached_conversations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          friend_id TEXT NOT NULL,
+          last_message TEXT,
+          last_message_time TEXT NOT NULL,
+          unread_count INTEGER NOT NULL DEFAULT 0,
+          cached_at TEXT NOT NULL,
+          UNIQUE(user_id, friend_id)
+        )
+      ''');
+
+      // Add indexes for cache tables
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_friends_user_id ON cached_friends(user_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_friends_last_message_time ON cached_friends(last_message_time)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_conversations_user_id ON cached_conversations(user_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_conversations_cached_at ON cached_conversations(cached_at)',
+      );
     }
   }
 
@@ -209,12 +315,14 @@ class DatabaseManager {
       final db = await database;
       return await db.rawQuery(sql, arguments);
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Query failed: $sql',
-        stackTrace: stackTrace,
-        context: {'sql': sql, 'arguments': arguments},
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Query failed: $sql',
+          stackTrace: stackTrace,
+          context: {'sql': sql, 'arguments': arguments},
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -235,12 +343,14 @@ class DatabaseManager {
         conflictAlgorithm: conflictAlgorithm,
       );
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Insert failed for table: $table',
-        stackTrace: stackTrace,
-        context: {'table': table, 'values': values},
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Insert failed for table: $table',
+          stackTrace: stackTrace,
+          context: {'table': table, 'values': values},
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -263,12 +373,14 @@ class DatabaseManager {
         conflictAlgorithm: conflictAlgorithm,
       );
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Update failed for table: $table',
-        stackTrace: stackTrace,
-        context: {'table': table, 'values': values, 'where': where},
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Update failed for table: $table',
+          stackTrace: stackTrace,
+          context: {'table': table, 'values': values, 'where': where},
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -283,12 +395,14 @@ class DatabaseManager {
       final db = await database;
       return await db.delete(table, where: where, whereArgs: whereArgs);
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Delete failed for table: $table',
-        stackTrace: stackTrace,
-        context: {'table': table, 'where': where},
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Delete failed for table: $table',
+          stackTrace: stackTrace,
+          context: {'table': table, 'where': where},
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -299,11 +413,13 @@ class DatabaseManager {
       final db = await database;
       return await db.transaction(action);
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Transaction failed',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Transaction failed',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
       rethrow;
     }
   }
@@ -314,7 +430,7 @@ class DatabaseManager {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final databasePath = path.join(documentsDirectory.path, _databaseName);
       final file = File(databasePath);
-      
+
       if (await file.exists()) {
         return await file.length();
       }
@@ -330,11 +446,13 @@ class DatabaseManager {
       final db = await database;
       await db.execute('VACUUM');
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Database vacuum failed',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Database vacuum failed',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
 
@@ -353,16 +471,18 @@ class DatabaseManager {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final databasePath = path.join(documentsDirectory.path, _databaseName);
       final file = File(databasePath);
-      
+
       if (await file.exists()) {
         await file.delete();
       }
     } catch (e, stackTrace) {
-      _errorHandler.handleError(AppError.database(
-        message: 'Failed to delete database',
-        stackTrace: stackTrace,
-        originalException: e is Exception ? e : Exception(e.toString()),
-      ));
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to delete database',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
     }
   }
 }
