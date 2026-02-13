@@ -174,7 +174,6 @@ class FollowService {
   }
 
   Future<String> getFollowStatus({
-    // Renamed from getRelationshipStatus
     required String currentUserId,
     required String targetUserId,
   }) async {

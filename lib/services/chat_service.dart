@@ -113,7 +113,7 @@ class ChatService {
       }
 
       // Otherwise, check if users are mutual follows (friends)
-      final status = await _followService.getRelationshipStatus(
+      final status = await _followService.getFollowStatus(
         currentUserId: userId1,
         targetUserId: userId2,
       );
@@ -140,7 +140,7 @@ class ChatService {
         final isBooferSender = senderId == AppConstants.booferId;
 
         if (!isBooferRecipient && !isBooferSender) {
-          final status = await _followService.getRelationshipStatus(
+          final status = await _followService.getFollowStatus(
             currentUserId: senderId,
             targetUserId: receiverId,
           );
