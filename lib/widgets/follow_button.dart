@@ -62,8 +62,9 @@ class _FollowButtonState extends State<FollowButton> {
     final borderRadius = BorderRadius.circular(appearanceProvider.cornerRadius);
 
     return Container(
-      width: 160, // Slightly reduced width
-      height: 30, // Minimal height
+      width:
+          double.infinity, // Fill available width (usually Expanded in parent)
+      height: 44, // Standard height for better UI
       decoration: showGradient
           ? BoxDecoration(
               gradient: appearanceProvider.getAccentGradient(),
@@ -83,13 +84,13 @@ class _FollowButtonState extends State<FollowButton> {
               : (showGradient ? Colors.white : theme.colorScheme.onPrimary),
           elevation: 0,
           shadowColor: Colors.transparent,
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
         ),
         child: isLoading
             ? SizedBox(
-                width: 14,
-                height: 14,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
@@ -104,7 +105,7 @@ class _FollowButtonState extends State<FollowButton> {
             : Text(
                 isFollowing ? 'Following' : 'Follow',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),

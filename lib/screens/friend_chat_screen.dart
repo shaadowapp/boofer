@@ -14,6 +14,7 @@ import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
 import '../services/chat_cache_service.dart';
+import '../services/supabase_service.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -102,40 +103,59 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       const isBlocked = false; // TODO: Implement block check if needed
 
-      // Create recipient user object
-      final recipientUser = User(
-        id: widget.recipientId,
-        email:
-            '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
-        virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
-        handle: widget.recipientName.toLowerCase().replaceAll(' ', '_'),
-        fullName: widget.recipientName,
-        bio: 'User profile',
-        isDiscoverable: true,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        profilePicture:
-            widget.recipientAvatar != null &&
-                widget.recipientAvatar!.startsWith('http')
-            ? widget.recipientAvatar
-            : null,
-        avatar:
-            widget.recipientAvatar != null &&
-                !widget.recipientAvatar!.startsWith('http')
-            ? widget.recipientAvatar
-            : null,
-      );
+      // Load ACTUAL recipient user profile from database to get real details (picture, full name)
+      // This is crucial for Task 3
+      User? freshRecipient;
+      try {
+        freshRecipient = await SupabaseService.instance.getUserProfile(
+          widget.recipientId,
+        );
+      } catch (e) {
+        debugPrint('Error fetching fresh profile: $e');
+      }
 
-      setState(() {
-        _currentUserId = currentUser.id;
-        _conversationId = conversationId;
-        _canChat = canChat;
-        _isMutual = isMutual;
-        _isBlocked = isBlocked;
-        _isFollowing = isFollowing || isMutual;
-        _recipientUser = recipientUser;
-        _loading = false;
-      });
+      // Create recipient user object with fallback to widget params
+      final recipientUser =
+          freshRecipient ??
+          User(
+            id: widget.recipientId,
+            email:
+                '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
+            virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
+            handle:
+                widget.recipientHandle ??
+                widget.recipientName.toLowerCase().replaceAll(' ', '_'),
+            fullName: widget.recipientName,
+            bio: 'User profile',
+            isDiscoverable: freshRecipient?.isDiscoverable ?? true,
+            createdAt: freshRecipient?.createdAt ?? DateTime.now(),
+            updatedAt: freshRecipient?.updatedAt ?? DateTime.now(),
+            profilePicture:
+                freshRecipient?.profilePicture ??
+                (widget.recipientAvatar != null &&
+                        widget.recipientAvatar!.startsWith('http')
+                    ? widget.recipientAvatar
+                    : null),
+            avatar:
+                freshRecipient?.avatar ??
+                (widget.recipientAvatar != null &&
+                        !widget.recipientAvatar!.startsWith('http')
+                    ? widget.recipientAvatar
+                    : null),
+          );
+
+      if (mounted) {
+        setState(() {
+          _currentUserId = currentUser.id;
+          _conversationId = conversationId;
+          _canChat = canChat;
+          _isMutual = isMutual;
+          _isBlocked = isBlocked;
+          _isFollowing = isFollowing || isMutual;
+          _recipientUser = recipientUser;
+          _loading = false;
+        });
+      }
 
       if (canChat) {
         // Load demo messages for UI design
@@ -349,125 +369,117 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   PreferredSizeWidget _buildModernAppBar(ThemeData theme, bool isOfficial) {
+    // Optimization: Use a simple AppBar during transition or if lag is detected
+    // backdrop filter is expensive.
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight + 8),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AppBar(
-            backgroundColor: theme.scaffoldBackgroundColor.withOpacity(0.7),
-            elevation: 0,
-            centerTitle: false,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: InkWell(
-              onTap: _navigateToProfile,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: Row(
-                  children: [
-                    Hero(
-                      tag: 'avatar_${widget.recipientId}',
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(
-                          0.1,
-                        ),
-                        backgroundImage:
-                            widget.recipientAvatar != null &&
-                                widget.recipientAvatar!.startsWith('http')
-                            ? NetworkImage(widget.recipientAvatar!)
-                            : null,
-                        child:
-                            widget.recipientAvatar != null &&
-                                !widget.recipientAvatar!.startsWith('http') &&
-                                (widget.recipientAvatar!.length <= 2 ||
-                                    widget.recipientAvatar!.runes.length <= 2)
-                            ? Text(
-                                widget.recipientAvatar!,
-                                style: const TextStyle(fontSize: 18),
-                              )
-                            : (widget.recipientAvatar == null ||
-                                      widget.recipientAvatar!.isEmpty ||
-                                      !widget.recipientAvatar!.startsWith(
-                                        'http',
-                                      )
-                                  ? Text(
-                                      widget.recipientName[0].toUpperCase(),
-                                      style: TextStyle(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                  : null),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  widget.recipientName,
-                                  style: theme.textTheme.titleMedium?.copyWith(
+      child: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: InkWell(
+          onTap: _navigateToProfile,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              children: [
+                Hero(
+                  tag: 'avatar_${widget.recipientId}',
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                    backgroundImage: _recipientUser?.profilePicture != null
+                        ? NetworkImage(_recipientUser!.profilePicture!)
+                        : (widget.recipientAvatar != null &&
+                                  widget.recipientAvatar!.startsWith('http')
+                              ? NetworkImage(widget.recipientAvatar!)
+                              : null),
+                    child:
+                        _recipientUser?.profilePicture == null &&
+                            (_recipientUser?.avatar != null ||
+                                widget.recipientAvatar != null)
+                        ? Text(
+                            (_recipientUser?.avatar ?? widget.recipientAvatar)!,
+                            style: const TextStyle(fontSize: 18),
+                          )
+                        : (_recipientUser == null &&
+                                  (widget.recipientAvatar == null ||
+                                      widget.recipientAvatar!.isEmpty)
+                              ? Text(
+                                  widget.recipientName[0].toUpperCase(),
+                                  style: TextStyle(
+                                    color: theme.colorScheme.primary,
                                     fontWeight: FontWeight.bold,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                )
+                              : null),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _recipientUser?.fullName ?? widget.recipientName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
                               ),
-                              if (isOfficial) ...[
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.verified,
-                                  size: 16,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ],
-                            ],
-                          ),
-                          Text(
-                            _isMutual ? 'Online' : 'Click to view profile',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: _isMutual
-                                  ? Colors.green
-                                  : theme.colorScheme.onSurface.withOpacity(
-                                      0.6,
-                                    ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (isOfficial) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.verified,
+                              size: 16,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ],
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              if (_isMutual) ...[
-                IconButton(
-                  icon: const Icon(Icons.videocam_outlined),
-                  onPressed: _startVideoCall,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.call_outlined),
-                  onPressed: _startVoiceCall,
+                      Text(
+                        _isMutual ? 'Online' : 'View profile',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: _isMutual
+                              ? Colors.green
+                              : theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: _showMoreOptionsBottomSheet,
-              ),
-            ],
+            ),
           ),
         ),
+        actions: [
+          if (_isMutual) ...[
+            IconButton(
+              icon: const Icon(Icons.videocam_outlined),
+              onPressed: _startVideoCall,
+            ),
+            IconButton(
+              icon: const Icon(Icons.call_outlined),
+              onPressed: _startVoiceCall,
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: _showMoreOptionsBottomSheet,
+          ),
+        ],
       ),
     );
   }
@@ -501,83 +513,79 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         12,
         12 + MediaQuery.of(context).padding.bottom,
       ),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor.withOpacity(0.2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: theme.colorScheme.outline.withOpacity(0.1),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: theme.colorScheme.primary,
+              ),
+              onPressed: _showAttachmentOptions,
+            ),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: const InputDecoration(
+                  hintText: 'Type a message...',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                ),
+                maxLines: 5,
+                minLines: 1,
+                onChanged: (value) {
+                  setState(() {});
+                },
               ),
             ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.add_circle_outline,
-                    color: theme.colorScheme.primary,
-                  ),
-                  onPressed: _showAttachmentOptions,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    maxLines: 5,
-                    minLines: 1,
-                    onChanged: (value) {
-                      setState(() {});
-                    },
-                  ),
-                ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: _messageController.text.trim().isEmpty
-                      ? IconButton(
-                          key: const ValueKey('mic'),
-                          icon: Icon(
-                            Icons.mic_none,
-                            color: theme.colorScheme.primary,
-                          ),
-                          onPressed: () {},
-                        )
-                      : Container(
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            key: const ValueKey('send'),
-                            icon: const Icon(
-                              Icons.send,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            onPressed: () {
-                              final text = _messageController.text;
-                              if (text.trim().isNotEmpty) {
-                                _handleSendMessage(text);
-                                _messageController.clear();
-                              }
-                            },
-                          ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _messageController.text.trim().isEmpty
+                  ? IconButton(
+                      key: const ValueKey('mic'),
+                      icon: Icon(
+                        Icons.mic_none,
+                        color: theme.colorScheme.primary,
+                      ),
+                      onPressed: () {},
+                    )
+                  : Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        key: const ValueKey('send'),
+                        icon: const Icon(
+                          Icons.send,
+                          color: Colors.white,
+                          size: 18,
                         ),
-                ),
-              ],
+                        onPressed: () {
+                          final text = _messageController.text;
+                          if (text.trim().isNotEmpty) {
+                            _handleSendMessage(text);
+                            _messageController.clear();
+                          }
+                        },
+                      ),
+                    ),
             ),
-          ),
+          ],
         ),
       ),
     );

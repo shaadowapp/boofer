@@ -383,7 +383,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               backgroundColor: theme.colorScheme.primary,
               foregroundColor: Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              minimumSize: const Size.fromHeight(44), // Consistent height
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30), // Pill shape
               ),
@@ -418,10 +418,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   icon: const Icon(Icons.message_outlined, size: 18),
                   label: const Text('Message'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 24,
-                    ),
+                    minimumSize: const Size.fromHeight(44), // Consistent height
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30), // Pill shape
                     ),

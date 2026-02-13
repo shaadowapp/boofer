@@ -188,11 +188,30 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Discover'),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManageFriendsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.people_outline, size: 20),
+            label: const Text('Manage'),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -209,11 +228,13 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             ),
             child: Row(
               children: [
+                const SizedBox(width: 4),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    autofocus: false,
                     decoration: InputDecoration(
-                      hintText: 'Search by name, username...',
+                      hintText: 'Search people...',
                       prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
@@ -232,28 +253,10 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      fillColor: theme.colorScheme.surfaceContainerHighest
+                          .withOpacity(0.4),
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ManageFriendsScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.people_outline, size: 18),
-                  label: const Text('Manage'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
                   ),
                 ),
               ],
