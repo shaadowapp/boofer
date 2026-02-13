@@ -225,6 +225,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
+  // ... (existing code)
+
   void _setupRealtimeListener(String conversationId) {
     final supabase = Supabase.instance.client;
 
@@ -233,7 +235,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     _realtimeChannel = supabase
         .channel('messages:$conversationId')
         .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
+          event: PostgresChangeEvent
+              .all, // Listen to ALL events (insert, update, delete)
           schema: 'public',
           table: 'messages',
           filter: PostgresChangeFilter(
@@ -242,44 +245,59 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             value: conversationId,
           ),
           callback: (payload) {
-            debugPrint('🔔 REALTIME MESSAGE RECEIVED!');
-            debugPrint('   Payload: $payload');
+            debugPrint('🔔 REALTIME MESSAGE EVENT: ${payload.eventType}');
 
-            final data = payload.newRecord;
-            final newMessage = Message.fromJson({
-              'id': data['id'],
-              'text': data['text'] ?? '',
-              'senderId': data['sender_id'],
-              'receiverId': data['receiver_id'],
-              'conversationId': data['conversation_id'],
-              'timestamp': data['timestamp'],
-              'isOffline': data['is_offline'] ?? false,
-              'status': data['status'] ?? 'sent',
-              'type': data['type'] ?? 'text',
-              'messageHash': data['message_hash'],
-              'mediaUrl': data['media_url'],
-              'metadata': data['metadata'],
-            });
-
-            debugPrint('   Message text: ${newMessage.text}');
-
-            if (mounted) {
-              setState(() {
-                _messages.add(newMessage);
+            if (payload.eventType == PostgresChangeEvent.insert) {
+              final data = payload.newRecord;
+              final newMessage = Message.fromJson({
+                'id': data['id'],
+                'text': data['text'] ?? '',
+                'senderId': data['sender_id'],
+                'receiverId': data['receiver_id'],
+                'conversationId': data['conversation_id'],
+                'timestamp': data['timestamp'],
+                'isOffline': data['is_offline'] ?? false,
+                'status': data['status'] ?? 'sent',
+                'type': data['type'] ?? 'text',
+                'messageHash': data['message_hash'],
+                'mediaUrl': data['media_url'],
+                'metadata': data['metadata'],
               });
-              _scrollToBottom();
-              debugPrint('✅ Message added to UI');
+
+              if (mounted) {
+                setState(() {
+                  _messages.add(newMessage);
+                });
+                _scrollToBottom();
+              }
+            } else if (payload.eventType == PostgresChangeEvent.update) {
+              final data = payload.newRecord;
+              final updatedMessageId = data['id'];
+
+              if (mounted) {
+                setState(() {
+                  final index = _messages.indexWhere(
+                    (m) => m.id == updatedMessageId,
+                  );
+                  if (index != -1) {
+                    _messages[index] = _messages[index].copyWith(
+                      status: MessageStatus.values.firstWhere(
+                        (e) => e.name == (data['status'] ?? 'sent'),
+                        orElse: () => MessageStatus.sent,
+                      ),
+                    );
+                  }
+                });
+              }
             }
           },
         )
         .subscribe((status, error) {
-          debugPrint('🔴 Realtime status: $status');
-          if (error != null) debugPrint('❌ Error: $error');
-          if (status == RealtimeSubscribeStatus.subscribed) {
-            debugPrint('✅ Subscribed to realtime!');
-          }
+          // ... existing subscription handler
         });
   }
+
+  // ... (existing code)
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

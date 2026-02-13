@@ -272,6 +272,36 @@ class SupabaseService {
         .subscribe();
   }
 
+  /// Listen to ALL messages for the current user (for Lobby updates)
+  RealtimeChannel listenToAllUserMessages(
+    String userId,
+    Function(Map<String, dynamic> payload) onEvent,
+  ) {
+    return _supabase
+        .channel('public:messages:global:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            if (newRecord.isEmpty) return;
+
+            final senderId = newRecord['sender_id'];
+            final receiverId = newRecord['receiver_id'];
+
+            // Only process if the current user is involved
+            if (senderId == userId || receiverId == userId) {
+              onEvent({
+                'eventType': payload.eventType.name,
+                'record': newRecord,
+              });
+            }
+          },
+        )
+        .subscribe();
+  }
+
   /// Get user conversations
   Future<List<Map<String, dynamic>>> getUserConversations(String userId) async {
     try {
@@ -293,7 +323,6 @@ class SupabaseService {
           };
         }
       }
-
       return conversations.values.toList();
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -305,6 +334,11 @@ class SupabaseService {
       );
       return [];
     }
+  }
+
+  /// Remove a realtime channel
+  Future<void> removeChannel(RealtimeChannel channel) async {
+    await _supabase.removeChannel(channel);
   }
 
   /// Get nearby users (simulated based on discovery settings)

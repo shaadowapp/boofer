@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/friend_model.dart';
-import '../models/user_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
-import '../widgets/unified_friend_card.dart';
 import 'archived_chats_screen.dart';
 import 'friend_chat_screen.dart';
 import '../core/constants.dart';
@@ -321,48 +319,175 @@ class _LobbyScreenState extends State<LobbyScreen> {
     ChatProvider chatProvider,
     AppLocalizations l10n,
   ) {
-    // Convert Friend to User for UnifiedFriendCard
-    final user = User(
-      id: friend.id,
-      email: '', // Friend model doesn't have email
-      fullName: friend.name,
-      handle: friend.handle,
-      virtualNumber: friend.virtualNumber,
-      profilePicture: friend.avatar != null && friend.avatar!.startsWith('http')
-          ? friend.avatar
-          : null,
-      avatar: friend.avatar != null && !friend.avatar!.startsWith('http')
-          ? friend.avatar
-          : null,
-      status: friend.isOnline ? UserStatus.online : UserStatus.offline,
-      bio: '',
-      isDiscoverable: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    return GestureDetector(
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FriendChatScreen(
+              recipientId: friend.id,
+              recipientName: friend.name,
+              recipientHandle: friend.handle,
+              recipientAvatar: friend.avatar ?? '',
+            ),
+          ),
+        );
+      },
       onLongPress: () {
         _showChatOptionsBottomSheet(friend, chatProvider, l10n);
       },
-      child: UnifiedFriendCard(
-        user: user,
-        showOnlineStatus: true,
-        showActionButton:
-            false, // Hide action button in lobby (they're already friends)
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => FriendChatScreen(
-                recipientId: friend.id,
-                recipientName: friend.name,
-                recipientHandle: friend.handle,
-                recipientAvatar: friend.avatar ?? '',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor.withOpacity(0.1),
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.1),
+                  backgroundImage:
+                      friend.avatar != null && friend.avatar!.isNotEmpty
+                      ? NetworkImage(friend.avatar!)
+                      : null,
+                  child: friend.avatar == null || friend.avatar!.isEmpty
+                      ? Text(
+                          friend.name.isNotEmpty
+                              ? friend.name[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : null,
+                ),
+                if (friend.isOnline)
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          friend.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        _formatTime(friend.lastMessageTime),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: friend.unreadCount > 0
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.5),
+                          fontWeight: friend.unreadCount > 0
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                friend.lastMessage.isNotEmpty
+                                    ? friend.lastMessage
+                                    : '@${friend.handle}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: friend.unreadCount > 0
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface
+                                          : Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withOpacity(0.6),
+                                      fontWeight: friend.unreadCount > 0
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (friend.unreadCount > 0)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          child: Center(
+                            child: Text(
+                              friend.unreadCount > 99
+                                  ? '99+'
+                                  : friend.unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }

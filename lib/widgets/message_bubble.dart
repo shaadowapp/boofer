@@ -114,6 +114,7 @@ class MessageBubble extends StatelessWidget {
                             const SizedBox(height: 4),
                             Row(
                               mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 Text(
                                   _formatTimestamp(message.timestamp),
@@ -125,10 +126,8 @@ class MessageBubble extends StatelessWidget {
                                               .withOpacity(0.5),
                                   ),
                                 ),
-                                if (isOwnMessage) ...[
-                                  const SizedBox(width: 4),
+                                if (isOwnMessage)
                                   _buildStatusIcon(message.status),
-                                ],
                               ],
                             ),
                           ],
@@ -165,31 +164,40 @@ class MessageBubble extends StatelessWidget {
   Widget _buildStatusIcon(MessageStatus status) {
     IconData icon;
     Color color;
+    double size = 16;
 
     switch (status) {
       case MessageStatus.pending:
         icon = Icons.access_time;
-        color = Colors.white.withOpacity(0.6);
+        color = Colors.white70;
+        size = 12;
         break;
       case MessageStatus.sent:
         icon = Icons.check;
-        color = Colors.white.withOpacity(0.7);
+        color = Colors.white70;
+        size = 16;
         break;
       case MessageStatus.delivered:
         icon = Icons.done_all;
-        color = Colors.white.withOpacity(0.7);
+        color = Colors.white70;
+        size = 16;
         break;
       case MessageStatus.read:
         icon = Icons.done_all;
-        color = Colors.white; // Full bright for read
+        color = Colors.blueAccent.shade100; // Distinct color for read
+        size = 16;
         break;
       case MessageStatus.failed:
         icon = Icons.error_outline;
         color = Colors.redAccent;
+        size = 16;
         break;
     }
 
-    return Icon(icon, size: 13, color: color);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Icon(icon, size: size, color: color),
+    );
   }
 
   /// Get border radius for bubble

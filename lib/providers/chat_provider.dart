@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 import '../services/follow_service.dart';
@@ -32,6 +33,7 @@ class ChatProvider with ChangeNotifier {
 
   StreamSubscription<List<Message>>? _messagesSubscription;
   StreamSubscription<Message>? _newMessageSubscription;
+  RealtimeChannel? _globalMessagesSubscription;
 
   ChatProvider({
     required ChatService chatService,
@@ -57,8 +59,11 @@ class ChatProvider with ChangeNotifier {
 
     _newMessageSubscription = _chatService.newMessageStream.listen((message) {
       if (message.conversationId == _currentConversationId) {
-        _messages.add(message);
-        notifyListeners();
+        // Avoid duplicates if possible, though stream usually sends new valid ones
+        if (!_messages.any((m) => m.id == message.id)) {
+          _messages.add(message);
+          notifyListeners();
+        }
       }
     });
   }
@@ -170,6 +175,9 @@ class ChatProvider with ChangeNotifier {
   void dispose() {
     _messagesSubscription?.cancel();
     _newMessageSubscription?.cancel();
+    if (_globalMessagesSubscription != null) {
+      SupabaseService.instance.removeChannel(_globalMessagesSubscription!);
+    }
     super.dispose();
   }
 
@@ -195,6 +203,14 @@ class ChatProvider with ChangeNotifier {
       print(
         '📱 Loading friends with cache-first strategy (Force: $forceRefresh)',
       );
+
+      // Start global realtime listener for lobby updates
+      if (_globalMessagesSubscription == null) {
+        _globalMessagesSubscription = SupabaseService.instance
+            .listenToAllUserMessages(currentUser.id, (payload) {
+              _handleRealtimeMessageEvent(payload, currentUser.id);
+            });
+      }
 
       final cacheService = ChatCacheService.instance;
 
@@ -264,15 +280,20 @@ class ChatProvider with ChangeNotifier {
           handle: user.handle,
           virtualNumber: user.virtualNumber ?? 'No number',
           avatar: user.profilePicture,
-          lastMessage: conv?['lastMessage'] ?? 'Start a conversation',
+          lastMessage: conv?['lastMessage'] ?? '', // Empty if no message
           lastMessageTime: conv != null
               ? DateTime.parse(conv['lastMessageTime'])
-              : DateTime.now().subtract(const Duration(days: 30)),
+              : DateTime.now().subtract(
+                  const Duration(days: 365),
+                ), // Old date if no message
           unreadCount: 0,
           isOnline: user.status == UserStatus.online,
           isArchived: false,
         );
       }).toList();
+
+      // Sort: Most recent message first
+      _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
       // ALWAYS add self-chat "You" to the list if a conversation exists
       if (!_friends.any((f) => f.id == currentUser.id)) {
@@ -327,6 +348,9 @@ class ChatProvider with ChangeNotifier {
         _friends.insert(0, booferFriend);
       }
 
+      // Re-sort after adding special contacts to ensure time order is respected
+      _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+
       // STEP 5: Update cache
       await cacheService.cacheFriends(currentUser.id, _friends);
       print('💾 Cached ${_friends.length} friends locally');
@@ -341,6 +365,59 @@ class ChatProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  void _handleRealtimeMessageEvent(
+    Map<String, dynamic> payload,
+    String currentUserId,
+  ) {
+    if (payload['eventType'] == 'insert' || payload['eventType'] == 'update') {
+      final record = payload['record'];
+      if (record == null) return;
+
+      final senderId = record['sender_id'];
+      final receiverId = record['receiver_id'];
+
+      // If critical IDs are missing (e.g. partial update without full replica), abort
+      if (senderId == null || receiverId == null) return;
+
+      final messageText = record['text'] ?? '';
+      final timeStr = record['timestamp'];
+      final timestamp = timeStr != null
+          ? DateTime.parse(timeStr)
+          : DateTime.now();
+
+      // Determine the friend ID (the incomplete party in the conversation)
+      final friendId = senderId == currentUserId ? receiverId : senderId;
+
+      final index = _friends.indexWhere((f) => f.id == friendId);
+      if (index != -1) {
+        var friend = _friends[index];
+
+        // Update last message
+        int newUnread = friend.unreadCount;
+        // Increment unread if new message AND receiver is us
+        if (payload['eventType'] == 'insert' && receiverId == currentUserId) {
+          newUnread++;
+        }
+
+        final updatedFriend = friend.copyWith(
+          lastMessage: messageText,
+          lastMessageTime: timestamp,
+          unreadCount: newUnread,
+        );
+
+        _friends.removeAt(index);
+        _friends.insert(0, updatedFriend); // Move to top
+        notifyListeners();
+      } else {
+        // New conversation with someone not in friend list?
+        // Trigger a refresh or handle fetching the new user profile
+        refreshFriends();
+      }
+    }
+  }
+
+  // ... (rest of the file from refreshFriends onwards)
 
   // Refresh friends list
   Future<void> refreshFriends() async {
