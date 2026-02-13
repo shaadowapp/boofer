@@ -170,6 +170,12 @@ class SupabaseService {
     MessageType type = MessageType.text,
   }) async {
     try {
+      debugPrint('📤 Attempting to send message...');
+      debugPrint('   Sender: $senderId');
+      debugPrint('   Receiver: $receiverId');
+      debugPrint('   Conversation: $conversationId');
+      debugPrint('   Text: $text');
+
       final message = Message.create(
         text: text,
         senderId: senderId,
@@ -181,7 +187,6 @@ class SupabaseService {
       final messageData = message.toJson();
       // Map to snake_case for Supabase
       final dbData = {
-        'id': messageData['id'],
         'text': messageData['text'],
         'sender_id': messageData['senderId'],
         'receiver_id': messageData['receiverId'],
@@ -195,10 +200,18 @@ class SupabaseService {
         'metadata': messageData['metadata'],
       };
 
-      await _supabase.from('messages').insert(dbData);
+      debugPrint('📤 Inserting message to Supabase...');
+      final response = await _supabase
+          .from('messages')
+          .insert(dbData)
+          .select()
+          .single();
+      debugPrint('✅ Message sent successfully: ${response['id']}');
 
       return message;
     } catch (e, stackTrace) {
+      debugPrint('❌ Failed to send message: $e');
+      debugPrint('Stack trace: $stackTrace');
       _errorHandler.handleError(
         AppError.service(
           message: 'Failed to send message: $e',

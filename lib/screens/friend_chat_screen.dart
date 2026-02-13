@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import '../services/chat_service.dart';
@@ -13,7 +14,6 @@ import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
-import '../services/chat_cache_service.dart';
 import '../services/supabase_service.dart';
 
 /// Chat screen that enforces friend-only messaging
@@ -50,8 +50,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   bool _isMutual = false;
   bool _isFollowing = false;
   User? _recipientUser;
-  late StreamSubscription<List<Message>> _messagesSubscription;
-  late StreamSubscription<Message> _newMessageSubscription;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
@@ -63,8 +62,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   void dispose() {
     _scrollController.dispose();
     _messageController.dispose();
-    _messagesSubscription.cancel();
-    _newMessageSubscription.cancel();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -101,10 +99,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       // Can chat if it's Boofer OR if there's ANY follow relationship
       final canChat = isBoofer || relationshipStatus != 'none';
 
-      const isBlocked = false; // TODO: Implement block check if needed
+      const isBlocked = false;
 
-      // Load ACTUAL recipient user profile from database to get real details (picture, full name)
-      // EXCEPT for "You" chat which is static and local
+      // Load ACTUAL recipient user profile
       User? freshRecipient;
       final isSelf = widget.recipientId == currentUser.id;
 
@@ -117,7 +114,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           debugPrint('Error fetching fresh profile: $e');
         }
       } else {
-        // For static "You" chat, just use currentUser
         freshRecipient = currentUser;
       }
 
@@ -165,29 +161,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       }
 
       if (canChat) {
-        // Load demo messages for UI design
-        _loadMessagesWithCache(conversationId, currentUser.id);
+        // Load existing messages from Supabase
+        await _loadMessages(conversationId);
 
-        // Set up message stream listeners (for real implementation)
-        _messagesSubscription = _chatService.messagesStream.listen((messages) {
-          if (mounted) {
-            setState(() {
-              _messages = messages;
-            });
-            _scrollToBottom();
-          }
-        });
-
-        _newMessageSubscription = _chatService.newMessageStream.listen((
-          message,
-        ) {
-          if (mounted && message.conversationId == conversationId) {
-            setState(() {
-              _messages.add(message);
-            });
-            _scrollToBottom();
-          }
-        });
+        // Set up realtime listener
+        _setupRealtimeListener(conversationId);
       }
     } catch (e) {
       if (mounted) {
@@ -204,149 +182,103 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
-  Future<void> _loadMessagesWithCache(
-    String conversationId,
-    String currentUserId,
-  ) async {
-    final cacheService = ChatCacheService.instance;
+  Future<void> _loadMessages(String conversationId) async {
+    try {
+      debugPrint('📥 Loading messages for conversation: $conversationId');
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('messages')
+          .select()
+          .eq('conversation_id', conversationId)
+          .order('timestamp', ascending: true);
 
-    // STEP 1: Load from cache immediately
-    final cachedMessages = await cacheService.getCachedMessages(conversationId);
-    if (cachedMessages.isNotEmpty && mounted) {
-      setState(() {
-        _messages = cachedMessages
-            .map((json) => Message.fromJson(json))
-            .toList();
-      });
-      _scrollToBottom();
-      print('✅ Loaded ${cachedMessages.length} messages from cache (instant)');
+      debugPrint('📥 Loaded ${response.length} messages from database');
+
+      final messages = (response as List)
+          .map(
+            (data) => Message.fromJson({
+              'id': data['id'],
+              'text': data['text'] ?? '',
+              'senderId': data['sender_id'],
+              'receiverId': data['receiver_id'],
+              'conversationId': data['conversation_id'],
+              'timestamp': data['timestamp'],
+              'isOffline': data['is_offline'] ?? false,
+              'status': data['status'] ?? 'sent',
+              'type': data['type'] ?? 'text',
+              'messageHash': data['message_hash'],
+              'mediaUrl': data['media_url'],
+              'metadata': data['metadata'],
+            }),
+          )
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _messages = messages;
+        });
+        _scrollToBottom();
+      }
+      debugPrint('✅ Messages loaded and displayed');
+    } catch (e) {
+      debugPrint('Error loading messages: $e');
     }
-
-    // STEP 2: Check if cache is still valid (Always valid for "You" chat as it's local only)
-    final isSelf = widget.recipientId == currentUserId;
-    if (isSelf) return;
-
-    final isCacheValid = await cacheService.isMessagesCacheValid(
-      conversationId,
-    );
-
-    if (isCacheValid && cachedMessages.isNotEmpty) {
-      print('✅ Message cache is fresh (<1h), skipping network call');
-      return; // Cache is fresh, no need to fetch from network
-    }
-
-    // STEP 3: Cache is stale or empty, fetch from network in background
-    print('🔄 Message cache is stale or empty, fetching from network...');
-
-    // TODO: Replace with actual Supabase message fetching when implemented
-    // For now, generate demo messages and cache them
-    final demoMessages = _generateDemoMessages(
-      conversationId,
-      currentUserId,
-      widget.recipientId,
-    );
-
-    if (mounted) {
-      setState(() {
-        _messages = demoMessages;
-      });
-      _scrollToBottom();
-    }
-
-    // Cache the messages for next time
-    final messageMaps = demoMessages.map((msg) => msg.toJson()).toList();
-    await cacheService.cacheMessages(conversationId, messageMaps);
-    print('💾 Cached ${demoMessages.length} messages locally');
   }
 
-  List<Message> _generateDemoMessages(
-    String conversationId,
-    String currentUserId,
-    String recipientId,
-  ) {
-    final now = DateTime.now();
-    return [
-      Message(
-        id: 'demo_1',
-        conversationId: conversationId,
-        senderId: recipientId,
-        text: 'Hey! How are you doing?',
-        timestamp: now.subtract(const Duration(hours: 2)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_2',
-        conversationId: conversationId,
-        senderId: currentUserId,
-        text: 'I\'m doing great! Just finished a big project at work 🎉',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 55)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_3',
-        conversationId: conversationId,
-        senderId: recipientId,
-        text: 'That\'s awesome! Congratulations 👏',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 50)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_4',
-        conversationId: conversationId,
-        senderId: currentUserId,
-        text: 'Thanks! Want to grab coffee this weekend to celebrate?',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 45)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_5',
-        conversationId: conversationId,
-        senderId: recipientId,
-        text: 'Absolutely! I know a great new place downtown ☕',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 40)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_6',
-        conversationId: conversationId,
-        senderId: currentUserId,
-        text: 'Perfect! Saturday around 2 PM?',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 35)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_7',
-        conversationId: conversationId,
-        senderId: recipientId,
-        text: 'Sounds great! See you then 😊',
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 30)),
-        type: MessageType.text,
-        status: MessageStatus.delivered,
-        isOffline: false,
-      ),
-      Message(
-        id: 'demo_8',
-        conversationId: conversationId,
-        senderId: currentUserId,
-        text: 'Looking forward to it! 🙌',
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        type: MessageType.text,
-        status: MessageStatus.sent,
-        isOffline: false,
-      ),
-    ];
+  void _setupRealtimeListener(String conversationId) {
+    final supabase = Supabase.instance.client;
+
+    debugPrint('🔴 Setting up realtime listener for: $conversationId');
+
+    _realtimeChannel = supabase
+        .channel('messages:$conversationId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: (payload) {
+            debugPrint('🔔 REALTIME MESSAGE RECEIVED!');
+            debugPrint('   Payload: $payload');
+
+            final data = payload.newRecord;
+            final newMessage = Message.fromJson({
+              'id': data['id'],
+              'text': data['text'] ?? '',
+              'senderId': data['sender_id'],
+              'receiverId': data['receiver_id'],
+              'conversationId': data['conversation_id'],
+              'timestamp': data['timestamp'],
+              'isOffline': data['is_offline'] ?? false,
+              'status': data['status'] ?? 'sent',
+              'type': data['type'] ?? 'text',
+              'messageHash': data['message_hash'],
+              'mediaUrl': data['media_url'],
+              'metadata': data['metadata'],
+            });
+
+            debugPrint('   Message text: ${newMessage.text}');
+
+            if (mounted) {
+              setState(() {
+                _messages.add(newMessage);
+              });
+              _scrollToBottom();
+              debugPrint('✅ Message added to UI');
+            }
+          },
+        )
+        .subscribe((status, error) {
+          debugPrint('🔴 Realtime status: $status');
+          if (error != null) debugPrint('❌ Error: $error');
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            debugPrint('✅ Subscribed to realtime!');
+          }
+        });
   }
 
   void _scrollToBottom() {
@@ -555,10 +487,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           children: [
             IconButton(
               icon: Icon(
-                Icons.add_circle_outline,
+                Icons.emoji_emotions_outlined,
                 color: theme.colorScheme.primary,
               ),
-              onPressed: _showAttachmentOptions,
+              onPressed: _showEmojiPicker,
             ),
             Expanded(
               child: TextField(
@@ -578,14 +510,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: _messageController.text.trim().isEmpty
-                  ? IconButton(
-                      key: const ValueKey('mic'),
-                      icon: Icon(
-                        Icons.mic_none,
-                        color: theme.colorScheme.primary,
-                      ),
-                      onPressed: () {},
-                    )
+                  ? const SizedBox.shrink()
                   : Container(
                       margin: const EdgeInsets.only(right: 4),
                       decoration: BoxDecoration(
@@ -698,51 +623,33 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     if (text.trim().isEmpty ||
         _currentUserId == null ||
         _conversationId == null) {
+      debugPrint(
+        '❌ Cannot send message: text=${text.trim().isEmpty}, userId=$_currentUserId, convId=$_conversationId',
+      );
       return;
     }
 
-    // Add message to demo list immediately for UI feedback
-    final newMessage = Message(
-      id: 'demo_${DateTime.now().millisecondsSinceEpoch}',
-      conversationId: _conversationId!,
-      senderId: _currentUserId!,
-      text: text.trim(),
-      timestamp: DateTime.now(),
-      type: MessageType.text,
-      status: MessageStatus.pending,
-      isOffline: false,
-    );
-
-    setState(() {
-      _messages.add(newMessage);
-    });
-    _scrollToBottom();
+    debugPrint('📨 Sending message from UI...');
+    debugPrint('   Current User: $_currentUserId');
+    debugPrint('   Recipient: ${widget.recipientId}');
+    debugPrint('   Conversation: $_conversationId');
+    debugPrint('   Message: $text');
 
     try {
-      // In a real app, this would send the message through the chat service
-      await _chatService.sendMessage(
+      final result = await SupabaseService.instance.sendMessage(
         conversationId: _conversationId!,
         senderId: _currentUserId!,
-        content: text.trim(),
         receiverId: widget.recipientId,
+        text: text.trim(),
       );
 
-      // Update message status to sent
-      setState(() {
-        final index = _messages.indexWhere((m) => m.id == newMessage.id);
-        if (index != -1) {
-          _messages[index] = newMessage.copyWith(status: MessageStatus.sent);
-        }
-      });
+      if (result != null) {
+        debugPrint('✅ Message sent successfully from UI');
+      } else {
+        debugPrint('⚠️ Message send returned null');
+      }
     } catch (e) {
-      // Update message status to failed
-      setState(() {
-        final index = _messages.indexWhere((m) => m.id == newMessage.id);
-        if (index != -1) {
-          _messages[index] = newMessage.copyWith(status: MessageStatus.failed);
-        }
-      });
-
+      debugPrint('❌ Error in UI message handler: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1331,37 +1238,252 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     _navigateToProfile();
   }
 
-  void _showAttachmentOptions() {
+  void _showEmojiPicker() {
+    final theme = Theme.of(context);
+    final emojis = [
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😆',
+      '😅',
+      '🤣',
+      '😂',
+      '🙂',
+      '🙃',
+      '😉',
+      '😊',
+      '😇',
+      '🥰',
+      '😍',
+      '🤩',
+      '😘',
+      '😗',
+      '😚',
+      '😙',
+      '😋',
+      '😛',
+      '😜',
+      '🤪',
+      '😝',
+      '🤑',
+      '🤗',
+      '🤭',
+      '🤫',
+      '🤔',
+      '🤐',
+      '🤨',
+      '😐',
+      '😑',
+      '😶',
+      '😏',
+      '😒',
+      '🙄',
+      '😬',
+      '🤥',
+      '😌',
+      '😔',
+      '😪',
+      '🤤',
+      '😴',
+      '😷',
+      '🤒',
+      '🤕',
+      '🤢',
+      '🤮',
+      '🤧',
+      '🥵',
+      '🥶',
+      '🥴',
+      '😵',
+      '🤯',
+      '🤠',
+      '🥳',
+      '😎',
+      '🤓',
+      '🧐',
+      '😕',
+      '😟',
+      '🙁',
+      '☹️',
+      '😮',
+      '😯',
+      '😲',
+      '😳',
+      '🥺',
+      '😦',
+      '😧',
+      '😨',
+      '😰',
+      '😥',
+      '😢',
+      '😭',
+      '😱',
+      '😖',
+      '😣',
+      '😞',
+      '😓',
+      '😩',
+      '😫',
+      '🥱',
+      '😤',
+      '😡',
+      '😠',
+      '🤬',
+      '😈',
+      '👿',
+      '💀',
+      '☠️',
+      '💩',
+      '🤡',
+      '👹',
+      '👺',
+      '👻',
+      '👽',
+      '👾',
+      '🤖',
+      '😺',
+      '😸',
+      '😹',
+      '😻',
+      '😼',
+      '😽',
+      '🙀',
+      '😿',
+      '😾',
+      '❤️',
+      '🧡',
+      '💛',
+      '💚',
+      '💙',
+      '💜',
+      '🖤',
+      '🤍',
+      '🤎',
+      '💔',
+      '❣️',
+      '💕',
+      '💞',
+      '💓',
+      '💗',
+      '💖',
+      '💘',
+      '💝',
+      '💟',
+      '☮️',
+      '✝️',
+      '☪️',
+      '🕉️',
+      '☸️',
+      '✡️',
+      '🔯',
+      '🕎',
+      '☯️',
+      '☦️',
+      '🛐',
+      '⛎',
+      '♈',
+      '♉',
+      '♊',
+      '♋',
+      '♌',
+      '♍',
+      '♎',
+      '♏',
+      '♐',
+      '👍',
+      '👎',
+      '👊',
+      '✊',
+      '🤛',
+      '🤜',
+      '🤞',
+      '✌️',
+      '🤟',
+      '🤘',
+      '👌',
+      '🤏',
+      '👈',
+      '👉',
+      '👆',
+      '👇',
+      '☝️',
+      '✋',
+      '🤚',
+      '🖐️',
+      '🖖',
+      '👋',
+      '🤙',
+      '💪',
+      '🦾',
+      '🖕',
+      '✍️',
+      '🙏',
+      '🦶',
+      '🦵',
+    ];
+
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        height: 300,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text('Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                // Handle photo attachment
-              },
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.videocam),
-              title: const Text('Video'),
-              onTap: () {
-                Navigator.pop(context);
-                // Handle video attachment
-              },
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Pick an Emoji',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.attach_file),
-              title: const Text('File'),
-              onTap: () {
-                Navigator.pop(context);
-                // Handle file attachment
-              },
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                ),
+                itemCount: emojis.length,
+                itemBuilder: (context, index) {
+                  return InkWell(
+                    onTap: () {
+                      _messageController.text += emojis[index];
+                      setState(() {});
+                      Navigator.pop(context);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          emojis[index],
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
