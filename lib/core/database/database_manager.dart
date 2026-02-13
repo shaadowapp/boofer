@@ -17,7 +17,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
 
   /// Get database instance
   Future<Database> get database async {
@@ -213,6 +213,22 @@ class DatabaseManager {
       )
     ''');
 
+    // Cached discover users table (for offline-first discover screen)
+    batch.execute('''
+      CREATE TABLE cached_discover_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        bio TEXT,
+        avatar TEXT,
+        is_following INTEGER NOT NULL DEFAULT 0,
+        cached_at TEXT NOT NULL,
+        UNIQUE(user_id, profile_id)
+      )
+    ''');
+
     // Create indexes for better performance
     batch.execute(
       'CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)',
@@ -302,6 +318,28 @@ class DatabaseManager {
       );
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_cached_conversations_cached_at ON cached_conversations(cached_at)',
+      );
+    }
+
+    if (oldVersion < 4) {
+      // Add cached_discover_users table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cached_discover_users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          profile_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          handle TEXT NOT NULL,
+          bio TEXT,
+          avatar TEXT,
+          is_following INTEGER NOT NULL DEFAULT 0,
+          cached_at TEXT NOT NULL,
+          UNIQUE(user_id, profile_id)
+        )
+      ''');
+
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_discover_users_user_id ON cached_discover_users(user_id)',
       );
     }
   }

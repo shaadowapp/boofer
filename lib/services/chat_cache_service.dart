@@ -25,6 +25,25 @@ class ChatCacheService {
   // Keys for tracking last sync times
   static const String _lastFriendsSyncKey = 'last_friends_sync';
   static const String _lastConversationsSyncKey = 'last_conversations_sync';
+  static const String _lastDiscoverSyncKey = 'last_discover_sync';
+
+  /// Check if discover cache is still valid
+  Future<bool> isDiscoverCacheValid() async {
+    try {
+      final lastSyncStr = await LocalStorageService.getString(
+        _lastDiscoverSyncKey,
+      );
+      if (lastSyncStr == null) return false;
+
+      final lastSync = DateTime.parse(lastSyncStr);
+      final now = DateTime.now();
+
+      return now.difference(lastSync) < _cacheValidityDuration;
+    } catch (e) {
+      debugPrint('Error checking discover cache validity: $e');
+      return false;
+    }
+  }
 
   /// Check if friends cache is still valid
   Future<bool> isFriendsCacheValid() async {
@@ -356,6 +375,111 @@ class ChatCacheService {
           originalException: e is Exception ? e : Exception(e.toString()),
         ),
       );
+    }
+  }
+
+  // --- Discover Cache Methods ---
+
+  /// Get cached discover users
+  Future<List<Map<String, dynamic>>> getCachedDiscoverUsers(
+    String userId,
+  ) async {
+    try {
+      final results = await _database.query(
+        '''
+        SELECT * FROM cached_discover_users 
+        WHERE user_id = ? 
+        ORDER BY name ASC
+        ''',
+        [userId],
+      );
+
+      return results;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get cached discover users: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return [];
+    }
+  }
+
+  /// Cache discover users (Merges new users with existing cache)
+  Future<void> cacheDiscoverUsers(
+    String userId,
+    List<Map<String, dynamic>> users,
+  ) async {
+    try {
+      if (users.isEmpty) return;
+
+      // Note: We do NOT clear the old cache anymore.
+      // We upsert the new users into the bag (existing cache).
+
+      // Insert/Update new users
+      for (final user in users) {
+        await _database.insert('cached_discover_users', {
+          'user_id': userId,
+          'profile_id': user['id'],
+          'name': user['full_name'] ?? user['name'] ?? '',
+          'handle': user['handle'],
+          'bio': user['bio'],
+          'avatar': user['profile_picture'] ?? user['avatar'],
+          'is_following': user['isFollowing'] == true ? 1 : 0,
+          'cached_at': DateTime.now().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+
+      // Update last sync timestamp
+      await LocalStorageService.setString(
+        _lastDiscoverSyncKey,
+        DateTime.now().toIso8601String(),
+      );
+
+      debugPrint(
+        '💾 Cached ${users.length} new/updated discover users locally',
+      );
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to cache discover users: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+    }
+  }
+
+  /// Update follow status in cache
+  Future<void> updateFollowStatusInCache(
+    String userId,
+    String profileId,
+    bool isFollowing,
+  ) async {
+    try {
+      await _database.update(
+        'cached_discover_users',
+        {'is_following': isFollowing ? 1 : 0},
+        where: 'user_id = ? AND profile_id = ?',
+        whereArgs: [userId, profileId],
+      );
+    } catch (e) {
+      debugPrint('Failed to update follow status in cache: $e');
+    }
+  }
+
+  /// Get last sync timestamp for discover users
+  Future<DateTime?> getLastDiscoverSync() async {
+    try {
+      final lastSyncStr = await LocalStorageService.getString(
+        _lastDiscoverSyncKey,
+      );
+      if (lastSyncStr == null) return null;
+      return DateTime.parse(lastSyncStr);
+    } catch (e) {
+      return null;
     }
   }
 }

@@ -88,7 +88,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       );
 
       // Check relationship status
-      final relationshipStatus = await _followService.getRelationshipStatus(
+      final relationshipStatus = await _followService.getFollowStatus(
         currentUserId: currentUser.id,
         targetUserId: widget.recipientId,
       );
@@ -98,7 +98,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       final isFollowing = relationshipStatus == 'following';
 
       // Can chat if it's Boofer OR if mutual follow
-      // (Optionally allow if following, but user said "boofer common friend" so mutual is safer for others)
       final canChat = isBoofer || isMutual;
 
       const isBlocked = false; // TODO: Implement block check if needed

@@ -146,7 +146,35 @@ class FollowService {
     }
   }
 
-  Future<String> getRelationshipStatus({
+  Future<Map<String, bool>> batchCheckFollowStatus({
+    required String followerId,
+    required List<String> followingIds,
+  }) async {
+    if (followingIds.isEmpty) return {};
+
+    try {
+      final response = await _supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', followerId)
+          .inFilter('following_id', followingIds);
+
+      final List<String> foundIds = (response as List)
+          .map((f) => f['following_id'] as String)
+          .toList();
+
+      final Map<String, bool> results = {};
+      for (final id in followingIds) {
+        results[id] = foundIds.contains(id);
+      }
+      return results;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<String> getFollowStatus({
+    // Renamed from getRelationshipStatus
     required String currentUserId,
     required String targetUserId,
   }) async {
@@ -177,13 +205,18 @@ class FollowService {
     required String followingId,
   }) async {
     if (followerId == followingId) return false;
+    debugPrint(
+      'FollowService: following user $followingId with follower $followerId',
+    );
     try {
       await _supabase.from('follows').insert({
         'follower_id': followerId,
         'following_id': followingId,
       });
+      debugPrint('FollowService: Successfully followed');
       return true;
     } catch (e) {
+      debugPrint('FollowService: Error following user $followingId: $e');
       // Could fail if already following due to unique constraint
       return false;
     }
@@ -199,8 +232,10 @@ class FollowService {
           .delete()
           .eq('follower_id', followerId)
           .eq('following_id', followingId);
+      debugPrint('FollowService: Successfully unfollowed');
       return true;
     } catch (e) {
+      debugPrint('FollowService: Error unfollowing user $followingId: $e');
       return false;
     }
   }

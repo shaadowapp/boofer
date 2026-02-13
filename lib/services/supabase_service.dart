@@ -120,7 +120,14 @@ class SupabaseService {
   /// Search users globally
   Future<List<app_user.User>> searchUsers(String query) async {
     try {
-      if (query.isEmpty) return [];
+      if (query.isEmpty) {
+        // If query is empty, return discover users (explore mode)
+        final currentUserId = _supabase.auth.currentUser?.id ?? '';
+        final discoverData = await getDiscoverUsers(currentUserId);
+        return discoverData
+            .map((data) => app_user.User.fromJson(data))
+            .toList();
+      }
 
       final response = await _supabase
           .from('profiles')
@@ -299,6 +306,77 @@ class SupabaseService {
           originalException: e is Exception ? e : Exception(e.toString()),
         ),
       );
+      return [];
+    }
+  }
+
+  /// Get discover users (all users except self, with follow status)
+  Future<List<Map<String, dynamic>>> getDiscoverUsers(
+    String currentUserId,
+  ) async {
+    try {
+      debugPrint('🔍 Fetching discover users for $currentUserId');
+
+      final session = _supabase.auth.currentSession;
+      debugPrint(
+        '🔍 Supabase Auth Session: ${session != null ? "Active" : "None"} (User ID: ${session?.user.id})',
+      );
+
+      if (session == null) {
+        debugPrint(
+          '⚠️ Warning: No active Supabase session. RLS might block access.',
+        );
+      }
+
+      // 1. Get all discoverable users (limit 50 for performance)
+      // Try to fetch WITHOUT filter first to verify access, if empty
+      var profilesQuery = _supabase
+          .from('profiles')
+          .select()
+          .eq('is_discoverable', true);
+
+      // If we have a user ID, exclude it
+      if (currentUserId.isNotEmpty) {
+        profilesQuery = profilesQuery.neq('id', currentUserId);
+      }
+
+      final profilesResponse = await profilesQuery.limit(50);
+
+      debugPrint('🔍 Supabase returned ${profilesResponse.length} profiles');
+
+      if (profilesResponse.isEmpty) {
+        debugPrint(
+          '⚠️ No profiles found in Supabase (excluding current user). Check RLS policies or if profiles exist.',
+        );
+        return [];
+      } else {
+        // Only sort if we have data to avoid potential issues if list is empty (though unsafe sort shouldn't be an issue)
+        // Note: moved sorting to client side or keep simple for debug
+        (profilesResponse as List).sort(
+          (a, b) => (a['full_name'] ?? '').compareTo(b['full_name'] ?? ''),
+        );
+      }
+
+      // 2. Get following IDs
+      final followingResponse = await _supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUserId);
+
+      final followingIds = (followingResponse as List)
+          .map((e) => e['following_id'] as String)
+          .toSet();
+
+      // 3. Merge
+      return (profilesResponse as List).map((profile) {
+        final profileMap = profile as Map<String, dynamic>;
+        return {
+          ...profileMap,
+          'isFollowing': followingIds.contains(profileMap['id']),
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Failed to get discover users: $e');
       return [];
     }
   }

@@ -60,12 +60,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (!_isOwnProfile && _currentUser != null && _profileUser != null) {
         final followProvider = context.read<FollowProvider>();
         await followProvider.loadFollowStats(widget.userId);
-        await followProvider.checkFollowStatus([widget.userId]);
+        await followProvider.checkFriendshipStatus(widget.userId);
       }
 
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -399,28 +399,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Row(
-      children: [
-        // Follow/Following button
-        Expanded(child: _buildFollowButton(theme)),
+    return Consumer<FollowProvider>(
+      builder: (context, provider, child) {
+        final isFriend = provider.isFriends(widget.userId);
 
-        const SizedBox(width: 12),
+        return Row(
+          children: [
+            // Follow/Following button
+            Expanded(child: _buildFollowButton(theme)),
 
-        // Message button
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _openChat,
-            icon: const Icon(Icons.message_outlined, size: 18),
-            label: const Text('Message'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30), // Pill shape
+            if (isFriend || _isBoofer) ...[
+              const SizedBox(width: 12),
+
+              // Message button - only shown if friends (or Boofer)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _openChat,
+                  icon: const Icon(Icons.message_outlined, size: 18),
+                  label: const Text('Message'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 24,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30), // Pill shape
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-      ],
+            ],
+          ],
+        );
+      },
     );
   }
 

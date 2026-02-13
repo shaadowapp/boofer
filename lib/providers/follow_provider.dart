@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/user_model.dart';
 import '../models/friend_request_model.dart';
 import '../services/follow_service.dart';
@@ -11,6 +12,7 @@ class FollowProvider extends ChangeNotifier {
   // State
   String? _currentUserId;
   final Map<String, bool> _followingStatus = {};
+  final Map<String, bool> _isFollowedByStatus = {};
   final Map<String, FollowStats> _followStats = {};
   final Map<String, List<User>> _followersCache = {};
   final Map<String, List<User>> _followingCache = {};
@@ -27,9 +29,26 @@ class FollowProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  /// Check if current user follows another user
   bool isFollowing(String userId) {
     return _followingStatus[userId] ?? false;
+  }
+
+  /// Check if user follows current user
+  bool isFollowedBy(String userId) {
+    return _isFollowedByStatus[userId] ?? false;
+  }
+
+  /// Check if two users are friends (mutual follow)
+  bool isFriends(String userId) {
+    return isFollowing(userId) && isFollowedBy(userId);
+  }
+
+  /// Set following status locally (without API call) - used for cache seeding
+  void setLocalFollowingStatus(String userId, bool isFollowing) {
+    if (_followingStatus[userId] != isFollowing) {
+      _followingStatus[userId] = isFollowing;
+      notifyListeners();
+    }
   }
 
   /// Get follow stats for a user
@@ -61,20 +80,45 @@ class FollowProvider extends ChangeNotifier {
 
   /// Follow a user
   Future<bool> followUser(String userId) async {
-    if (_currentUserId == null) return false;
+    // Fallback if currentUserId is not set
+    if (_currentUserId == null) {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        _currentUserId = user.id;
+        debugPrint(
+          'FollowProvider: Recovered currentUserId from Supabase: $_currentUserId',
+        );
+      }
+    }
+
+    debugPrint(
+      'FollowProvider: followUser called for $userId. currentUserId: $_currentUserId',
+    );
+
+    if (_currentUserId == null) {
+      debugPrint(
+        'FollowProvider: Error - currentUserId is null, cannot follow.',
+      );
+      return false;
+    }
+
+    // Optimistic update
+    final wasFollowing = _followingStatus[userId] ?? false;
+    _followingStatus[userId] = true;
+    notifyListeners();
 
     _setLoading(true);
     _clearError();
 
     try {
+      debugPrint('FollowProvider: Calling FollowService.followUser...');
       final success = await _followService.followUser(
         followerId: _currentUserId!,
         followingId: userId,
       );
+      debugPrint('FollowProvider: API call success: $success');
 
       if (success) {
-        _followingStatus[userId] = true;
-
         // Update local stats optimistically
         final currentStats =
             _followStats[_currentUserId!] ?? FollowStats.empty();
@@ -89,15 +133,20 @@ class FollowProvider extends ChangeNotifier {
           lastUpdated: DateTime.now(),
         );
 
-        // Refresh following list
-        await _loadFollowing(_currentUserId!);
-
-        notifyListeners();
+        // Refresh following list in background
+        _loadFollowing(_currentUserId!);
+      } else {
+        // Revert status on failure
+        _followingStatus[userId] = wasFollowing;
       }
 
+      notifyListeners();
       return success;
     } catch (e) {
+      // Revert status on error
+      _followingStatus[userId] = wasFollowing;
       _setError('Failed to follow user: $e');
+      notifyListeners();
       return false;
     } finally {
       _setLoading(false);
@@ -107,6 +156,11 @@ class FollowProvider extends ChangeNotifier {
   /// Unfollow a user
   Future<bool> unfollowUser(String userId) async {
     if (_currentUserId == null) return false;
+
+    // Optimistic update
+    final wasFollowing = _followingStatus[userId] ?? false;
+    _followingStatus[userId] = false;
+    notifyListeners();
 
     _setLoading(true);
     _clearError();
@@ -118,8 +172,6 @@ class FollowProvider extends ChangeNotifier {
       );
 
       if (success) {
-        _followingStatus[userId] = false;
-
         // Update local stats optimistically
         final currentStats =
             _followStats[_currentUserId!] ?? FollowStats.empty();
@@ -138,15 +190,20 @@ class FollowProvider extends ChangeNotifier {
           lastUpdated: DateTime.now(),
         );
 
-        // Refresh following list
-        await _loadFollowing(_currentUserId!);
-
-        notifyListeners();
+        // Refresh following list in background
+        _loadFollowing(_currentUserId!);
+      } else {
+        // Revert status on failure
+        _followingStatus[userId] = wasFollowing;
       }
 
+      notifyListeners();
       return success;
     } catch (e) {
+      // Revert status on error
+      _followingStatus[userId] = wasFollowing;
       _setError('Failed to unfollow user: $e');
+      notifyListeners();
       return false;
     } finally {
       _setLoading(false);
@@ -166,7 +223,6 @@ class FollowProvider extends ChangeNotifier {
   Future<void> loadFollowers(String userId, {bool refresh = false}) async {
     if (!refresh && _followersCache.containsKey(userId)) return;
 
-    _setLoading(true);
     _clearError();
 
     try {
@@ -175,8 +231,6 @@ class FollowProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _setError('Failed to load followers: $e');
-    } finally {
-      _setLoading(false);
     }
   }
 
@@ -190,7 +244,6 @@ class FollowProvider extends ChangeNotifier {
     if (_currentUserId == null) return;
     if (!refresh && _suggestedUsers.containsKey(_currentUserId!)) return;
 
-    _setLoading(true);
     _clearError();
 
     try {
@@ -201,8 +254,6 @@ class FollowProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _setError('Failed to load suggested users: $e');
-    } finally {
-      _setLoading(false);
     }
   }
 
@@ -229,16 +280,40 @@ class FollowProvider extends ChangeNotifier {
     if (_currentUserId == null) return;
 
     try {
-      for (final userId in userIds) {
-        final isFollowing = await _followService.isFollowing(
-          followerId: _currentUserId!,
-          followingId: userId,
-        );
-        _followingStatus[userId] = isFollowing;
-      }
+      final results = await _followService.batchCheckFollowStatus(
+        followerId: _currentUserId!,
+        followingIds: userIds,
+      );
+
+      _followingStatus.addAll(results);
       notifyListeners();
     } catch (e) {
-      _setError('Failed to check follow status: $e');
+      debugPrint('Error checking follow status: $e');
+    }
+  }
+
+  /// Check if target user follows current user and vice-versa
+  Future<void> checkFriendshipStatus(String targetUserId) async {
+    if (_currentUserId == null) return;
+
+    try {
+      // Check if current user follows target
+      final isFollowingTarget = await _followService.isFollowing(
+        followerId: _currentUserId!,
+        followingId: targetUserId,
+      );
+      _followingStatus[targetUserId] = isFollowingTarget;
+
+      // Check if target user follows current user
+      final isFollowedByTarget = await _followService.isFollowing(
+        followerId: targetUserId,
+        followingId: _currentUserId!,
+      );
+      _isFollowedByStatus[targetUserId] = isFollowedByTarget;
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error checking friendship status: $e');
     }
   }
 
