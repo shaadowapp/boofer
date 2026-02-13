@@ -225,8 +225,12 @@ class FollowService {
       debugPrint('FollowService: Successfully followed');
       return true;
     } catch (e) {
+      if (e.toString().contains('23505') ||
+          e.toString().contains('duplicate key')) {
+        debugPrint('FollowService: User already followed (handled gracefully)');
+        return true;
+      }
       debugPrint('FollowService: Error following user $followingId: $e');
-      // Could fail if already following due to unique constraint
       return false;
     }
   }

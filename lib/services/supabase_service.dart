@@ -315,40 +315,36 @@ class SupabaseService {
     String currentUserId,
   ) async {
     try {
-      debugPrint('🔍 Fetching discover users for $currentUserId');
+      debugPrint('🔍 Fetching discover users for $currentUserId using Join');
 
-      // 1. Get all discoverable users (limit 50 for performance)
-      final profilesResponse = await _supabase
+      // Using a LEFT JOIN to fetch profiles and their follow status for the current user
+      // This is atomic and ensures the UI always has the latest DB state for each user
+      final response = await _supabase
           .from('profiles')
-          .select()
+          .select('*, follows!following_id(follower_id)')
           .eq('is_discoverable', true)
           .neq('id', currentUserId)
           .limit(50);
 
-      debugPrint('🔍 Supabase returned ${profilesResponse.length} profiles');
+      debugPrint('🔍 Supabase returned ${response.length} profiles');
 
-      if (profilesResponse.isEmpty) return [];
+      // Merge follow status into profile data
+      return (response as List).map((profile) {
+        final profileMap = Map<String, dynamic>.from(profile);
+        final followsList = profileMap['follows'] as List?;
 
-      // 2. Get following IDs for the current user to merge the status
-      final followingResponse = await _supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', currentUserId);
+        // isFollowing is true if any follow record for this user has the currentUserId as follower
+        profileMap['isFollowing'] =
+            followsList != null &&
+            followsList.any((f) => f['follower_id'] == currentUserId);
 
-      final followingIds = (followingResponse as List)
-          .map((e) => e['following_id'] as String)
-          .toSet();
+        // Clean up the joined data for the UI
+        profileMap.remove('follows');
 
-      // 3. Merge follow status into profile data
-      return (profilesResponse as List).map((profile) {
-        final profileMap = profile as Map<String, dynamic>;
-        return {
-          ...profileMap,
-          'isFollowing': followingIds.contains(profileMap['id']),
-        };
+        return profileMap;
       }).toList();
     } catch (e) {
-      debugPrint('❌ Failed to get discover users: $e');
+      debugPrint('❌ Failed to get discover users using join: $e');
       return [];
     }
   }
