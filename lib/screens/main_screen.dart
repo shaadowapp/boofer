@@ -15,6 +15,7 @@ import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
+import 'start_new_chat_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
 
@@ -357,7 +358,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onAddPressed() async {
-    String action = '';
     switch (_currentIndex) {
       case 0:
         // Home tab - open write post screen
@@ -375,9 +375,10 @@ class _MainScreenState extends State<MainScreen> {
         }
         break;
       case 1:
-        action = 'Start new chat';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$action functionality coming soon!')),
+        // Lobby tab - Start new chat
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const StartNewChatScreen()),
         );
         break;
       case 2:

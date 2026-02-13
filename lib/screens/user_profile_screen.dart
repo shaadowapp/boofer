@@ -7,6 +7,7 @@ import '../providers/follow_provider.dart';
 import '../widgets/follow_button.dart';
 import 'package:provider/provider.dart';
 import 'friend_chat_screen.dart';
+import '../core/constants.dart';
 
 /// Dynamic user profile screen (like Instagram)
 /// - If viewing own profile: Shows "Edit Profile" button
@@ -23,9 +24,6 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   // Removed FriendRequestService
   final SupabaseService _supabaseService = SupabaseService.instance;
-
-  static const String booferId = '00000000-0000-4000-8000-000000000000';
-  bool get _isBoofer => widget.userId == booferId;
 
   User? _profileUser;
   User? _currentUser;
@@ -155,11 +153,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Stats Row - Hidden for Boofer
-                  if (!_isBoofer) ...[
-                    _buildStatsRow(theme),
-                    const SizedBox(height: 24),
-                  ],
+                  // Stats Row
+                  _buildStatsRow(theme),
+                  const SizedBox(height: 24),
 
                   // Additional Info Cards
                   _buildInfoCards(theme),
@@ -318,30 +314,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              if (_isBoofer) ...[
-                // Special 'B' Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'B',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
+              if (_profileUser?.isVerified ?? false) ...[
                 const SizedBox(width: 4),
+                Icon(
+                  Icons.verified,
+                  size: 20,
+                  color: _profileUser?.id == AppConstants.booferId
+                      ? Colors.green
+                      : theme.colorScheme.primary,
+                ),
               ],
-              // Verified Badge (Always on for Boofer)
-              Icon(Icons.verified, size: 20, color: theme.colorScheme.primary),
             ],
           ),
 
@@ -405,11 +387,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         return Row(
           children: [
-            // Follow/Following button
-            Expanded(child: _buildFollowButton(theme)),
+            // Follow/Following button - Hide for Boofer
+            if (widget.userId != AppConstants.booferId)
+              Expanded(child: _buildFollowButton(theme)),
 
-            if (isFriend || _isBoofer) ...[
-              const SizedBox(width: 12),
+            if (isFriend || widget.userId == AppConstants.booferId) ...[
+              if (widget.userId != AppConstants.booferId)
+                const SizedBox(width: 12),
 
               // Message button - only shown if friends (or Boofer)
               Expanded(
@@ -444,6 +428,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Consumer<FollowProvider>(
       builder: (context, followProvider, child) {
         final stats = followProvider.getFollowStats(_profileUser!.id);
+        final isBoofer = _profileUser!.id == AppConstants.booferId;
+
+        // Special layout for Boofer
+        if (isBoofer) {
+          return Center(
+            child: Column(
+              children: [
+                Text(
+                  '${stats?.followersCount ?? 0}',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  'Followers',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),

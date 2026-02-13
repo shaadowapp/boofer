@@ -26,6 +26,10 @@ class ChatCacheService {
   static const String _lastFriendsSyncKey = 'last_friends_sync';
   static const String _lastConversationsSyncKey = 'last_conversations_sync';
   static const String _lastDiscoverSyncKey = 'last_discover_sync';
+  static const String _lastStartChatSyncKey = 'last_start_chat_sync';
+
+  // Throttle duration for user-triggered refreshes (e.g., 2 minutes)
+  static const Duration refreshThrottleDuration = Duration(minutes: 2);
 
   /// Check if discover cache is still valid
   Future<bool> isDiscoverCacheValid() async {
@@ -112,6 +116,7 @@ class ChatCacheService {
           'unread_count': friend.unreadCount,
           'is_online': friend.isOnline ? 1 : 0,
           'is_archived': friend.isArchived ? 1 : 0,
+          'is_verified': friend.isVerified ? 1 : 0,
           'cached_at': DateTime.now().toIso8601String(),
         });
       }
@@ -428,6 +433,9 @@ class ChatCacheService {
           'bio': user['bio'],
           'avatar': user['profile_picture'] ?? user['avatar'],
           'is_following': user['isFollowing'] == true ? 1 : 0,
+          'is_verified': user['is_verified'] == true || user['is_verified'] == 1
+              ? 1
+              : 0,
           'cached_at': DateTime.now().toIso8601String(),
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
@@ -480,6 +488,123 @@ class ChatCacheService {
       return DateTime.parse(lastSyncStr);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Check if a refresh action should be throttled
+  Future<bool> isRefreshThrottled(String syncKey) async {
+    try {
+      final lastSyncStr = await LocalStorageService.getString(syncKey);
+      if (lastSyncStr == null) return false;
+
+      final lastSync = DateTime.parse(lastSyncStr);
+      final now = DateTime.now();
+
+      return now.difference(lastSync) < refreshThrottleDuration;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Shortcut for discover refresh throttle
+  Future<bool> isDiscoverRefreshThrottled() =>
+      isRefreshThrottled(_lastDiscoverSyncKey);
+
+  /// Shortcut for friends refresh throttle
+  Future<bool> isFriendsRefreshThrottled() =>
+      isRefreshThrottled(_lastFriendsSyncKey);
+
+  // --- Start Chat Cache Methods ---
+
+  /// Get cached start chat users
+  Future<List<Map<String, dynamic>>> getCachedStartChatUsers(
+    String userId,
+  ) async {
+    try {
+      final results = await _database.query(
+        '''
+        SELECT * FROM cached_start_chat_users 
+        WHERE user_id = ? 
+        ORDER BY name ASC
+        ''',
+        [userId],
+      );
+
+      return results;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get cached start chat users: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return [];
+    }
+  }
+
+  /// Cache start chat users
+  Future<void> cacheStartChatUsers(
+    String userId,
+    List<Map<String, dynamic>> users,
+  ) async {
+    try {
+      if (users.isEmpty) return;
+
+      // Upsert new users
+      for (final user in users) {
+        await _database.insert('cached_start_chat_users', {
+          'user_id': userId,
+          'profile_id': user['id'],
+          'name': user['full_name'] ?? user['name'] ?? '',
+          'handle': user['handle'],
+          'bio': user['bio'],
+          'avatar': user['profile_picture'] ?? user['avatar'],
+          'virtual_number': user['virtual_number'],
+          'status': user['status'] ?? 'offline',
+          'is_verified': user['is_verified'] == true || user['is_verified'] == 1
+              ? 1
+              : 0,
+          'cached_at': DateTime.now().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+
+      // Update last sync timestamp
+      await LocalStorageService.setString(
+        _lastStartChatSyncKey,
+        DateTime.now().toIso8601String(),
+      );
+
+      debugPrint('💾 Cached ${users.length} start chat users locally');
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to cache start chat users: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+    }
+  }
+
+  /// Shortcut for start chat refresh throttle
+  Future<bool> isStartChatRefreshThrottled() =>
+      isRefreshThrottled(_lastStartChatSyncKey);
+
+  /// Check if start chat cache is fresh (<24h)
+  Future<bool> isStartChatCacheValid() async {
+    try {
+      final lastSyncStr = await LocalStorageService.getString(
+        _lastStartChatSyncKey,
+      );
+      if (lastSyncStr == null) return false;
+
+      final lastSync = DateTime.parse(lastSyncStr);
+      final now = DateTime.now();
+
+      return now.difference(lastSync) < _cacheValidityDuration;
+    } catch (e) {
+      return false;
     }
   }
 }

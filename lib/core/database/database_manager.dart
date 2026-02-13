@@ -17,7 +17,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 4;
+  static const int _databaseVersion = 6;
 
   /// Get database instance
   Future<Database> get database async {
@@ -75,7 +75,8 @@ class DatabaseManager {
         last_seen TEXT,
         location TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        is_verified INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -194,6 +195,7 @@ class DatabaseManager {
         unread_count INTEGER NOT NULL DEFAULT 0,
         is_online INTEGER NOT NULL DEFAULT 0,
         is_archived INTEGER NOT NULL DEFAULT 0,
+        is_verified INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, friend_id)
       )
@@ -224,6 +226,25 @@ class DatabaseManager {
         bio TEXT,
         avatar TEXT,
         is_following INTEGER NOT NULL DEFAULT 0,
+        is_verified INTEGER NOT NULL DEFAULT 0,
+        cached_at TEXT NOT NULL,
+        UNIQUE(user_id, profile_id)
+      )
+    ''');
+
+    // Cached start chat users table (for offline-first start new chat screen)
+    batch.execute('''
+      CREATE TABLE cached_start_chat_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        bio TEXT,
+        avatar TEXT,
+        virtual_number TEXT,
+        status TEXT NOT NULL DEFAULT 'offline',
+        is_verified INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, profile_id)
       )
@@ -340,6 +361,48 @@ class DatabaseManager {
 
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_cached_discover_users_user_id ON cached_discover_users(user_id)',
+      );
+    }
+
+    if (oldVersion < 5) {
+      // Add cached_start_chat_users table
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cached_start_chat_users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL,
+          profile_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          handle TEXT NOT NULL,
+          bio TEXT,
+          avatar TEXT,
+          virtual_number TEXT,
+          status TEXT NOT NULL DEFAULT 'offline',
+          cached_at TEXT NOT NULL,
+          UNIQUE(user_id, profile_id)
+        )
+      ''');
+
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cached_start_chat_users_user_id ON cached_start_chat_users(user_id)',
+      );
+    }
+
+    if (oldVersion < 6) {
+      // Add verification and badge columns to all relevant tables
+      await db.execute(
+        'ALTER TABLE users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0',
+      );
+
+      await db.execute(
+        'ALTER TABLE cached_friends ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0',
+      );
+
+      await db.execute(
+        'ALTER TABLE cached_discover_users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0',
+      );
+
+      await db.execute(
+        'ALTER TABLE cached_start_chat_users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0',
       );
     }
   }

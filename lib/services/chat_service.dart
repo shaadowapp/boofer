@@ -171,8 +171,8 @@ class ChatService {
         mediaUrl: mediaUrl,
       );
 
-      // Send to Supabase if receiverId is provided
-      if (receiverId != null) {
+      // Send to Supabase only if receiver is someone else
+      if (receiverId != null && receiverId != senderId) {
         await _supabaseService.sendMessage(
           conversationId: conversationId,
           senderId: senderId,

@@ -24,6 +24,7 @@ class User {
   final int friendsCount;
   final int pendingReceivedRequests;
   final int pendingSentRequests;
+  final bool isVerified;
 
   const User({
     required this.id,
@@ -47,6 +48,7 @@ class User {
     this.friendsCount = 0,
     this.pendingReceivedRequests = 0,
     this.pendingSentRequests = 0,
+    this.isVerified = false,
   });
 
   /// Get formatted handle with @ prefix
@@ -127,6 +129,7 @@ class User {
     int? friendsCount,
     int? pendingReceivedRequests,
     int? pendingSentRequests,
+    bool? isVerified,
   }) {
     return User(
       id: id ?? this.id,
@@ -151,6 +154,7 @@ class User {
       pendingReceivedRequests:
           pendingReceivedRequests ?? this.pendingReceivedRequests,
       pendingSentRequests: pendingSentRequests ?? this.pendingSentRequests,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -178,6 +182,7 @@ class User {
       'friendsCount': friendsCount,
       'pendingReceivedRequests': pendingReceivedRequests,
       'pendingSentRequests': pendingSentRequests,
+      'isVerified': isVerified,
     };
   }
 
@@ -207,6 +212,7 @@ class User {
       'friends_count': friendsCount,
       'pending_received_requests': pendingReceivedRequests,
       'pending_sent_requests': pendingSentRequests,
+      'is_verified': isVerified ? 1 : 0,
     };
   }
 
@@ -256,6 +262,12 @@ class User {
           0,
       pendingSentRequests:
           json['pendingSentRequests'] ?? json['pending_sent_requests'] ?? 0,
+      isVerified:
+          json['isVerified'] ??
+          (json['is_verified'] is int
+              ? json['is_verified'] == 1
+              : json['is_verified']) ??
+          false,
     );
   }
 

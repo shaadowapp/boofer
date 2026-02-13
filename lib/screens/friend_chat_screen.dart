@@ -104,14 +104,21 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       const isBlocked = false; // TODO: Implement block check if needed
 
       // Load ACTUAL recipient user profile from database to get real details (picture, full name)
-      // This is crucial for Task 3
+      // EXCEPT for "You" chat which is static and local
       User? freshRecipient;
-      try {
-        freshRecipient = await SupabaseService.instance.getUserProfile(
-          widget.recipientId,
-        );
-      } catch (e) {
-        debugPrint('Error fetching fresh profile: $e');
+      final isSelf = widget.recipientId == currentUser.id;
+
+      if (!isSelf) {
+        try {
+          freshRecipient = await SupabaseService.instance.getUserProfile(
+            widget.recipientId,
+          );
+        } catch (e) {
+          debugPrint('Error fetching fresh profile: $e');
+        }
+      } else {
+        // For static "You" chat, just use currentUser
+        freshRecipient = currentUser;
       }
 
       // Create recipient user object with fallback to widget params
@@ -215,7 +222,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       print('✅ Loaded ${cachedMessages.length} messages from cache (instant)');
     }
 
-    // STEP 2: Check if cache is still valid
+    // STEP 2: Check if cache is still valid (Always valid for "You" chat as it's local only)
+    final isSelf = widget.recipientId == currentUserId;
+    if (isSelf) return;
+
     final isCacheValid = await cacheService.isMessagesCacheValid(
       conversationId,
     );
@@ -351,8 +361,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appearance = Provider.of<AppearanceProvider>(context);
-    final isOfficial =
-        widget.recipientId == '00000000-0000-4000-8000-000000000000';
+    final isOfficial = AppConstants.officialIds.contains(widget.recipientId);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -431,7 +440,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              _recipientUser?.fullName ?? widget.recipientName,
+                              widget.recipientId == _currentUserId
+                                  ? 'You (${_recipientUser?.fullName ?? widget.recipientName})'
+                                  : (_recipientUser?.fullName ??
+                                        widget.recipientName),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -439,22 +451,32 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (isOfficial) ...[
+                          if ((_recipientUser?.isVerified ?? false) ||
+                              isOfficial) ...[
                             const SizedBox(width: 4),
                             Icon(
                               Icons.verified,
                               size: 16,
-                              color: theme.colorScheme.primary,
+                              // If it's an official account (isOfficial covers Boofer), verify green color
+                              color: isOfficial
+                                  ? Colors.green
+                                  : theme.colorScheme.primary,
                             ),
                           ],
                         ],
                       ),
                       Text(
-                        _isMutual ? 'Online' : 'View profile',
+                        widget.recipientId == _currentUserId
+                            ? 'Message yourself'
+                            : (_isMutual ? 'Online' : 'View profile'),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: _isMutual
-                              ? Colors.green
-                              : theme.colorScheme.onSurface.withOpacity(0.6),
+                          color: widget.recipientId == _currentUserId
+                              ? theme.colorScheme.onSurface.withOpacity(0.6)
+                              : (_isMutual
+                                    ? Colors.green
+                                    : theme.colorScheme.onSurface.withOpacity(
+                                        0.6,
+                                      )),
                         ),
                       ),
                     ],
@@ -465,7 +487,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           ),
         ),
         actions: [
-          if (_isMutual) ...[
+          if (_isMutual &&
+              widget.recipientId != _currentUserId &&
+              widget.recipientId != AppConstants.booferId) ...[
             IconButton(
               icon: const Icon(Icons.videocam_outlined),
               onPressed: _startVideoCall,
@@ -1304,76 +1328,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   void _showUserProfile() {
-    // Show user profile dialog or navigate to profile screen
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(widget.recipientName),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: widget.recipientAvatar != null
-                  ? ClipOval(
-                      child: Image.network(
-                        widget.recipientAvatar!,
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Text(
-                          widget.recipientName.substring(0, 1).toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 32,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    )
-                  : Text(
-                      widget.recipientName.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 32,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.recipientName,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            if (widget.recipientHandle != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                '@${widget.recipientHandle}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'ID: ${widget.recipientId}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+    _navigateToProfile();
   }
 
   void _showAttachmentOptions() {

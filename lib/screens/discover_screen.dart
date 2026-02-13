@@ -41,6 +41,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       profilePicture: data['profile_picture'],
       avatar: data['avatar'],
       virtualNumber: data['virtual_number'],
+      isVerified: data['is_verified'] == true || data['is_verified'] == 1,
     );
   }
 
@@ -52,110 +53,124 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
     _currentUserId = currentUser.id;
 
-    // 1. Load from cache first
+    // 1. Load from cache first (Instant UI)
     final cachedUsersData = await ChatCacheService.instance
         .getCachedDiscoverUsers(_currentUserId!);
 
     List<User> currentUsers = [];
 
     if (mounted && cachedUsersData.isNotEmpty) {
-      // Convert cached maps to User objects
       currentUsers = cachedUsersData.map((data) => _mapToUser(data)).toList();
 
-      // Seed FollowProvider with cached status
+      // Update local state and FollowProvider with cached data
       final followProvider = Provider.of<FollowProvider>(
         context,
         listen: false,
       );
       for (var data in cachedUsersData) {
-        if (data['isFollowing'] == true || data['is_following'] == 1) {
-          final userId = data['id'] ?? data['profile_id'];
-          if (userId != null) {
-            followProvider.setLocalFollowingStatus(userId, true);
-          }
+        final userId = data['id'] ?? data['profile_id'];
+        if (userId != null &&
+            (data['isFollowing'] == true || data['is_following'] == 1)) {
+          followProvider.setLocalFollowingStatus(userId, true);
         }
       }
 
       setState(() {
         _users = currentUsers;
-        if (!forceRefresh) _isLoading = false;
+        // If we have cached data, we can stop showing the main loader immediately
+        _isLoading = false;
       });
+      debugPrint('✅ Loaded ${currentUsers.length} users from cache');
     }
 
-    // 2. Check cache validity
+    // 2. Handle Throttling for manual refreshes
+    if (forceRefresh) {
+      final isThrottled = await ChatCacheService.instance
+          .isDiscoverRefreshThrottled();
+      if (isThrottled) {
+        debugPrint('⏳ Discover refresh throttled. Using cache.');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait a moment before refreshing again'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // 3. Network Fetch Check
+    // We fetch if:
+    // - User explicitly requested refresh (forceRefresh = true)
+    // - Cache is empty
+    // - Cache is stale (validity check)
     final isCacheValid = await ChatCacheService.instance.isDiscoverCacheValid();
 
-    // If cache is valid, we have data, and not forcing refresh, we are done.
-    if (!forceRefresh && isCacheValid && cachedUsersData.isNotEmpty) {
+    if (!forceRefresh && isCacheValid && currentUsers.isNotEmpty) {
       debugPrint(
-        '✅ Discover cache is valid and populated. Skipping network fetch.',
+        '✅ Discover cache is fresh and populated. Skipping background fetch.',
       );
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    // 3. Fetch fresh from network if needed
+    // 4. Fetch from network
     try {
-      debugPrint(
-        '🔍 DiscoverScreen: Fetching network users for $_currentUserId (Force: $forceRefresh)',
-      );
+      if (currentUsers.isEmpty && mounted) {
+        setState(() => _isLoading = true);
+      }
 
+      debugPrint(
+        '🔍 DiscoverScreen: Fetching network users (Force: $forceRefresh)',
+      );
       final freshUsersData = await SupabaseService.instance.getDiscoverUsers(
         _currentUserId!,
       );
 
-      debugPrint(
-        '🔍 DiscoverScreen: Network returned ${freshUsersData.length} users',
-      );
-
       if (mounted) {
-        // Convert fresh maps to User objects
         final freshUsers = freshUsersData
             .map((data) => _mapToUser(data))
             .toList();
 
-        // Update FollowProvider with fresh status
+        // Update FollowProvider
         final followProvider = Provider.of<FollowProvider>(
           context,
           listen: false,
         );
         for (var data in freshUsersData) {
           final userId = data['id'];
-          final isFollowing = data['isFollowing'] == true;
           if (userId != null) {
-            followProvider.setLocalFollowingStatus(userId, isFollowing);
+            followProvider.setLocalFollowingStatus(
+              userId,
+              data['isFollowing'] == true,
+            );
           }
         }
 
-        // MERGE LOGIC: Add fresh treasures to the bag
-        // Create a map by ID for deduplication
+        // Merge logic
         final Map<String, User> userMap = {
           for (var user in currentUsers) user.id: user,
         };
-
-        // Upsert fresh users
         for (var user in freshUsers) {
           userMap[user.id] = user;
         }
 
-        final mergedUsers = userMap.values.toList();
-
-        // Optional: Sort (e.g., by name or newly added)
-        // mergedUsers.sort((a, b) => a.fullName.compareTo(b.fullName));
-
         setState(() {
-          _users = mergedUsers;
+          _users = userMap.values.toList();
           _isLoading = false;
         });
 
-        // 4. Update cache (Service handles upsert/merge)
+        // Update cache
         await ChatCacheService.instance.cacheDiscoverUsers(
           _currentUserId!,
           freshUsersData,
         );
       }
     } catch (e) {
-      debugPrint('Error loading discover users: $e');
-      if (mounted && _users.isEmpty) {
+      debugPrint('❌ Error loading discover users: $e');
+      if (mounted) {
         setState(() => _isLoading = false);
       }
     }

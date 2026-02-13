@@ -27,6 +27,8 @@ class ChatProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   String? get currentConversationId => _currentConversationId;
+  bool get friendsLoaded => _friendsLoaded;
+  bool get isLoadingFromNetwork => _isLoadingFromNetwork;
 
   StreamSubscription<List<Message>>? _messagesSubscription;
   StreamSubscription<Message>? _newMessageSubscription;
@@ -180,7 +182,7 @@ class ChatProvider with ChangeNotifier {
   bool _isLoadingFromNetwork = false;
 
   // Load real friends from Firestore with WhatsApp-style caching
-  Future<void> _loadRealFriends() async {
+  Future<void> _loadRealFriends({bool forceRefresh = false}) async {
     try {
       final currentUser = await UserService.getCurrentUser();
       if (currentUser == null) {
@@ -190,7 +192,9 @@ class ChatProvider with ChangeNotifier {
         return;
       }
 
-      print('📱 Loading friends with cache-first strategy');
+      print(
+        '📱 Loading friends with cache-first strategy (Force: $forceRefresh)',
+      );
 
       final cacheService = ChatCacheService.instance;
 
@@ -203,16 +207,29 @@ class ChatProvider with ChangeNotifier {
         print('✅ Loaded ${cachedFriends.length} friends from cache (instant)');
       }
 
-      // STEP 2: Check if cache is still valid
-      final isCacheValid = await cacheService.isFriendsCacheValid();
-
-      if (isCacheValid && cachedFriends.isNotEmpty) {
-        print('✅ Cache is fresh (<24h), skipping network call');
-        return; // Cache is fresh, no need to fetch from network
+      // STEP 2: Handle Throttling for manual refreshes
+      if (forceRefresh) {
+        final isThrottled = await cacheService.isFriendsRefreshThrottled();
+        if (isThrottled) {
+          print('⏳ Friends refresh throttled. Using cache.');
+          _friendsLoaded = true;
+          notifyListeners();
+          return;
+        }
       }
 
-      // STEP 3: Cache is stale or empty, fetch from network in background
-      print('🔄 Cache is stale or empty, fetching fresh data from network...');
+      // STEP 3: Check if cache is still valid
+      final isCacheValid = await cacheService.isFriendsCacheValid();
+
+      if (!forceRefresh && isCacheValid && cachedFriends.isNotEmpty) {
+        print('✅ Friends cache is fresh (<24h), skipping network call');
+        _friendsLoaded = true;
+        notifyListeners();
+        return;
+      }
+
+      // STEP 4: Fetch from network
+      print('🔄 Fetching fresh friends data from network...');
       _isLoadingFromNetwork = true;
 
       final followService = FollowService.instance;
@@ -250,23 +267,45 @@ class ChatProvider with ChangeNotifier {
           lastMessage: conv?['lastMessage'] ?? 'Start a conversation',
           lastMessageTime: conv != null
               ? DateTime.parse(conv['lastMessageTime'])
-              : DateTime.now().subtract(
-                  const Duration(days: 30),
-                ), // Old if no messages
+              : DateTime.now().subtract(const Duration(days: 30)),
           unreadCount: 0,
           isOnline: user.status == UserStatus.online,
           isArchived: false,
         );
       }).toList();
 
-      // ALWAYS add Boofer Official to the list if not already present
-      if (!_friends.any((f) => f.id == booferId)) {
-        final booferConv = convMap[booferId];
+      // ALWAYS add self-chat "You" to the list if a conversation exists
+      if (!_friends.any((f) => f.id == currentUser.id)) {
+        final selfConv = convMap[currentUser.id];
+        if (selfConv != null) {
+          _friends.insert(
+            0,
+            Friend(
+              id: currentUser.id,
+              name: 'You (${currentUser.fullName})',
+              handle: currentUser.handle,
+              virtualNumber: currentUser.virtualNumber ?? 'SELF-000',
+              avatar: currentUser.avatar,
+              lastMessage: selfConv['lastMessage'] ?? 'Message yourself',
+              lastMessageTime: selfConv['lastMessageTime'] != null
+                  ? DateTime.parse(selfConv['lastMessageTime'])
+                  : DateTime.now(),
+              unreadCount: 0,
+              isOnline: true,
+              isArchived: false,
+            ),
+          );
+        }
+      }
+
+      // ALWAYS add Boofer Official
+      if (!_friends.any((f) => f.id == AppConstants.booferId)) {
+        final booferConv = convMap[AppConstants.booferId];
         _friends.insert(
           0,
           Friend(
-            id: booferId,
-            name: 'Boofer Official',
+            id: AppConstants.booferId,
+            name: 'Boofer',
             handle: 'boofer',
             virtualNumber: 'BOOFER-001',
             avatar: '🛸',
@@ -281,7 +320,7 @@ class ChatProvider with ChangeNotifier {
         );
       }
 
-      // STEP 4: Update cache with fresh data
+      // STEP 5: Update cache
       await cacheService.cacheFriends(currentUser.id, _friends);
       print('💾 Cached ${_friends.length} friends locally');
 
@@ -298,8 +337,8 @@ class ChatProvider with ChangeNotifier {
 
   // Refresh friends list
   Future<void> refreshFriends() async {
-    _friendsLoaded = false;
-    await _loadRealFriends();
+    // Explicitly set forceRefresh to true when user pulls to refresh
+    await _loadRealFriends(forceRefresh: true);
   }
 
   // Chat management methods

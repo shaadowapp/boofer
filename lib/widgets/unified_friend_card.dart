@@ -15,7 +15,11 @@ class UnifiedFriendCard extends StatefulWidget {
   final VoidCallback? onStatusChanged;
   final bool showOnlineStatus;
   final bool showActionButton;
+  final bool showMessageButton;
+  final bool showBio;
+  final bool showHandle;
   final VoidCallback? onTap;
+  final VoidCallback? onMessagePressed;
 
   const UnifiedFriendCard({
     super.key,
@@ -23,7 +27,11 @@ class UnifiedFriendCard extends StatefulWidget {
     this.onStatusChanged,
     this.showOnlineStatus = true,
     this.showActionButton = true,
+    this.showMessageButton = false,
+    this.showBio = false,
+    this.showHandle = true,
     this.onTap,
+    this.onMessagePressed,
   });
 
   @override
@@ -78,7 +86,17 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
             const SizedBox(width: 8),
 
             // SEGMENT 3: Action Button
-            if (widget.showActionButton && _currentUserId != widget.user.id)
+            if (widget.showMessageButton)
+              IconButton(
+                onPressed: widget.onMessagePressed ?? _handleInfoTap,
+                icon: Icon(
+                  Icons.message_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                tooltip: 'Message',
+              )
+            else if (widget.showActionButton &&
+                _currentUserId != widget.user.id)
               FollowButton(
                 user: widget.user,
                 compact: true,
@@ -112,7 +130,12 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                           !widget.user.profilePicture!.startsWith('http')
                       ? Text(
                           widget.user.fullName.isNotEmpty
-                              ? widget.user.fullName[0].toUpperCase()
+                              ? widget.user.fullName
+                                    .split(' ')
+                                    .map((e) => e.isNotEmpty ? e[0] : '')
+                                    .take(2)
+                                    .join()
+                                    .toUpperCase()
                               : widget.user.handle.isNotEmpty
                               ? widget.user.handle[0].toUpperCase()
                               : '?',
@@ -164,21 +187,44 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (widget.user.id == AppConstants.booferId) ...[
+            if (widget.user.isVerified ||
+                AppConstants.officialIds.contains(widget.user.id)) ...[
               const SizedBox(width: 4),
-              Icon(Icons.verified, size: 16, color: theme.colorScheme.primary),
+              Icon(
+                Icons.verified,
+                size: 16,
+                color: widget.user.id == AppConstants.booferId
+                    ? Colors.green
+                    : theme.colorScheme.primary,
+              ),
             ],
           ],
         ),
-        const SizedBox(height: 2),
-        Text(
-          widget.user.formattedHandle,
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-            fontSize: 14,
+        if (widget.showHandle) ...[
+          const SizedBox(height: 2),
+          Text(
+            widget.user.formattedHandle,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 14,
+            ),
           ),
-        ),
-        if (widget.user.virtualNumber != null) ...[
+        ],
+        if (widget.showBio && widget.user.bio.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            widget.user.bio,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+        if (widget.showHandle &&
+            !widget.showBio &&
+            widget.user.virtualNumber != null) ...[
           const SizedBox(height: 2),
           Text(
             widget.user.virtualNumber!,
@@ -206,6 +252,52 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
           recipientName: widget.user.displayName,
           recipientHandle: widget.user.handle,
           recipientAvatar: widget.user.profilePicture ?? '',
+        ),
+      ),
+    );
+  }
+}
+
+class BooferBadge extends StatelessWidget {
+  final String letter;
+  final String tooltip;
+
+  const BooferBadge({
+    super.key,
+    this.letter = 'B',
+    this.tooltip = 'Official Boofer Account',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        margin: const EdgeInsets.only(left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(8),
+            bottomRight: Radius.circular(8),
+            topRight: Radius.circular(2),
+            bottomLeft: Radius.circular(2),
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+          ),
+        ),
+        child: Text(
+          letter,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'Roboto',
+          ),
         ),
       ),
     );

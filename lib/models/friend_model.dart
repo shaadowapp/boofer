@@ -13,6 +13,7 @@ class Friend {
   final bool isArchived;
   final bool isBlocked;
   final bool isMuted;
+  final bool isVerified;
 
   Friend({
     required this.id,
@@ -27,6 +28,7 @@ class Friend {
     this.isArchived = false,
     this.isBlocked = false,
     this.isMuted = false,
+    this.isVerified = false,
   });
 
   /// Get formatted handle with @ prefix
@@ -62,6 +64,7 @@ class Friend {
     bool? isArchived,
     bool? isBlocked,
     bool? isMuted,
+    bool? isVerified,
   }) {
     return Friend(
       id: id ?? this.id,
@@ -76,6 +79,7 @@ class Friend {
       isArchived: isArchived ?? this.isArchived,
       isBlocked: isBlocked ?? this.isBlocked,
       isMuted: isMuted ?? this.isMuted,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -94,6 +98,7 @@ class Friend {
       'isArchived': isArchived,
       'isBlocked': isBlocked,
       'isMuted': isMuted,
+      'isVerified': isVerified,
     };
   }
 
@@ -110,6 +115,7 @@ class Friend {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       status: isOnline ? UserStatus.online : UserStatus.offline,
+      isVerified: isVerified,
     );
   }
 
@@ -127,6 +133,7 @@ class Friend {
       isArchived: json['isArchived'] as bool? ?? false,
       isBlocked: json['isBlocked'] as bool? ?? false,
       isMuted: json['isMuted'] as bool? ?? false,
+      isVerified: json['isVerified'] as bool? ?? false,
     );
   }
 

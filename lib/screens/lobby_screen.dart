@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../widgets/unified_friend_card.dart';
 import 'archived_chats_screen.dart';
 import 'friend_chat_screen.dart';
+import '../core/constants.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -67,6 +68,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
 
+          // 1. Initial Loading State (Before cache or network returned anything)
+          if (!chatProvider.friendsLoaded && activeChats.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // 2. Empty State (Loaded but no chats found)
           if (activeChats.isEmpty) {
             return RefreshIndicator(
               onRefresh: () async {
@@ -428,6 +435,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
+                          if (friend.isVerified ||
+                              AppConstants.officialIds.contains(friend.id)) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.verified,
+                              size: 16,
+                              color: friend.id == AppConstants.booferId
+                                  ? Colors.green
+                                  : Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
                           // Unread eye indicator after name
                           if (friend.unreadCount > 0) ...[
                             const SizedBox(width: 6),
