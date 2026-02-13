@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/user_model.dart';
 import '../core/constants.dart';
+import 'local_storage_service.dart';
 
 class FollowService {
   static FollowService? _instance;
@@ -179,6 +180,15 @@ class FollowService {
   }) async {
     try {
       if (currentUserId == targetUserId) return 'self';
+
+      // DEBUG OVERRIDE: If debug flag is set, treat as mutual (except for self)
+      final debugForced = await LocalStorageService.isDebugMutualFollowForced();
+      if (debugForced) {
+        debugPrint(
+          'FollowService DEBUG: Mutual follow status FORCED for $targetUserId',
+        );
+        return 'mutual';
+      }
 
       final following = await isFollowing(
         followerId: currentUserId,

@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
+import '../services/local_storage_service.dart';
 
 import 'archived_chats_screen.dart';
 import 'archive_settings_screen.dart';
@@ -448,6 +449,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ],
                   ),
+
+                // Debug Section
+                _buildSettingsSection(
+                  context,
+                  title: 'Debug (Testing)',
+                  children: [
+                    FutureBuilder<bool>(
+                      future: LocalStorageService.isDebugMutualFollowForced(),
+                      builder: (context, snapshot) {
+                        return _buildColorfulSwitchTile(
+                          context,
+                          title: 'Force Mutual Follow (Local)',
+                          icon: Icons.bug_report_outlined,
+                          color: Colors.deepPurple,
+                          value: snapshot.data ?? false,
+                          onChanged: (value) async {
+                            await LocalStorageService.setDebugMutualFollowForced(
+                              value,
+                            );
+                            setState(() {}); // Refresh UI
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Debug: Mutual follow ${value ? 'FORCED' : 'RESTORED'}',
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
 
                 // Account Actions
                 if (_matchesSearch('sign out logout'))

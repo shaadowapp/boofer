@@ -10,6 +10,7 @@ class LocalStorageService {
   static const String _userPinKey = 'user_pin';
   static const String _onboardingDataKey = 'onboarding_data';
   static const String _termsAcceptedKey = 'terms_accepted_v1';
+  static const String _debugMutualFollowKey = 'debug_mutual_follow';
 
   // Secure storage for sensitive data like PIN
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -233,6 +234,26 @@ class LocalStorageService {
       await prefs.setBool('${_termsAcceptedKey}_$userId', accepted);
     } catch (e) {
       throw Exception('Failed to set terms accepted: $e');
+    }
+  }
+
+  /// DEBUG: Force mutual follow status (local-only)
+  static Future<bool> isDebugMutualFollowForced() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_debugMutualFollowKey) ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// DEBUG: Set force mutual follow status
+  static Future<void> setDebugMutualFollowForced(bool forced) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_debugMutualFollowKey, forced);
+    } catch (e) {
+      throw Exception('Failed to set debug mutual follow forced: $e');
     }
   }
 }
