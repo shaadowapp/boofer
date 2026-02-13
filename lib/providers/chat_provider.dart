@@ -298,26 +298,33 @@ class ChatProvider with ChangeNotifier {
         }
       }
 
-      // ALWAYS add Boofer Official
-      if (!_friends.any((f) => f.id == AppConstants.booferId)) {
-        final booferConv = convMap[AppConstants.booferId];
-        _friends.insert(
-          0,
-          Friend(
-            id: AppConstants.booferId,
-            name: 'Boofer',
-            handle: 'boofer',
-            virtualNumber: 'BOOFER-001',
-            avatar: '🛸',
-            lastMessage: booferConv?['lastMessage'] ?? 'Welcome to Boofer! 🛸',
-            lastMessageTime: booferConv != null
-                ? DateTime.parse(booferConv['lastMessageTime'])
-                : DateTime.now(),
-            unreadCount: 0,
-            isOnline: true,
-            isArchived: false,
-          ),
-        );
+      // ALWAYS ensure Boofer is present and has correct name
+      final booferIndex = _friends.indexWhere(
+        (f) => f.id == AppConstants.booferId,
+      );
+      final booferConv = convMap[AppConstants.booferId];
+
+      final booferFriend = Friend(
+        id: AppConstants.booferId,
+        name: 'Boofer',
+        handle: 'boofer',
+        virtualNumber: 'BOOFER-001',
+        avatar: '🛸',
+        lastMessage: booferConv?['lastMessage'] ?? 'Welcome to Boofer! 🛸',
+        lastMessageTime: booferConv != null
+            ? DateTime.parse(booferConv['lastMessageTime'])
+            : DateTime.now(),
+        unreadCount: 0,
+        isOnline: true,
+        isArchived: false,
+      );
+
+      if (booferIndex != -1) {
+        // Update existing entry
+        _friends[booferIndex] = booferFriend;
+      } else {
+        // Insert new entry
+        _friends.insert(0, booferFriend);
       }
 
       // STEP 5: Update cache

@@ -29,7 +29,7 @@ class ChatCacheService {
   static const String _lastStartChatSyncKey = 'last_start_chat_sync';
 
   // Throttle duration for user-triggered refreshes (e.g., 2 minutes)
-  static const Duration refreshThrottleDuration = Duration(minutes: 2);
+  static const Duration refreshThrottleDuration = Duration(seconds: 5);
 
   /// Check if discover cache is still valid
   Future<bool> isDiscoverCacheValid() async {
