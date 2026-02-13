@@ -4,6 +4,9 @@ import '../models/user_model.dart';
 import '../services/user_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/unified_friend_card.dart';
+import '../providers/follow_provider.dart';
+import 'manage_friends_screen.dart';
+import 'package:provider/provider.dart';
 
 class UserSearchScreen extends StatefulWidget {
   const UserSearchScreen({super.key});
@@ -61,11 +64,26 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
     try {
       final supabaseService = SupabaseService.instance;
+      // 1. Get raw search results (with isFollowing status)
+      final rawResults = await supabaseService.searchUsers('');
 
-      // Get discoverable users from Supabase
-      final discoverableUsers = await supabaseService.searchUsers('');
+      // 2. Seed FollowProvider with follow status
+      if (mounted) {
+        final followProvider = context.read<FollowProvider>();
+        for (var data in rawResults) {
+          final userId = data['id'];
+          final isFollowing = data['isFollowing'] == true;
+          if (userId != null) {
+            followProvider.setLocalFollowingStatus(userId, isFollowing);
+          }
+        }
+      }
 
-      // Filter out current user by both ID and handle
+      // 3. Convert to User objects and filter
+      final discoverableUsers = rawResults
+          .map((e) => User.fromJson(e))
+          .toList();
+
       final filteredUsers = discoverableUsers.where((user) {
         final isDifferentId = user.id != _currentUserId;
         final isDifferentHandle = user.handle != _currentUserHandle;
@@ -84,7 +102,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         _loading = false;
       });
 
-      print('✅ Loaded ${filteredUsers.length} real users from Supabase');
+      print(
+        '✅ Loaded ${filteredUsers.length} real users from Supabase and synced follow status',
+      );
     } catch (e) {
       print('❌ Error loading users from Supabase: $e');
 
@@ -121,7 +141,21 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
     try {
       final supabaseService = SupabaseService.instance;
-      final results = await supabaseService.searchUsers(query);
+      final rawResults = await supabaseService.searchUsers(query);
+
+      // Seed FollowProvider
+      if (mounted) {
+        final followProvider = context.read<FollowProvider>();
+        for (var data in rawResults) {
+          final userId = data['id'];
+          final isFollowing = data['isFollowing'] == true;
+          if (userId != null) {
+            followProvider.setLocalFollowingStatus(userId, isFollowing);
+          }
+        }
+      }
+
+      final results = rawResults.map((e) => User.fromJson(e)).toList();
 
       // Filter out current user by both ID and handle
       final filteredResults = results.where((user) {
@@ -173,32 +207,56 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                 ),
               ),
             ),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by name, username, or virtual number...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchResults = [];
-                            _hasSearched = false;
-                          });
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, username...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchResults = [];
+                                  _hasSearched = false;
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                  ),
                 ),
-                filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
-              ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ManageFriendsScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.people_outline, size: 18),
+                  label: const Text('Manage'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
             ),
           ),
 

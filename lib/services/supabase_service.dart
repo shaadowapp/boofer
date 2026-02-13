@@ -118,27 +118,37 @@ class SupabaseService {
   }
 
   /// Search users globally
-  Future<List<app_user.User>> searchUsers(String query) async {
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
+      final currentUserId = _supabase.auth.currentUser?.id ?? '';
+
       if (query.isEmpty) {
-        // If query is empty, return discover users (explore mode)
-        final currentUserId = _supabase.auth.currentUser?.id ?? '';
-        final discoverData = await getDiscoverUsers(currentUserId);
-        return discoverData
-            .map((data) => app_user.User.fromJson(data))
-            .toList();
+        // If query is empty, return discover users using the optimized JOIN
+        return await getDiscoverUsers(currentUserId);
       }
 
+      // Search with JOIN to get follow status
       final response = await _supabase
           .from('profiles')
-          .select()
-          .or('handle.ilike.%$query%,virtual_number.ilike.%$query%')
+          .select('*, follows!following_id(follower_id)')
+          .or(
+            'handle.ilike.%$query%,virtual_number.ilike.%$query%,full_name.ilike.%$query%',
+          )
           .eq('is_discoverable', true)
+          .neq('id', currentUserId)
           .limit(20);
 
-      return (response as List)
-          .map((data) => app_user.User.fromJson(data))
-          .toList();
+      return (response as List).map((profile) {
+        final profileMap = Map<String, dynamic>.from(profile);
+        final followsList = profileMap['follows'] as List?;
+
+        profileMap['isFollowing'] =
+            followsList != null &&
+            followsList.any((f) => f['follower_id'] == currentUserId);
+
+        profileMap.remove('follows');
+        return profileMap;
+      }).toList();
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.service(
