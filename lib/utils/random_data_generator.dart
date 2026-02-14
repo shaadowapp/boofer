@@ -120,12 +120,12 @@ class RandomDataGenerator {
     return _bios[_random.nextInt(_bios.length)];
   }
 
-  /// Generates a random virtual number in the format '555-XXX-XXXX'
-  /// This can be used as a fallback if the service fails or for demo data
+  /// Generates a random 10-digit numeric virtual number (e.g., 5551423620)
   static String generateVirtualNumber() {
+    final areaCode = 555;
     final part1 = (100 + _random.nextInt(900)).toString();
     final part2 = (1000 + _random.nextInt(9000)).toString();
-    return "555-$part1-$part2";
+    return "$areaCode$part1$part2";
   }
 
   static final List<String> _avatars = [

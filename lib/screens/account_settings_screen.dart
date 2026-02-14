@@ -141,7 +141,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _currentUser!.virtualNumber!,
+                    _currentUser!.formattedVirtualNumber,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w600,

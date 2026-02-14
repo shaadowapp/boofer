@@ -1000,7 +1000,7 @@ Download Boofer for secure messaging!
             theme,
             icon: Icons.phone_outlined,
             title: 'Virtual Number',
-            value: _currentUser?.virtualNumber ?? 'Not assigned',
+            value: _currentUser?.formattedVirtualNumber ?? 'Not assigned',
             color: Colors.green,
           ),
         ],

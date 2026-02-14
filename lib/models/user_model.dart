@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../utils/string_utils.dart';
 
 enum UserStatus { online, offline, away, busy, frozen, deleted }
 
@@ -50,6 +51,10 @@ class User {
     this.pendingSentRequests = 0,
     this.isVerified = false,
   });
+
+  /// Get formatted virtual number (XXX-XXX-XXXX)
+  String get formattedVirtualNumber =>
+      StringUtils.formatVirtualNumber(virtualNumber);
 
   /// Get formatted handle with @ prefix
   String get formattedHandle => '@$handle';

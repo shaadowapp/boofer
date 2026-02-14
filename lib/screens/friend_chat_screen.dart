@@ -26,6 +26,8 @@ class FriendChatScreen extends StatefulWidget {
   final String recipientName;
   final String? recipientHandle;
   final String? recipientAvatar;
+  final String? recipientProfilePicture;
+  final String? virtualNumber;
 
   const FriendChatScreen({
     super.key,
@@ -33,6 +35,8 @@ class FriendChatScreen extends StatefulWidget {
     required this.recipientName,
     this.recipientHandle,
     this.recipientAvatar,
+    this.recipientProfilePicture,
+    this.virtualNumber,
   });
 
   @override
@@ -560,7 +564,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   tag: 'avatar_${widget.recipientId}',
                   child: UserAvatar(
                     avatar: _recipientUser?.avatar ?? widget.recipientAvatar,
-                    profilePicture: _recipientUser?.profilePicture,
+                    profilePicture:
+                        _recipientUser?.profilePicture ??
+                        widget.recipientProfilePicture,
                     name: _recipientUser?.fullName ?? widget.recipientName,
                     radius: 20,
                     fontSize: 18,
@@ -660,22 +666,25 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: SvgIcons.sized(
-              SvgIcons.videoCall,
-              24,
-              color: theme.colorScheme.primary,
+          if (widget.recipientId != AppConstants.booferId &&
+              widget.recipientHandle != 'boofer') ...[
+            IconButton(
+              icon: SvgIcons.sized(
+                SvgIcons.videoCall,
+                24,
+                color: theme.colorScheme.primary,
+              ),
+              onPressed: () => _showComingSoon('Video Call'),
             ),
-            onPressed: () => _showComingSoon('Video Call'),
-          ),
-          IconButton(
-            icon: SvgIcons.sized(
-              SvgIcons.voiceCall,
-              24,
-              color: theme.colorScheme.primary,
+            IconButton(
+              icon: SvgIcons.sized(
+                SvgIcons.voiceCall,
+                24,
+                color: theme.colorScheme.primary,
+              ),
+              onPressed: () => _showComingSoon('Voice Call'),
             ),
-            onPressed: () => _showComingSoon('Voice Call'),
-          ),
+          ],
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: _showMoreOptionsBottomSheet,

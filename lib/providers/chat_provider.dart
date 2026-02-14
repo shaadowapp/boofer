@@ -320,7 +320,7 @@ class ChatProvider with ChangeNotifier {
             id: friendId,
             name: otherUser['name'],
             handle: otherUser['handle'],
-            virtualNumber: 'BN-${friendId.substring(0, 4).toUpperCase()}',
+            virtualNumber: otherUser['virtualNumber'] ?? 'No number',
             avatar: otherUser['avatar'],
             lastMessage: conv['lastMessage'] ?? '',
             lastMessageTime: DateTime.parse(conv['lastMessageTime']),

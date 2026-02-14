@@ -1,4 +1,5 @@
 import 'user_model.dart';
+import '../utils/string_utils.dart';
 
 class Friend {
   final String id;
@@ -6,6 +7,7 @@ class Friend {
   final String handle; // Username handle (without @)
   final String virtualNumber;
   final String? avatar;
+  final String? profilePicture;
   final String lastMessage;
   final DateTime lastMessageTime;
   final int unreadCount;
@@ -23,6 +25,7 @@ class Friend {
     required this.handle,
     required this.virtualNumber,
     this.avatar,
+    this.profilePicture,
     required this.lastMessage,
     required this.lastMessageTime,
     this.unreadCount = 0,
@@ -34,6 +37,10 @@ class Friend {
     this.ephemeralTimer = '24_hours',
     this.isDeleted = false,
   });
+
+  /// Get formatted virtual number (XXX-XXX-XXXX)
+  String get formattedVirtualNumber =>
+      StringUtils.formatVirtualNumber(virtualNumber);
 
   /// Get formatted handle with @ prefix
   String get formattedHandle => '@$handle';
@@ -61,6 +68,7 @@ class Friend {
     String? handle,
     String? virtualNumber,
     String? avatar,
+    String? profilePicture,
     String? lastMessage,
     DateTime? lastMessageTime,
     int? unreadCount,
@@ -78,6 +86,7 @@ class Friend {
       handle: handle ?? this.handle,
       virtualNumber: virtualNumber ?? this.virtualNumber,
       avatar: avatar ?? this.avatar,
+      profilePicture: profilePicture ?? this.profilePicture,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -99,6 +108,7 @@ class Friend {
       'handle': handle,
       'virtualNumber': virtualNumber,
       'avatar': avatar,
+      'profilePicture': profilePicture,
       'lastMessage': lastMessage,
       'lastMessageTime': lastMessageTime.toIso8601String(),
       'unreadCount': unreadCount,
@@ -126,6 +136,8 @@ class Friend {
       updatedAt: DateTime.now(),
       status: isOnline ? UserStatus.online : UserStatus.offline,
       isVerified: isVerified,
+      profilePicture: profilePicture,
+      avatar: avatar,
     );
   }
 
@@ -140,6 +152,9 @@ class Friend {
         handle: otherUser['handle'] as String? ?? 'unknown',
         virtualNumber: otherUser['virtualNumber'] as String? ?? '',
         avatar: otherUser['avatar'] as String?,
+        profilePicture:
+            otherUser['profile_picture'] as String? ??
+            otherUser['profilePicture'] as String?,
         lastMessage: json['lastMessage'] as String? ?? '',
         lastMessageTime: json['lastMessageTime'] != null
             ? DateTime.parse(json['lastMessageTime'] as String)
@@ -165,6 +180,9 @@ class Friend {
       handle: json['handle'] as String? ?? '',
       virtualNumber: json['virtualNumber'] as String? ?? '',
       avatar: json['avatar'] as String?,
+      profilePicture:
+          json['profilePicture'] as String? ??
+          json['profile_picture'] as String?,
       lastMessage: json['lastMessage'] as String? ?? '',
       lastMessageTime: DateTime.parse(
         json['lastMessageTime'] as String? ?? DateTime.now().toIso8601String(),

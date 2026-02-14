@@ -227,7 +227,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
             widget.user.virtualNumber != null) ...[
           const SizedBox(height: 2),
           Text(
-            widget.user.virtualNumber!,
+            widget.user.formattedVirtualNumber,
             style: TextStyle(
               color: theme.colorScheme.primary.withOpacity(0.8),
               fontSize: 12,

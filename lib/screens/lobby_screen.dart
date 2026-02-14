@@ -333,8 +333,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
             builder: (context) => FriendChatScreen(
               recipientId: friend.id,
               recipientName: friend.name,
+              recipientAvatar: friend.avatar,
+              recipientProfilePicture: friend.profilePicture,
               recipientHandle: friend.handle,
-              recipientAvatar: friend.avatar ?? '',
+              virtualNumber: friend.virtualNumber,
             ),
           ),
         );
@@ -358,9 +360,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               children: [
                 UserAvatar(
                   avatar: friend.avatar,
-                  // Pass virtualNumber-like string as name fallback if no proper avatar,
-                  // though Friend model should have proper avatar from DB now.
-                  // We assume friend.avatar is the source of truth for emoji.
+                  profilePicture: friend.profilePicture,
                   name: friend.name,
                   radius: 28,
                   fontSize: 24,
@@ -518,6 +518,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   tag: 'avatar_sheet_${friend.id}',
                   child: UserAvatar(
                     avatar: friend.avatar,
+                    profilePicture: friend.profilePicture,
                     name: friend.name,
                     radius: 30,
                     fontSize: 24,
@@ -560,7 +561,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ],
                       ),
                       Text(
-                        friend.virtualNumber,
+                        '${friend.formattedHandle} • (${friend.formattedVirtualNumber})',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(
                             context,

@@ -424,7 +424,7 @@ class SupabaseService {
         final response = await _supabase
             .from('user_conversations')
             .select(
-              '*, friend:profiles!friend_id(id, full_name, handle, profile_picture, status, is_verified, virtual_number)',
+              '*, friend:profiles!friend_id(id, full_name, handle, profile_picture, avatar, status, is_verified, virtual_number)',
             )
             .eq('user_id', userId)
             .eq('is_deleted', false)
@@ -442,7 +442,8 @@ class SupabaseService {
                 'id': friend['id'],
                 'name': friend['full_name'] ?? 'Unknown',
                 'handle': friend['handle'] ?? 'unknown',
-                'avatar': friend['profile_picture'],
+                'avatar': friend['avatar'],
+                'profilePicture': friend['profile_picture'],
                 'status': friend['status'],
                 'is_verified': friend['is_verified'] ?? false,
                 'virtualNumber': friend['virtual_number'] ?? '',
@@ -460,7 +461,7 @@ class SupabaseService {
       final response = await _supabase
           .from('messages')
           .select(
-            '*, sender:profiles!sender_id(id, full_name, handle, profile_picture, status), receiver:profiles!receiver_id(id, full_name, handle, profile_picture, status)',
+            '*, sender:profiles!sender_id(id, full_name, handle, profile_picture, avatar, status), receiver:profiles!receiver_id(id, full_name, handle, profile_picture, avatar, status)',
           )
           .or('sender_id.eq.$userId,receiver_id.eq.$userId')
           .order('timestamp', ascending: false)
@@ -485,7 +486,8 @@ class SupabaseService {
             'id': otherProfile['id'],
             'name': otherProfile['full_name'] ?? 'Unknown User',
             'handle': otherProfile['handle'] ?? 'unknown',
-            'avatar': otherProfile['profile_picture'],
+            'avatar': otherProfile['avatar'],
+            'profilePicture': otherProfile['profile_picture'],
             'status': otherProfile['status'],
           },
         };
