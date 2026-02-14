@@ -117,21 +117,34 @@ class ArchivedChatsScreen extends StatelessWidget {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  child: friend.avatar != null
+                  child:
+                      friend.avatar != null && friend.avatar!.startsWith('http')
                       ? ClipOval(
                           child: Image.network(
                             friend.avatar!,
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Text(
+                              friend.name.isNotEmpty ? friend.name[0] : '?',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
                           ),
                         )
                       : Text(
-                          friend.name
-                              .split(' ')
-                              .map((e) => e[0])
-                              .take(2)
-                              .join(),
+                          (friend.avatar != null && friend.avatar!.isNotEmpty)
+                              ? friend.avatar!
+                              : (friend.name.isNotEmpty
+                                    ? friend.name
+                                          .split(' ')
+                                          .map((e) => e.isNotEmpty ? e[0] : '')
+                                          .take(2)
+                                          .join()
+                                    : '?'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,

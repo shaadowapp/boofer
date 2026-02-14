@@ -170,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (mounted &&
               _currentUser != null &&
               url != _currentUser!.profilePicture) {
-            print('📸 Profile screen received update: $url');
+            // print('📸 Profile screen received update: $url');
             setState(() {
               _currentUser = _currentUser!.copyWith(profilePicture: url);
             });
@@ -208,9 +208,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (freshUser != null) {
             user = freshUser;
             await UserService.setCurrentUser(user);
-            print(
-              '📸 Loaded user from Supabase - Profile picture: ${user.profilePicture}',
-            );
+            // print(
+            //   '📸 Loaded user from Supabase - Profile picture: ${user.profilePicture}',
+            // );
           }
         }
       } else {
@@ -222,9 +222,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (freshUser != null) {
           await UserService.setCurrentUser(freshUser);
           user = freshUser;
-          print(
-            '📸 Refreshed user from Supabase - Profile picture: ${user.profilePicture}',
-          );
+          // print(
+          //   '📸 Refreshed user from Supabase - Profile picture: ${user.profilePicture}',
+          // );
         }
       }
 
@@ -243,9 +243,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
 
-      print(
-        '✅ Profile loaded - Name: ${user?.fullName}, Picture: ${user?.profilePicture}',
-      );
+      // print(
+      //   '✅ Profile loaded - Name: ${user?.fullName}, Picture: ${user?.profilePicture}',
+      // );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -296,8 +296,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         updatedAt: DateTime.now(),
       );
 
-      final success = await SupabaseService.instance.createUserProfile(
-        updatedUser,
+      final success = await SupabaseService.instance.updateUserProfile(
+        userId: _currentUser!.id,
+        fullName: updatedFullName,
+        handle: updatedHandle,
+        bio: updatedBio,
+        avatar: _selectedAvatar,
+        profilePicture: _currentUser!.profilePicture,
       );
 
       if (success == null)
@@ -637,6 +642,7 @@ Download Boofer for secure messaging!
     final hasRealProfilePicture =
         _currentUser?.profilePicture != null &&
         _currentUser!.profilePicture!.isNotEmpty &&
+        _currentUser!.profilePicture!.startsWith('http') &&
         !_currentUser!.profilePicture!.contains('ui-avatars.com');
 
     // First priority: Show actual uploaded profile picture
@@ -672,7 +678,7 @@ Download Boofer for secure messaging!
               );
             },
             errorBuilder: (context, error, stackTrace) {
-              print('❌ Error loading profile picture: $error');
+              // print('❌ Error loading profile picture: $error');
               // Fallback to emoji avatar if image fails to load
               return _buildEmojiOrInitialsAvatar(size, theme);
             },
@@ -788,12 +794,13 @@ Download Boofer for secure messaging!
                   ),
                   const SizedBox(width: 4),
                 ],
-                // Verified Badge (Always on for Boofer)
-                Icon(
-                  Icons.verified,
-                  size: 20,
-                  color: theme.colorScheme.primary,
-                ),
+                // Verified Badge (Only if verified)
+                if (_currentUser?.isVerified == true)
+                  Icon(
+                    Icons.verified,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
               ],
             ),
 

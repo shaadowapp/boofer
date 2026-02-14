@@ -23,10 +23,11 @@ class ProfilePictureWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<String?>(
       stream: ProfilePictureService.instance.profilePictureStream,
-      initialData: ProfilePictureService.instance.currentProfilePicture ?? fallbackUrl,
+      initialData:
+          ProfilePictureService.instance.currentProfilePicture ?? fallbackUrl,
       builder: (context, snapshot) {
         final profilePictureUrl = snapshot.data ?? fallbackUrl;
-        
+
         return Container(
           width: size,
           height: size,
@@ -40,13 +41,19 @@ class ProfilePictureWidget extends StatelessWidget {
                 : null,
           ),
           child: ClipOval(
-            child: profilePictureUrl != null && profilePictureUrl.isNotEmpty
+            child:
+                profilePictureUrl != null &&
+                    profilePictureUrl.isNotEmpty &&
+                    profilePictureUrl.startsWith('http')
                 ? Image.network(
                     profilePictureUrl,
                     width: size,
                     height: size,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
+                      // The provided snippet seems to be for a different context (e.g., a friend's avatar/name).
+                      // Applying the instruction to ensure startsWith('http') check for Image.network
+                      // and falling back to default avatar if the URL is not valid or fails to load.
                       return _buildDefaultAvatar(context);
                     },
                     loadingBuilder: (context, child, loadingProgress) {
@@ -54,7 +61,16 @@ class ProfilePictureWidget extends StatelessWidget {
                       return _buildDefaultAvatar(context);
                     },
                   )
-                : _buildDefaultAvatar(context),
+                : (profilePictureUrl != null &&
+                          profilePictureUrl.isNotEmpty &&
+                          !profilePictureUrl.startsWith('http')
+                      ? Center(
+                          child: Text(
+                            profilePictureUrl,
+                            style: TextStyle(fontSize: size * 0.5),
+                          ),
+                        )
+                      : _buildDefaultAvatar(context)),
           ),
         );
       },

@@ -9,6 +9,30 @@ class CallsScreen extends StatelessWidget {
     return Scaffold(
       body: ListView(
         children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Note: These are dummy call logs. The call screen is currently under development.',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           _buildCallTile(
             context: context,
             name: 'Alex Johnson',
@@ -89,35 +113,28 @@ class CallsScreen extends StatelessWidget {
         name,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w600,
-          color: type == CallType.missed 
-              ? Colors.red 
+          color: type == CallType.missed
+              ? Colors.red
               : Theme.of(context).colorScheme.onSurface,
         ),
       ),
       subtitle: Row(
         children: [
-          SvgIcons.sized(
-            callIconName,
-            16,
-            color: iconColor,
-          ),
+          SvgIcons.sized(callIconName, 16, color: iconColor),
           const SizedBox(width: 4),
-          Text(
-            time,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(time, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
       trailing: IconButton(
-        icon: isVideo 
+        icon: isVideo
             ? SvgIcons.sized(
-                SvgIcons.videoCall, 
-                24, 
+                SvgIcons.videoCall,
+                24,
                 color: Theme.of(context).colorScheme.primary,
               )
             : SvgIcons.sized(
-                SvgIcons.voiceCall, 
-                24, 
+                SvgIcons.voiceCall,
+                24,
                 color: Theme.of(context).colorScheme.primary,
               ),
         onPressed: () {

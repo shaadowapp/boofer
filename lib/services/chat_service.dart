@@ -135,6 +135,7 @@ class ChatService {
     String? receiverId,
     MessageType type = MessageType.text,
     String? mediaUrl,
+    MessageStatus? status,
   }) async {
     try {
       // Validate following status before sending message
@@ -169,46 +170,54 @@ class ChatService {
         conversationId: conversationId,
         type: type,
         mediaUrl: mediaUrl,
+        status: status ?? MessageStatus.pending,
       );
+
+      Message messageToSave = message;
 
       // Send to Supabase only if receiver is someone else
       if (receiverId != null && receiverId != senderId) {
-        await _supabaseService.sendMessage(
+        final sentMessage = await _supabaseService.sendMessage(
           conversationId: conversationId,
           senderId: senderId,
           receiverId: receiverId,
           text: content,
           type: type,
+          messageObject: message,
         );
+
+        if (sentMessage != null) {
+          messageToSave = sentMessage;
+        }
       }
 
       // Save to database
       await _database.insert('messages', {
-        'id': message.id,
-        'text': message.text,
-        'sender_id': message.senderId,
-        'receiver_id': message.receiverId,
-        'conversation_id': message.conversationId,
-        'timestamp': message.timestamp.toIso8601String(),
-        'is_offline': message.isOffline ? 1 : 0,
-        'status': message.status.name,
-        'message_hash': message.messageHash,
+        'id': messageToSave.id,
+        'text': messageToSave.text,
+        'sender_id': messageToSave.senderId,
+        'receiver_id': messageToSave.receiverId,
+        'conversation_id': messageToSave.conversationId,
+        'timestamp': messageToSave.timestamp.toIso8601String(),
+        'is_offline': messageToSave.isOffline ? 1 : 0,
+        'status': messageToSave.status.name,
+        'message_hash': messageToSave.messageHash,
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       });
 
       // Update cache
       if (_messageCache.containsKey(conversationId)) {
-        _messageCache[conversationId]!.add(message);
+        _messageCache[conversationId]!.add(messageToSave);
       } else {
-        _messageCache[conversationId] = [message];
+        _messageCache[conversationId] = [messageToSave];
       }
 
       // Notify listeners
       _messagesController.add(_messageCache[conversationId]!);
-      _newMessageController.add(message);
+      _newMessageController.add(messageToSave);
 
-      return message;
+      return messageToSave;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.database(
@@ -245,6 +254,9 @@ class ChatService {
           break;
         }
       }
+
+      // Update Supabase status
+      await _supabaseService.updateMessageStatus(messageId, MessageStatus.read);
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.database(

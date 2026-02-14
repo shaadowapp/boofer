@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum UserStatus { online, offline, away, busy }
+enum UserStatus { online, offline, away, busy, frozen, deleted }
 
 class User {
   final String id; // Firebase UID
@@ -85,6 +85,10 @@ class User {
         return 'Away';
       case UserStatus.busy:
         return 'Busy';
+      case UserStatus.frozen:
+        return 'Account Frozen';
+      case UserStatus.deleted:
+        return 'Deleted Account';
       case UserStatus.offline:
         if (lastSeen != null) {
           final now = DateTime.now();
@@ -207,11 +211,12 @@ class User {
       'location': location,
       'age': age,
       'virtual_number': virtualNumber,
-      'follower_count': followerCount,
-      'following_count': followingCount,
-      'friends_count': friendsCount,
-      'pending_received_requests': pendingReceivedRequests,
-      'pending_sent_requests': pendingSentRequests,
+      // Removed count columns as they don't exist in the profiles table
+      // 'follower_count': followerCount,
+      // 'following_count': followingCount,
+      // 'friends_count': friendsCount,
+      // 'pending_received_requests': pendingReceivedRequests,
+      // 'pending_sent_requests': pendingSentRequests,
       'is_verified': isVerified ? 1 : 0,
     };
   }

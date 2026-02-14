@@ -134,11 +134,12 @@ class SyncService {
 
         // Send to Supabase
         final sentMessage = await _supabase.sendMessage(
-          conversationId: message.conversationId!,
+          conversationId: message.conversationId,
           senderId: message.senderId,
-          receiverId: message.receiverId!,
+          receiverId: message.receiverId,
           text: message.text,
           type: message.type,
+          messageObject: message,
         );
 
         if (sentMessage != null) {

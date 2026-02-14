@@ -137,18 +137,27 @@ class AuthStateProvider with ChangeNotifier {
 
         // Try to update/create profile on server to be sure
         try {
+          // Generate a random avatar for the new user
+          final randomAvatar = RandomDataGenerator.generateAvatar();
+
+          newUser = newUser.copyWith(avatar: randomAvatar);
+
           await _supabaseService.createUserProfile(newUser);
         } catch (e) {
           debugPrint('⚠️ Failed to create Supabase profile: $e');
         }
 
         // 3. Save and Finish
-        await UserService.setCurrentUser(newUser);
-        _currentUserId = newUser.id;
-        _setState(AuthenticationState.authenticated);
+        if (newUser != null) {
+          await UserService.setCurrentUser(newUser);
+          _currentUserId = newUser.id;
+          _setState(AuthenticationState.authenticated);
 
-        // Ensure following Boofer Official
-        FollowService.instance.ensureFollowingBoofer(newUser.id);
+          // Ensure following Boofer Official
+          FollowService.instance.ensureFollowingBoofer(newUser.id);
+        } else {
+          throw Exception('Failed to create user profile');
+        }
       } else {
         throw Exception('Failed to sign in anonymously via Supabase');
       }

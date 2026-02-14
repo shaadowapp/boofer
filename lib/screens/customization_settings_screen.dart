@@ -729,15 +729,7 @@ class _CustomizationSettingsScreenState
       elevation: 0,
       backgroundColor: Colors.transparent,
       items: [
-        BottomNavigationBarItem(
-          icon: SvgIcons.home(filled: false, context: context),
-          activeIcon: SvgIcons.home(
-            filled: true,
-            context: context,
-            color: theme.colorScheme.primary,
-          ),
-          label: 'Home',
-        ),
+        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'You'),
         BottomNavigationBarItem(
           icon: SvgIcons.chat(filled: false, context: context),
           label: 'Chats',
@@ -746,7 +738,6 @@ class _CustomizationSettingsScreenState
           icon: SvgIcons.call(filled: false, context: context),
           label: 'Calls',
         ),
-        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'You'),
       ],
     );
   }
@@ -757,10 +748,9 @@ class _CustomizationSettingsScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildPreviewItem(context, 'Home', true, NavBarStyle.modern),
+          _buildPreviewItem(context, 'You', true, NavBarStyle.modern),
           _buildPreviewItem(context, 'Chats', false, NavBarStyle.modern),
           _buildPreviewItem(context, 'Calls', false, NavBarStyle.modern),
-          _buildPreviewItem(context, 'You', false, NavBarStyle.modern),
         ],
       ),
     );
@@ -791,10 +781,9 @@ class _CustomizationSettingsScreenState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildPreviewItem(context, 'Home', true, NavBarStyle.ios),
+                _buildPreviewItem(context, 'You', true, NavBarStyle.ios),
                 _buildPreviewItem(context, 'Chats', false, NavBarStyle.ios),
                 _buildPreviewItem(context, 'Calls', false, NavBarStyle.ios),
-                _buildPreviewItem(context, 'You', false, NavBarStyle.ios),
               ],
             ),
           ),
@@ -809,10 +798,9 @@ class _CustomizationSettingsScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildPreviewItem(context, 'Home', true, NavBarStyle.bubble),
+          _buildPreviewItem(context, 'You', true, NavBarStyle.bubble),
           _buildPreviewItem(context, 'Chats', false, NavBarStyle.bubble),
           _buildPreviewItem(context, 'Calls', false, NavBarStyle.bubble),
-          _buildPreviewItem(context, 'You', false, NavBarStyle.bubble),
         ],
       ),
     );
@@ -822,14 +810,14 @@ class _CustomizationSettingsScreenState
     final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final itemWidth = constraints.maxWidth / 4;
+        final itemWidth = constraints.maxWidth / 3;
         return Container(
           height: 80,
           child: Stack(
             children: [
               // Simulated background pill like in actual UI
               Positioned(
-                left: (itemWidth - 56) / 2, // Centered in first item
+                left: (itemWidth - 56) / 2, // Centered in first item (You)
                 top: 12,
                 width: 56,
                 height: 56,
@@ -843,7 +831,7 @@ class _CustomizationSettingsScreenState
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildPreviewItem(context, 'Home', true, NavBarStyle.liquid),
+                  _buildPreviewItem(context, 'You', true, NavBarStyle.liquid),
                   _buildPreviewItem(
                     context,
                     'Chats',
@@ -856,7 +844,6 @@ class _CustomizationSettingsScreenState
                     false,
                     NavBarStyle.liquid,
                   ),
-                  _buildPreviewItem(context, 'You', false, NavBarStyle.liquid),
                 ],
               ),
             ],
@@ -882,10 +869,9 @@ class _CustomizationSettingsScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildPreviewItem(context, 'Home', true, NavBarStyle.genz),
+          _buildPreviewItem(context, 'You', true, NavBarStyle.genz),
           _buildPreviewItem(context, 'Chats', false, NavBarStyle.genz),
           _buildPreviewItem(context, 'Calls', false, NavBarStyle.genz),
-          _buildPreviewItem(context, 'You', false, NavBarStyle.genz),
         ],
       ),
     );
@@ -901,29 +887,7 @@ class _CustomizationSettingsScreenState
     final color = theme.colorScheme.primary;
 
     Widget icon;
-    if (label == 'Home') {
-      icon = SvgIcons.home(
-        filled: isSelected,
-        context: context,
-        color:
-            isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
-            ? color
-            : theme.colorScheme.onSurfaceVariant,
-      );
-      if (style == NavBarStyle.ios && isSelected) {
-        icon = SvgIcons.home(
-          filled: true,
-          context: context,
-          color: Colors.white,
-        );
-      } else if (style == NavBarStyle.genz && isSelected) {
-        icon = SvgIcons.home(
-          filled: true,
-          context: context,
-          color: Colors.white,
-        );
-      }
-    } else if (label == 'Chats') {
+    if (label == 'Chats') {
       icon = SvgIcons.chat(
         filled: isSelected,
         context: context,

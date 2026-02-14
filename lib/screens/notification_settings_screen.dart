@@ -90,14 +90,7 @@ class _NotificationSettingsScreenState
                       color: Colors.blue,
                     ),
                     const Divider(height: 1),
-                    _buildChannelTile(
-                      context,
-                      icon: Icons.groups_rounded,
-                      title: 'Groups',
-                      subtitle: 'Group chat messages',
-                      channelId: NotificationChannels.groupMessages,
-                      color: Colors.purple,
-                    ),
+
                     const Divider(height: 1),
                     _buildChannelTile(
                       context,
@@ -128,8 +121,8 @@ class _NotificationSettingsScreenState
                     _buildChannelTile(
                       context,
                       icon: Icons.person_add_rounded,
-                      title: 'Friend Requests',
-                      subtitle: 'New friend requests',
+                      title: 'Followed Notification',
+                      subtitle: 'New followers',
                       channelId: NotificationChannels.friendRequests,
                       color: Colors.teal,
                     ),

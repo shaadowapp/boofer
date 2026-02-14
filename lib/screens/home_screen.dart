@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../providers/username_provider.dart';
 import 'user_search_screen.dart';
 import 'write_post_screen.dart';
+import '../widgets/user_avatar.dart';
 
 // Post model for demo posts
 class Post {
@@ -96,15 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
 
-        print('✅ Loaded environment from Supabase');
+        // print('✅ Loaded environment from Supabase');
       } else {
-        print('⚠️ No current user found');
+        // print('⚠️ No current user found');
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('❌ Error loading data from Supabase: $e');
+      // print('❌ Error loading data from Supabase: $e');
       setState(() {
         _isLoading = false;
       });
@@ -372,19 +373,12 @@ class _HomeScreenState extends State<HomeScreen> {
           // Profile Picture with online status
           Stack(
             children: [
-              CircleAvatar(
+              UserAvatar(
+                avatar: _currentUser?.avatar,
+                profilePicture: _currentUser?.profilePicture,
+                name: _currentUser?.fullName ?? _currentUser?.handle ?? 'User',
                 radius: 28,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  _currentUser?.initials ?? 'AJ',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
+                fontSize: 22,
               ),
               // Online status indicator
               if (_currentUser?.status == UserStatus.online)
@@ -563,17 +557,13 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                CircleAvatar(
+                UserAvatar(
+                  avatar: post.author.avatar,
+                  profilePicture: post.author.profilePicture,
+                  name: post.author.fullName,
                   radius: 20,
+                  fontSize: 16,
                   backgroundColor: _getAvatarColor(post.author.id),
-                  child: Text(
-                    post.author.initials,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -969,7 +959,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Bio
             Text(
-              user.bio ?? '',
+              user.bio,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
               ),

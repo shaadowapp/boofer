@@ -8,13 +8,12 @@ import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'lobby_screen.dart';
 import 'calls_screen.dart';
-import 'home_screen.dart';
+// import 'home_screen.dart';
 import 'dialpad_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
 import 'user_search_screen.dart';
-import 'write_post_screen.dart';
 import 'start_new_chat_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
@@ -46,22 +45,20 @@ class _MainScreenState extends State<MainScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   List<User> _filteredUsers = [];
-  List<User> _allUsers = [];
-  User? _currentUser; // Store current user for profile picture
+  List<User> _allUsers = []; // Store current user for profile picture
   StreamSubscription<String?>?
   _profilePictureSubscription; // Listen to profile picture changes
   String? _currentAvatar; // Store emoji avatar
   String? _currentAvatarColor; // Store emoji avatar color
-  final int _baseIndex = 1000000;
+  final int _baseIndex = 999999;
   late final PageController _pageController = PageController(
-    initialPage: _baseIndex + ((_currentIndex + 1) % 4),
+    initialPage: _baseIndex + _currentIndex,
   );
 
   final List<Widget> _screens = [
-    const HomeScreen(),
-    const LobbyScreen(),
-    const CallsScreen(),
-    const ProfileScreen(),
+    const ProfileScreen(), // Index 0
+    const LobbyScreen(), // Index 1
+    const CallsScreen(), // Index 2
   ];
 
   @override
@@ -84,7 +81,6 @@ class _MainScreenState extends State<MainScreen> {
     UserService.getCurrentUser().then((user) {
       if (user != null && mounted) {
         setState(() {
-          _currentUser = user;
           _currentAvatar = user.avatar;
         });
       }
@@ -105,7 +101,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onPageChanged(int index) {
-    int navbarIndex = (index + 3) % 4;
+    int navbarIndex = index % 3;
     if (_currentIndex != navbarIndex) {
       setState(() {
         _currentIndex = navbarIndex;
@@ -118,14 +114,13 @@ class _MainScreenState extends State<MainScreen> {
     if (_currentIndex == index) return;
 
     int currentPage =
-        _pageController.page?.round() ??
-        (_baseIndex + ((_currentIndex + 1) % 4));
-    int currentOffset = currentPage % 4;
-    int targetOffset = (index + 1) % 4;
+        _pageController.page?.round() ?? (_baseIndex + _currentIndex);
+    int currentOffset = currentPage % 3;
+    int targetOffset = index;
 
     int diff = targetOffset - currentOffset;
-    if (diff > 2) diff -= 4;
-    if (diff <= -2) diff += 4;
+    if (diff > 1) diff -= 3;
+    if (diff < -1) diff += 3;
 
     _pageController.animateToPage(
       currentPage + diff,
@@ -143,7 +138,6 @@ class _MainScreenState extends State<MainScreen> {
 
         if (mounted && userProfile != null) {
           setState(() {
-            _currentUser = userProfile;
             _currentAvatar = userProfile.avatar;
           });
 
@@ -360,19 +354,7 @@ class _MainScreenState extends State<MainScreen> {
   void _onAddPressed() async {
     switch (_currentIndex) {
       case 0:
-        // Home tab - open write post screen
-        if (_currentUser != null && mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => WritePostScreen(currentUser: _currentUser!),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please complete your profile first')),
-          );
-        }
+        // Profile tab - No action
         break;
       case 1:
         // Lobby tab - Start new chat
@@ -408,13 +390,11 @@ class _MainScreenState extends State<MainScreen> {
   String _getSearchPlaceholder() {
     switch (_currentIndex) {
       case 0:
-        return 'Search Boofer...';
+        return 'Search profile...';
       case 1:
         return 'Search chats...';
       case 2:
         return 'Search contacts...';
-      case 3:
-        return 'Search profile...';
       default:
         return 'Search...';
     }
@@ -678,7 +658,9 @@ class _MainScreenState extends State<MainScreen> {
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.primary.withOpacity(0.1),
-                  backgroundImage: user.profilePicture != null
+                  backgroundImage:
+                      (user.profilePicture != null &&
+                          user.profilePicture!.startsWith('http'))
                       ? NetworkImage(user.profilePicture!)
                       : null,
                   child: user.profilePicture == null
@@ -833,7 +815,7 @@ class _MainScreenState extends State<MainScreen> {
             : null,
       ),
       child: ClipOval(
-        child: hasRealProfilePicture
+        child: hasRealProfilePicture && profilePictureUrl.startsWith('http')
             ? Image.network(
                 profilePictureUrl,
                 key: ValueKey(profilePictureUrl),
@@ -902,7 +884,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       extendBody: extendBody,
-      appBar: _currentIndex == 3
+      appBar: _currentIndex == 0
           ? null // Hide app bar on profile tab
           : AppBar(
               backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
@@ -972,7 +954,7 @@ class _MainScreenState extends State<MainScreen> {
       body: Column(
         children: [
           // Search bar below navbar (hide on profile tab)
-          if (_currentIndex != 3)
+          if (_currentIndex != 0)
             Container(
               padding: const EdgeInsets.all(16),
               color: Theme.of(context).appBarTheme.backgroundColor,
@@ -1045,8 +1027,8 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     dragStartBehavior: DragStartBehavior.down,
                     itemBuilder: (context, index) {
-                      // Map index to our screens in order: Profile(3), Home(0), Chats(1), Calls(2)
-                      int screenIndex = (index + 3) % 4;
+                      // Map index to our screens in order: Profile(0), Chats(1), Calls(2)
+                      int screenIndex = index % 3;
                       return _screens[screenIndex];
                     },
                   ),
@@ -1058,7 +1040,7 @@ class _MainScreenState extends State<MainScreen> {
           return _buildNavBar(context, appearance.navBarStyle);
         },
       ),
-      floatingActionButton: _currentIndex == 3
+      floatingActionButton: _currentIndex == 0
           ? null
           : _getFloatingActionButton(),
     );
@@ -1094,19 +1076,19 @@ class _MainScreenState extends State<MainScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       items: [
         BottomNavigationBarItem(
-          icon: SvgIcons.home(
-            filled: false,
-            context: context,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          icon: StreamBuilder<String?>(
+            stream: ProfilePictureService.instance.profilePictureStream,
+            initialData: ProfilePictureService.instance.currentProfilePicture,
+            builder: (context, snapshot) =>
+                _buildProfileIcon(false, snapshot.data),
           ),
-          activeIcon: SvgIcons.home(
-            filled: true,
-            context: context,
-            color: Theme.of(context).colorScheme.primary,
+          activeIcon: StreamBuilder<String?>(
+            stream: ProfilePictureService.instance.profilePictureStream,
+            initialData: ProfilePictureService.instance.currentProfilePicture,
+            builder: (context, snapshot) =>
+                _buildProfileIcon(true, snapshot.data),
           ),
-          label: 'Home',
+          label: 'You',
         ),
         BottomNavigationBarItem(
           icon: SvgIcons.chat(
@@ -1138,21 +1120,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
           label: 'Calls',
         ),
-        BottomNavigationBarItem(
-          icon: StreamBuilder<String?>(
-            stream: ProfilePictureService.instance.profilePictureStream,
-            initialData: ProfilePictureService.instance.currentProfilePicture,
-            builder: (context, snapshot) =>
-                _buildProfileIcon(false, snapshot.data),
-          ),
-          activeIcon: StreamBuilder<String?>(
-            stream: ProfilePictureService.instance.profilePictureStream,
-            initialData: ProfilePictureService.instance.currentProfilePicture,
-            builder: (context, snapshot) =>
-                _buildProfileIcon(true, snapshot.data),
-          ),
-          label: 'You',
-        ),
       ],
     );
   }
@@ -1178,14 +1145,16 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               _buildModernNavItem(
                 index: 0,
-                icon: SvgIcons.home(
-                  filled: _currentIndex == 0,
-                  context: context,
-                  color: _currentIndex == 0
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                icon: StreamBuilder<String?>(
+                  stream: ProfilePictureService.instance.profilePictureStream,
+                  initialData:
+                      ProfilePictureService.instance.currentProfilePicture,
+                  builder: (context, snapshot) {
+                    return _buildProfileIcon(_currentIndex == 0, snapshot.data);
+                  },
                 ),
-                label: 'Home',
+                label: 'You',
+                isProfile: true,
               ),
               _buildModernNavItem(
                 index: 1,
@@ -1208,19 +1177,6 @@ class _MainScreenState extends State<MainScreen> {
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 label: 'Calls',
-              ),
-              _buildModernNavItem(
-                index: 3,
-                icon: StreamBuilder<String?>(
-                  stream: ProfilePictureService.instance.profilePictureStream,
-                  initialData:
-                      ProfilePictureService.instance.currentProfilePicture,
-                  builder: (context, snapshot) {
-                    return _buildProfileIcon(_currentIndex == 3, snapshot.data);
-                  },
-                ),
-                label: 'You',
-                isProfile: true,
               ),
             ],
           ),
@@ -1254,10 +1210,9 @@ class _MainScreenState extends State<MainScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildIOSNavItem(0, 'Home'),
+                _buildIOSNavItem(0, 'You', isProfile: true),
                 _buildIOSNavItem(1, 'Chats'),
                 _buildIOSNavItem(2, 'Calls'),
-                _buildIOSNavItem(3, 'You', isProfile: true),
               ],
             ),
           ),
@@ -1281,13 +1236,6 @@ class _MainScreenState extends State<MainScreen> {
           ? Colors.white
           : Theme.of(context).colorScheme.onSurface;
       switch (label) {
-        case 'Home':
-          icon = SvgIcons.home(
-            filled: isSelected,
-            context: context,
-            color: color,
-          );
-          break;
         case 'Chats':
           icon = SvgIcons.chat(
             filled: isSelected,
@@ -1337,7 +1285,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildLiquidNavBar() {
     final theme = Theme.of(context);
     final width = MediaQuery.of(context).size.width;
-    final itemWidth = width / 4;
+    final itemWidth = width / 3;
 
     return RepaintBoundary(
       child: AnimatedBuilder(
@@ -1345,8 +1293,8 @@ class _MainScreenState extends State<MainScreen> {
         builder: (context, child) {
           final double page = _pageController.hasClients
               ? (_pageController.page ?? _baseIndex.toDouble())
-              : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
-          final double normalizedPage = (page + 3) % 4;
+              : (_baseIndex + _currentIndex).toDouble();
+          final double normalizedPage = page % 3;
 
           return Container(
             height: 80,
@@ -1376,10 +1324,9 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 Row(
                   children: [
-                    _buildLiquidNavItem(0, 'Home'),
+                    _buildLiquidNavItem(0, 'You', isProfile: true),
                     _buildLiquidNavItem(1, 'Chats'),
                     _buildLiquidNavItem(2, 'Calls'),
-                    _buildLiquidNavItem(3, 'You', isProfile: true),
                   ],
                 ),
               ],
@@ -1401,12 +1348,12 @@ class _MainScreenState extends State<MainScreen> {
 
     final double page = _pageController.hasClients
         ? (_pageController.page ?? _baseIndex.toDouble())
-        : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
-    final double normalizedPage = (page + 3) % 4;
+        : (_baseIndex + _currentIndex).toDouble();
+    final double normalizedPage = page % 3;
     double distance = (index - normalizedPage).abs();
 
     // Handle wrap-around distance
-    if (distance > 2) distance = (4 - distance).abs();
+    if (distance > 1.5) distance = (3 - distance).abs();
 
     final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
     final double scale = 1.0 + (0.2 * selectionFactor);
@@ -1471,12 +1418,6 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _getSvgIcon(String label, bool isSelected, Color color) {
     switch (label) {
-      case 'Home':
-        return SvgIcons.home(
-          filled: isSelected,
-          context: context,
-          color: color,
-        );
       case 'Chats':
         return SvgIcons.chat(
           filled: isSelected,
@@ -1506,10 +1447,9 @@ class _MainScreenState extends State<MainScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildBubbleNavItem(0, 'Home'),
+                  _buildBubbleNavItem(0, 'You', isProfile: true),
                   _buildBubbleNavItem(1, 'Chats'),
                   _buildBubbleNavItem(2, 'Calls'),
-                  _buildBubbleNavItem(3, 'You', isProfile: true),
                 ],
               ),
             ),
@@ -1530,11 +1470,11 @@ class _MainScreenState extends State<MainScreen> {
     // Calculate individual item scale based on distance to current scroll position
     final double page = _pageController.hasClients
         ? (_pageController.page ?? _baseIndex.toDouble())
-        : (_baseIndex + ((_currentIndex + 1) % 4)).toDouble();
-    final double normalizedPage = (page + 3) % 4;
+        : (_baseIndex + _currentIndex).toDouble();
+    final double normalizedPage = page % 3;
     double distance = (index - normalizedPage).abs();
     // Handle wrapping distance for Profile <-> Home
-    if (distance > 2) distance = (4 - distance).abs();
+    if (distance > 1.5) distance = (3 - distance).abs();
 
     final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
     final double scale = 1.0 + (0.2 * selectionFactor);
@@ -1669,10 +1609,9 @@ class _MainScreenState extends State<MainScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildGenZNavItem(0, 'Home'),
+          _buildGenZNavItem(0, 'You', isProfile: true),
           _buildGenZNavItem(1, 'Chats'),
           _buildGenZNavItem(2, 'Calls'),
-          _buildGenZNavItem(3, 'You', isProfile: true),
         ],
       ),
     );
@@ -1693,12 +1632,6 @@ class _MainScreenState extends State<MainScreen> {
           builder: (context, snapshot) =>
               _buildProfileIcon(isSelected, snapshot.data),
         ),
-      );
-    } else if (label == 'Home') {
-      icon = SvgIcons.home(
-        filled: isSelected,
-        context: context,
-        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
       );
     } else if (label == 'Chats') {
       icon = SvgIcons.chat(
@@ -1769,12 +1702,14 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    return FloatingActionButton(
-      onPressed: _onAddPressed,
-      heroTag: 'add',
-      child: _currentIndex == 1
-          ? SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white)
-          : SvgIcons.sized(SvgIcons.add, 24, color: Colors.white),
-    );
+    if (_currentIndex == 1) {
+      return FloatingActionButton(
+        onPressed: _onAddPressed,
+        heroTag: 'add',
+        child: SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white),
+      );
+    }
+
+    return Container();
   }
 }

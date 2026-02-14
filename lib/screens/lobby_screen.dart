@@ -9,7 +9,9 @@ import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
 import 'archived_chats_screen.dart';
 import 'friend_chat_screen.dart';
+import '../widgets/user_avatar.dart';
 import '../core/constants.dart';
+import 'user_search_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -115,8 +117,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
                           onPressed: () {
-                            // Switch to discover tab (index 1)
-                            DefaultTabController.of(context).animateTo(1);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const UserSearchScreen(),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.explore_outlined),
                           label: const Text('Explore Users'),
@@ -350,27 +356,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
           children: [
             Stack(
               children: [
-                CircleAvatar(
+                UserAvatar(
+                  avatar: friend.avatar,
+                  // Pass virtualNumber-like string as name fallback if no proper avatar,
+                  // though Friend model should have proper avatar from DB now.
+                  // We assume friend.avatar is the source of truth for emoji.
+                  name: friend.name,
                   radius: 28,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withOpacity(0.1),
-                  backgroundImage:
-                      friend.avatar != null && friend.avatar!.isNotEmpty
-                      ? NetworkImage(friend.avatar!)
-                      : null,
-                  child: friend.avatar == null || friend.avatar!.isEmpty
-                      ? Text(
-                          friend.name.isNotEmpty
-                              ? friend.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        )
-                      : null,
+                  fontSize: 24,
                 ),
                 if (friend.isOnline)
                   Positioned(
@@ -521,32 +514,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
             // Header with friend info
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withOpacity(0.1),
-                  child: friend.avatar != null
-                      ? ClipOval(
-                          child: Image.network(
-                            friend.avatar!,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Text(
-                          friend.name
-                              .split(' ')
-                              .map((e) => e[0])
-                              .take(2)
-                              .join(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
+                Hero(
+                  tag: 'avatar_sheet_${friend.id}',
+                  child: UserAvatar(
+                    avatar: friend.avatar,
+                    name: friend.name,
+                    radius: 30,
+                    fontSize: 24,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

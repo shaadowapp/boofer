@@ -23,7 +23,7 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOwnMessage = message.senderId == currentUserId;
+    final isOwnMessage = message.senderId.trim() == currentUserId.trim();
     final theme = Theme.of(context);
     final appearance = Provider.of<AppearanceProvider>(context);
     final hasWallpaper = appearance.selectedWallpaper != 'none';
@@ -127,7 +127,10 @@ class MessageBubble extends StatelessWidget {
                                   ),
                                 ),
                                 if (isOwnMessage)
-                                  _buildStatusIcon(message.status),
+                                  _buildStatusIcon(
+                                    message.status,
+                                    appearance.accentColor,
+                                  ),
                               ],
                             ),
                           ],
@@ -161,7 +164,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   /// Build status icon for messages
-  Widget _buildStatusIcon(MessageStatus status) {
+  Widget _buildStatusIcon(MessageStatus status, Color accentColor) {
     IconData icon;
     Color color;
     double size = 16;
@@ -172,24 +175,28 @@ class MessageBubble extends StatelessWidget {
         color = Colors.white70;
         size = 12;
         break;
-      case MessageStatus.sent:
+      case MessageStatus.sent: // This is user's "pending"
         icon = Icons.check;
         color = Colors.white70;
         size = 16;
         break;
-      case MessageStatus.delivered:
+      case MessageStatus.delivered: // This is user's "sent"
         icon = Icons.done_all;
         color = Colors.white70;
         size = 16;
         break;
-      case MessageStatus.read:
+      case MessageStatus.read: // This is user's "seen"
         icon = Icons.done_all;
-        color = Colors.blueAccent.shade100; // Distinct color for read
+        // Check if accent color is light or dark to decide tick color
+        // But since text is white, background is likely dark/colored.
+        // Using a light cyan or bright white makes it stand out as "active/read"
+        // compared to white70 for delivered.
+        color = const Color(0xFF64FFDA); // CyanAccent-like color
         size = 16;
         break;
       case MessageStatus.failed:
         icon = Icons.error_outline;
-        color = Colors.redAccent;
+        color = Colors.redAccent.shade100;
         size = 16;
         break;
     }
@@ -237,21 +244,15 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
-  /// Format timestamp for display
+  /// Format timestamp for display (h:mm a)
   String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    } else {
-      return '${timestamp.day}/${timestamp.month}';
-    }
+    // Convert to local time if not already
+    final localTime = timestamp.toLocal();
+    final hour = localTime.hour > 12
+        ? localTime.hour - 12
+        : (localTime.hour == 0 ? 12 : localTime.hour);
+    final minute = localTime.minute.toString().padLeft(2, '0');
+    final period = localTime.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 }

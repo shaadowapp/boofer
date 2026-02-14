@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 
 enum MessageType { text, image, video, audio, file }
 
@@ -16,6 +17,7 @@ class Message {
   final String? messageHash;
   final String? mediaUrl;
   final Map<String, dynamic>? metadata;
+  final DateTime? expiresAt;
 
   const Message({
     required this.id,
@@ -30,6 +32,7 @@ class Message {
     this.messageHash,
     this.mediaUrl,
     this.metadata,
+    this.expiresAt,
   });
 
   /// Create a new message
@@ -40,13 +43,17 @@ class Message {
     String? conversationId,
     MessageType type = MessageType.text,
     bool isOffline = false,
+    MessageStatus status = MessageStatus.pending,
     String? mediaUrl,
     Map<String, dynamic>? metadata,
+    DateTime? expiresAt,
   }) {
     final now = DateTime.now();
-    final id = '${senderId}_${now.millisecondsSinceEpoch}';
-    final messageHash = '${senderId}_${now.millisecondsSinceEpoch}_${text.hashCode}';
-    
+    // Use UUID v4 for valid Supabase ID
+    final id = const Uuid().v4();
+    final messageHash =
+        '${senderId}_${now.millisecondsSinceEpoch}_${text.hashCode}';
+
     return Message(
       id: id,
       text: text,
@@ -55,10 +62,12 @@ class Message {
       conversationId: conversationId,
       timestamp: now,
       isOffline: isOffline,
+      status: status,
       type: type,
       messageHash: messageHash,
       mediaUrl: mediaUrl,
       metadata: metadata,
+      expiresAt: expiresAt,
     );
   }
 
@@ -76,6 +85,7 @@ class Message {
     String? messageHash,
     String? mediaUrl,
     Map<String, dynamic>? metadata,
+    DateTime? expiresAt,
   }) {
     return Message(
       id: id ?? this.id,
@@ -90,6 +100,7 @@ class Message {
       messageHash: messageHash ?? this.messageHash,
       mediaUrl: mediaUrl ?? this.mediaUrl,
       metadata: metadata ?? this.metadata,
+      expiresAt: expiresAt ?? this.expiresAt,
     );
   }
 
@@ -108,6 +119,7 @@ class Message {
       'messageHash': messageHash,
       'mediaUrl': mediaUrl,
       'metadata': metadata,
+      'expires_at': expiresAt?.toIso8601String(),
     };
   }
 
@@ -116,11 +128,11 @@ class Message {
     return Message(
       id: json['id'] ?? '',
       text: json['text'] ?? '',
-      senderId: json['senderId'] ?? '',
-      receiverId: json['receiverId'],
-      conversationId: json['conversationId'],
+      senderId: json['sender_id'] ?? json['senderId'] ?? '',
+      receiverId: json['receiver_id'] ?? json['receiverId'],
+      conversationId: json['conversation_id'] ?? json['conversationId'],
       timestamp: DateTime.parse(json['timestamp']),
-      isOffline: json['isOffline'] ?? false,
+      isOffline: (json['is_offline'] ?? json['isOffline']) ?? false,
       status: MessageStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => MessageStatus.pending,
@@ -129,10 +141,13 @@ class Message {
         (e) => e.name == json['type'],
         orElse: () => MessageType.text,
       ),
-      messageHash: json['messageHash'],
-      mediaUrl: json['mediaUrl'],
-      metadata: json['metadata'] != null 
+      messageHash: json['message_hash'] ?? json['messageHash'],
+      mediaUrl: json['media_url'] ?? json['mediaUrl'],
+      metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
+          : null,
+      expiresAt: json['expires_at'] != null
+          ? DateTime.parse(json['expires_at'])
           : null,
     );
   }

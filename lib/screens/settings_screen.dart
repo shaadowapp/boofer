@@ -13,12 +13,11 @@ import 'archived_chats_screen.dart';
 import 'archive_settings_screen.dart';
 import 'account_settings_screen.dart';
 import 'privacy_settings_screen.dart';
-import 'storage_usage_screen.dart';
 import 'network_usage_screen.dart';
 import 'blocked_users_screen.dart';
-import 'chat_backup_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import 'package:path_provider/path_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -290,19 +289,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ),
-                      _buildColorfulTile(
-                        context,
-                        title: 'Backups',
-                        subtitle: 'Chat history backup',
-                        icon: Icons.backup_outlined,
-                        color: Colors.lightGreen,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChatBackupScreen(),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
 
@@ -312,19 +298,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     title: 'Data & Storage',
                     children: [
-                      _buildColorfulTile(
-                        context,
-                        title: 'Storage Usage',
-                        subtitle: 'Manage space',
-                        icon: Icons.storage_outlined,
-                        color: Colors.cyan,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const StorageUsageScreen(),
-                          ),
-                        ),
-                      ),
                       _buildColorfulTile(
                         context,
                         title: 'Network Usage',
@@ -345,31 +318,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: Icons.cleaning_services_outlined,
                         color: Colors.amber,
                         onTap: () => _showClearCacheDialog(context),
-                      ),
-                    ],
-                  ),
-
-                // Accessibility Section
-                if (_matchesSearch('accessibility text size screen reader'))
-                  _buildSettingsSection(
-                    context,
-                    title: 'Accessibility',
-                    children: [
-                      _buildColorfulTile(
-                        context,
-                        title: 'High Contrast',
-                        subtitle: 'Increase visibility',
-                        icon: Icons.contrast,
-                        color: Colors.purple,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'High Contrast feature coming soon',
-                              ),
-                            ),
-                          );
-                        },
                       ),
                     ],
                   ),
@@ -691,14 +639,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Cache cleared successfully'),
-                  backgroundColor: Colors.green,
-                ),
+
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) =>
+                    const Center(child: CircularProgressIndicator()),
               );
+
+              try {
+                final cacheDir = await getTemporaryDirectory();
+                if (cacheDir.existsSync()) {
+                  await cacheDir.delete(recursive: true);
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(context); // Close loading
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cache cleared successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context); // Close loading
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to clear cache: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,

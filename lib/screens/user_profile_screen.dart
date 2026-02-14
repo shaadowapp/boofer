@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import '../services/user_service.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart';
+import '../providers/chat_provider.dart';
 import '../providers/follow_provider.dart';
 import '../widgets/follow_button.dart';
 import 'package:provider/provider.dart';
 import 'friend_chat_screen.dart';
+import '../widgets/user_avatar.dart';
 import '../core/constants.dart';
 
 /// Dynamic user profile screen (like Instagram)
@@ -213,85 +215,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildAvatar({double size = 90}) {
-    final theme = Theme.of(context);
-
-    // Check if profile picture exists
-    final hasRealProfilePicture =
-        _profileUser?.profilePicture != null &&
-        _profileUser!.profilePicture!.isNotEmpty &&
-        !_profileUser!.profilePicture!.contains('ui-avatars.com');
-
-    if (hasRealProfilePicture) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: theme.colorScheme.outline.withOpacity(0.2),
-            width: 2,
-          ),
-        ),
-        child: ClipOval(
-          child: Image.network(
-            _profileUser!.profilePicture!,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildInitialsAvatar(size, theme);
-            },
-          ),
-        ),
-      );
-    }
-
-    // Check if hero avatar exists
-    if (_profileUser?.avatar != null && _profileUser!.avatar!.isNotEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: theme.colorScheme.primary.withOpacity(0.1),
-        ),
-        child: Text(
-          _profileUser!.avatar!,
-          style: TextStyle(fontSize: size * 0.5),
-        ),
-      );
-    }
-
-    return _buildInitialsAvatar(size, theme);
-  }
-
-  Widget _buildInitialsAvatar(double size, ThemeData theme) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-          width: 2,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          _profileUser?.initials ?? '?',
-          style: TextStyle(
-            fontSize: size * 0.4,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
+    return UserAvatar(
+      profilePicture: _profileUser?.profilePicture,
+      avatar: _profileUser?.avatar,
+      name: _profileUser?.fullName ?? _profileUser?.handle,
+      radius: size / 2,
+      fontSize: size * 0.5,
     );
   }
 
@@ -663,12 +592,54 @@ Download Boofer for secure messaging!
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: Implement block functionality
+              if (_profileUser == null) return;
+
+              // Show loading Snackbar
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('User blocked')));
+              ).showSnackBar(const SnackBar(content: Text('Blocking user...')));
+
+              try {
+                // Call ChatProvider to block
+                await context.read<ChatProvider>().blockUser(_profileUser!.id);
+
+                if (!context.mounted) return;
+
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Blocked ${_profileUser!.displayName}'),
+                    action: SnackBarAction(
+                      label: 'Undo',
+                      onPressed: () async {
+                        // Undo block logic if needed, or just info
+                        try {
+                          await context.read<ChatProvider>().unblockUser(
+                            _profileUser!.id,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('User unblocked')),
+                            );
+                          }
+                        } catch (e) {
+                          // ignore
+                        }
+                      },
+                    ),
+                  ),
+                );
+
+                // Pop back to previous screen as we typically don't view blocked profiles
+                Navigator.of(context).pop();
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error blocking user: $e')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Block'),

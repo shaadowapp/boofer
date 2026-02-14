@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/message_model.dart';
 import '../models/user_model.dart';
@@ -14,7 +15,10 @@ import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
+import '../providers/chat_provider.dart';
 import '../services/supabase_service.dart';
+import '../widgets/user_avatar.dart';
+import '../utils/svg_icons.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -44,13 +48,16 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   String? _currentUserId;
   String? _conversationId;
   List<Message> _messages = [];
+  List<dynamic> _chatItems = [];
   bool _loading = true;
   bool _canChat = false;
   bool _isBlocked = false;
   bool _isMutual = false;
   bool _isFollowing = false;
+  String _ephemeralTimer = '24_hours';
   User? _recipientUser;
   RealtimeChannel? _realtimeChannel;
+  RealtimeChannel? _timerSubscription;
 
   @override
   void initState() {
@@ -58,11 +65,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     _initializeChat();
   }
 
-  @override
   void dispose() {
+    // Clear presence for this conversation
+    if (mounted) {
+      context.read<ChatProvider>().updatePresenceWithConversationId(null);
+    }
     _scrollController.dispose();
     _messageController.dispose();
     _realtimeChannel?.unsubscribe();
+    _timerSubscription?.unsubscribe();
     super.dispose();
   }
 
@@ -147,6 +158,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     : null),
           );
 
+      // Load ephemeral timer
+      final ephemeralTimer = await SupabaseService.instance
+          .getConversationTimer(widget.recipientId);
+
+      // Start listening for timer changes
+      _setupTimerListener(conversationId);
+
       if (mounted) {
         setState(() {
           _currentUserId = currentUser.id;
@@ -156,16 +174,28 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           _isBlocked = isBlocked;
           _isFollowing = isFollowing || isMutual;
           _recipientUser = recipientUser;
+          _ephemeralTimer = ephemeralTimer;
           _loading = false;
         });
+
+        // Initial cleanup
+        _cleanupExpiredMessages();
       }
 
       if (canChat) {
+        // Update presence with this conversation ID
+        context.read<ChatProvider>().updatePresenceWithConversationId(
+          conversationId,
+        );
+
         // Load existing messages from Supabase
         await _loadMessages(conversationId);
 
         // Set up realtime listener
         _setupRealtimeListener(conversationId);
+
+        // Mark messages as read
+        _markMessagesAsRead();
       }
     } catch (e) {
       if (mounted) {
@@ -190,33 +220,22 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           .from('messages')
           .select()
           .eq('conversation_id', conversationId)
-          .order('timestamp', ascending: true);
+          .order('timestamp', ascending: false)
+          .limit(50);
 
       debugPrint('📥 Loaded ${response.length} messages from database');
 
       final messages = (response as List)
-          .map(
-            (data) => Message.fromJson({
-              'id': data['id'],
-              'text': data['text'] ?? '',
-              'senderId': data['sender_id'],
-              'receiverId': data['receiver_id'],
-              'conversationId': data['conversation_id'],
-              'timestamp': data['timestamp'],
-              'isOffline': data['is_offline'] ?? false,
-              'status': data['status'] ?? 'sent',
-              'type': data['type'] ?? 'text',
-              'messageHash': data['message_hash'],
-              'mediaUrl': data['media_url'],
-              'metadata': data['metadata'],
-            }),
-          )
+          .map((data) => Message.fromJson(data))
+          .toList()
+          .reversed
           .toList();
 
       if (mounted) {
         setState(() {
           _messages = messages;
         });
+        _updateChatItems();
         _scrollToBottom();
       }
       debugPrint('✅ Messages loaded and displayed');
@@ -224,8 +243,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       debugPrint('Error loading messages: $e');
     }
   }
-
-  // ... (existing code)
 
   void _setupRealtimeListener(String conversationId) {
     final supabase = Supabase.instance.client;
@@ -235,8 +252,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     _realtimeChannel = supabase
         .channel('messages:$conversationId')
         .onPostgresChanges(
-          event: PostgresChangeEvent
-              .all, // Listen to ALL events (insert, update, delete)
+          event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'messages',
           filter: PostgresChangeFilter(
@@ -248,32 +264,34 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             debugPrint('🔔 REALTIME MESSAGE EVENT: ${payload.eventType}');
 
             if (payload.eventType == PostgresChangeEvent.insert) {
-              final data = payload.newRecord;
-              final newMessage = Message.fromJson({
-                'id': data['id'],
-                'text': data['text'] ?? '',
-                'senderId': data['sender_id'],
-                'receiverId': data['receiver_id'],
-                'conversationId': data['conversation_id'],
-                'timestamp': data['timestamp'],
-                'isOffline': data['is_offline'] ?? false,
-                'status': data['status'] ?? 'sent',
-                'type': data['type'] ?? 'text',
-                'messageHash': data['message_hash'],
-                'mediaUrl': data['media_url'],
-                'metadata': data['metadata'],
-              });
+              final newMessage = Message.fromJson(payload.newRecord);
 
               if (mounted) {
                 setState(() {
-                  _messages.add(newMessage);
+                  // Check if message is already in list (for optimistic updates)
+                  final existingIndex = _messages.indexWhere(
+                    (m) => m.id == newMessage.id,
+                  );
+                  if (existingIndex != -1) {
+                    _messages[existingIndex] = newMessage;
+                  } else {
+                    _messages.add(newMessage);
+                  }
+                  _updateChatItems();
                 });
                 _scrollToBottom();
+
+                // If message is from recipient, mark it as read immediately since chat is open
+                if (newMessage.senderId == widget.recipientId) {
+                  _markMessagesAsRead();
+                }
+
+                // If message is from us, it means the server confirmed it
+                // We already handled this by updating existingIndex, but we can log it
               }
             } else if (payload.eventType == PostgresChangeEvent.update) {
               final data = payload.newRecord;
               final updatedMessageId = data['id'];
-
               if (mounted) {
                 setState(() {
                   final index = _messages.indexWhere(
@@ -286,15 +304,199 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                         orElse: () => MessageStatus.sent,
                       ),
                     );
+                    _updateChatItems();
+
+                    // Trigger cleanup immediately after any update (like 'seen')
+                    _cleanupExpiredMessages();
                   }
+                });
+              }
+            } else if (payload.eventType == PostgresChangeEvent.delete) {
+              final deletedId = payload.oldRecord['id'];
+              if (mounted) {
+                setState(() {
+                  _messages.removeWhere((m) => m.id == deletedId);
+                  _updateChatItems();
                 });
               }
             }
           },
         )
-        .subscribe((status, error) {
-          // ... existing subscription handler
+        .subscribe();
+  }
+
+  void _setupTimerListener(String conversationId) {
+    final supabase = Supabase.instance.client;
+    _timerSubscription = supabase
+        .channel('public:user_conversations:$conversationId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'user_conversations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            if (newRecord['ephemeral_timer'] != null) {
+              if (mounted) {
+                // Determine if we should show a snackbar (only if value actually changed)
+                final oldTimer = _ephemeralTimer;
+                final newTimer = newRecord['ephemeral_timer'] as String;
+
+                setState(() {
+                  _ephemeralTimer = newTimer;
+                });
+
+                // Only show if it's a change and we are viewing it
+                if (oldTimer != newTimer) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Self-destruct timer updated to ${_ephemeralTimer.replaceAll('_', ' ')}',
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+
+                _cleanupExpiredMessages();
+              }
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _cleanupExpiredMessages() async {
+    if (_ephemeralTimer == 'off' || _messages.isEmpty) return;
+
+    final now = DateTime.now();
+    final List<String> idsToDelete = [];
+
+    for (final message in _messages) {
+      bool shouldDelete = false;
+
+      if (_ephemeralTimer == 'after_seen') {
+        if (message.status == MessageStatus.read) {
+          // If it's read, delete it.
+          // To be safe, maybe check updated_at, but "after seen" implies immediacy
+          shouldDelete = true;
+        }
+      } else {
+        // Parse hours
+        int hours = 24;
+        if (_ephemeralTimer == '12_hours')
+          hours = 12;
+        else if (_ephemeralTimer == '48_hours')
+          hours = 48;
+        else if (_ephemeralTimer == '72_hours')
+          hours = 72;
+
+        final deleteTime = message.timestamp.add(Duration(hours: hours));
+        if (now.isAfter(deleteTime)) {
+          shouldDelete = true;
+        }
+      }
+
+      if (shouldDelete) {
+        idsToDelete.add(message.id);
+      }
+    }
+
+    if (idsToDelete.isNotEmpty) {
+      debugPrint('🧹 Cleaning up ${idsToDelete.length} expired messages');
+      for (final id in idsToDelete) {
+        await _chatService.deleteMessage(id);
+      }
+      // UI update will happen via realtime listener or we can do it manually
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((m) => idsToDelete.contains(m.id));
+          _updateChatItems();
         });
+      }
+    }
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUserId == null || _conversationId == null) return;
+
+    final unreadFromRecipient = _messages.any(
+      (m) => m.senderId == widget.recipientId && m.status != MessageStatus.read,
+    );
+
+    if (!unreadFromRecipient) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      await supabase
+          .from('messages')
+          .update({'status': MessageStatus.read.name})
+          .eq('conversation_id', _conversationId!)
+          .eq('sender_id', widget.recipientId)
+          .neq('status', MessageStatus.read.name);
+
+      // Local update
+      if (mounted) {
+        setState(() {
+          for (var i = 0; i < _messages.length; i++) {
+            if (_messages[i].senderId == widget.recipientId &&
+                _messages[i].status != MessageStatus.read) {
+              _messages[i] = _messages[i].copyWith(status: MessageStatus.read);
+            }
+          }
+          _updateChatItems();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error marking messages as read: $e');
+    }
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(days: 1));
+
+    if (_isSameDay(date, now)) {
+      return 'Today';
+    } else if (_isSameDay(date, yesterday)) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('MMMM d, yyyy').format(date);
+    }
+  }
+
+  void _updateChatItems() {
+    final items = <dynamic>[];
+    if (_messages.isEmpty) {
+      if (mounted) setState(() => _chatItems = []);
+      return;
+    }
+
+    // messages are sorted ascending (oldest first)
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      items.add(_messages[i]);
+
+      if (i == 0 ||
+          !_isSameDay(_messages[i].timestamp, _messages[i - 1].timestamp)) {
+        items.add(_messages[i].timestamp);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _chatItems = items;
+      });
+    }
   }
 
   // ... (existing code)
@@ -328,8 +530,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   PreferredSizeWidget _buildModernAppBar(ThemeData theme, bool isOfficial) {
-    // Optimization: Use a simple AppBar during transition or if lag is detected
-    // backdrop filter is expensive.
+    final chatProvider = context.watch<ChatProvider>();
+    final isRecipientOnline = chatProvider.isUserOnline(widget.recipientId);
+    final isAppOnline = chatProvider.isAppOnline;
+
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight + 8),
       child: AppBar(
@@ -337,6 +541,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        titleSpacing: 0, // Reduced spacing
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
@@ -345,42 +550,23 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           onTap: _navigateToProfile,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 0,
+              vertical: 4,
+            ), // Reduced horizontal padding
             child: Row(
               children: [
                 Hero(
                   tag: 'avatar_${widget.recipientId}',
-                  child: CircleAvatar(
+                  child: UserAvatar(
+                    avatar: _recipientUser?.avatar ?? widget.recipientAvatar,
+                    profilePicture: _recipientUser?.profilePicture,
+                    name: _recipientUser?.fullName ?? widget.recipientName,
                     radius: 20,
-                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                    backgroundImage: _recipientUser?.profilePicture != null
-                        ? NetworkImage(_recipientUser!.profilePicture!)
-                        : (widget.recipientAvatar != null &&
-                                  widget.recipientAvatar!.startsWith('http')
-                              ? NetworkImage(widget.recipientAvatar!)
-                              : null),
-                    child:
-                        _recipientUser?.profilePicture == null &&
-                            (_recipientUser?.avatar != null ||
-                                widget.recipientAvatar != null)
-                        ? Text(
-                            (_recipientUser?.avatar ?? widget.recipientAvatar)!,
-                            style: const TextStyle(fontSize: 18),
-                          )
-                        : (_recipientUser == null &&
-                                  (widget.recipientAvatar == null ||
-                                      widget.recipientAvatar!.isEmpty)
-                              ? Text(
-                                  widget.recipientName[0].toUpperCase(),
-                                  style: TextStyle(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null),
+                    fontSize: 18,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8), // Reduced from 12
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,6 +582,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                                         widget.recipientName),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 16, // Slightly smaller to fit better
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -406,8 +593,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                             const SizedBox(width: 4),
                             Icon(
                               Icons.verified,
-                              size: 16,
-                              // If it's an official account (isOfficial covers Boofer), verify green color
+                              size: 14,
                               color: isOfficial
                                   ? Colors.green
                                   : theme.colorScheme.primary,
@@ -415,19 +601,56 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                           ],
                         ],
                       ),
-                      Text(
-                        widget.recipientId == _currentUserId
-                            ? 'Message yourself'
-                            : (_isMutual ? 'Online' : 'View profile'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: widget.recipientId == _currentUserId
-                              ? theme.colorScheme.onSurface.withOpacity(0.6)
-                              : (_isMutual
-                                    ? Colors.green
-                                    : theme.colorScheme.onSurface.withOpacity(
-                                        0.6,
-                                      )),
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            !isAppOnline
+                                ? 'Waiting for network...'
+                                : (widget.recipientId == _currentUserId
+                                      ? 'Message yourself'
+                                      : (isRecipientOnline
+                                            ? 'Online'
+                                            : 'Offline')),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 10,
+                              color: !isAppOnline
+                                  ? Colors.orange
+                                  : (widget.recipientId == _currentUserId
+                                        ? theme.colorScheme.onSurface
+                                              .withOpacity(0.6)
+                                        : (isRecipientOnline
+                                              ? Colors.green
+                                              : theme.colorScheme.onSurface
+                                                    .withOpacity(0.6))),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '•',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 10,
+                              color: theme.colorScheme.onSurface.withOpacity(
+                                0.4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            _ephemeralTimer == 'after_seen'
+                                ? Icons.visibility_off_outlined
+                                : Icons.timer_outlined,
+                            size: 10,
+                            color: theme.colorScheme.primary.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            _ephemeralTimer.replaceAll('_', ' '),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary.withOpacity(0.7),
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -437,18 +660,22 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           ),
         ),
         actions: [
-          if (_isMutual &&
-              widget.recipientId != _currentUserId &&
-              widget.recipientId != AppConstants.booferId) ...[
-            IconButton(
-              icon: const Icon(Icons.videocam_outlined),
-              onPressed: _startVideoCall,
+          IconButton(
+            icon: SvgIcons.sized(
+              SvgIcons.videoCall,
+              24,
+              color: theme.colorScheme.primary,
             ),
-            IconButton(
-              icon: const Icon(Icons.call_outlined),
-              onPressed: _startVoiceCall,
+            onPressed: () => _showComingSoon('Video Call'),
+          ),
+          IconButton(
+            icon: SvgIcons.sized(
+              SvgIcons.voiceCall,
+              24,
+              color: theme.colorScheme.primary,
             ),
-          ],
+            onPressed: () => _showComingSoon('Voice Call'),
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: _showMoreOptionsBottomSheet,
@@ -590,20 +817,46 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         top: MediaQuery.of(context).padding.top + kToolbarHeight + 20,
         bottom: 20,
       ),
-      itemCount: _messages.length,
+      itemCount: _chatItems.length,
       itemBuilder: (context, index) {
-        // With reverse: true, index 0 is the bottom (latest)
-        final message = _messages[_messages.length - 1 - index];
-        return MessageBubble(
-          message: message,
-          currentUserId: _currentUserId!,
-          senderName: message.senderId == _currentUserId
-              ? null
-              : widget.recipientName,
-          onTap: () => _handleMessageTap(message),
-          onLongPress: () => _handleMessageLongPress(message),
-        );
+        final item = _chatItems[index];
+
+        if (item is Message) {
+          return MessageBubble(
+            message: item,
+            currentUserId: _currentUserId!,
+            senderName: item.senderId == _currentUserId
+                ? null
+                : widget.recipientName,
+            onTap: () => _handleMessageTap(item),
+            onLongPress: () => _handleMessageLongPress(item),
+          );
+        } else if (item is DateTime) {
+          return _buildDateHeader(item);
+        }
+        return const SizedBox.shrink();
       },
+    );
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          _formatDateHeader(date),
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 
@@ -654,17 +907,75 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     debugPrint('   Message: $text');
 
     try {
+      // Determine initial status based on presence
+      final chatProvider = context.read<ChatProvider>();
+      MessageStatus initialStatus =
+          MessageStatus.sent; // Default: Sent to server
+
+      final recipientPresence = chatProvider.getRecipientPresence(
+        widget.recipientId,
+      );
+      if (recipientPresence != null) {
+        final isSameChat =
+            recipientPresence['current_conversation_id'] == _conversationId;
+        initialStatus = isSameChat
+            ? MessageStatus.read
+            : MessageStatus.delivered;
+      }
+
+      // Optimistic Update: Add message immediately
+      final optimisticMessage = Message.create(
+        text: text.trim(),
+        senderId: _currentUserId!,
+        receiverId: widget.recipientId,
+        conversationId: _conversationId!,
+        status: initialStatus,
+      );
+
+      if (mounted) {
+        setState(() {
+          _messages.add(optimisticMessage);
+          _updateChatItems();
+        });
+        _scrollToBottom();
+      }
+
       final result = await SupabaseService.instance.sendMessage(
         conversationId: _conversationId!,
         senderId: _currentUserId!,
         receiverId: widget.recipientId,
         text: text.trim(),
+        messageObject: optimisticMessage,
       );
 
       if (result != null) {
         debugPrint('✅ Message sent successfully from UI');
+        // Update the message in the list with the confirmed one (e.g. correct ID/Timestamp/Status)
+        if (mounted) {
+          setState(() {
+            final index = _messages.indexWhere(
+              (m) => m.id == optimisticMessage.id,
+            );
+            if (index != -1) {
+              _messages[index] = result;
+            }
+          });
+        }
       } else {
         debugPrint('⚠️ Message send returned null');
+        // Mark as failed in UI
+        if (mounted) {
+          setState(() {
+            final index = _messages.indexWhere(
+              (m) => m.id == optimisticMessage.id,
+            );
+            if (index != -1) {
+              _messages[index] = optimisticMessage.copyWith(
+                status: MessageStatus.failed,
+              );
+            }
+          });
+        }
       }
     } catch (e) {
       debugPrint('❌ Error in UI message handler: $e');
@@ -795,50 +1106,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     );
   }
 
-  Future<void> _startVoiceCall() async {
-    if (_currentUserId == null) return;
-
-    if (!_isMutual) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You can only call mutual follows'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Voice calling ${widget.recipientName}...'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Cancel', onPressed: () {}),
-      ),
-    );
-  }
-
-  Future<void> _startVideoCall() async {
-    if (_currentUserId == null) return;
-
-    if (!_isMutual) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You can only call mutual follows'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Video calling ${widget.recipientName}...'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Cancel', onPressed: () {}),
-      ),
-    );
-  }
-
   Future<void> _sendFollowRequest() async {
     if (_currentUserId == null) return;
 
@@ -932,6 +1199,203 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
+  void _showEphemeralTimerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Self-destruct messages',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.visibility_off_outlined,
+                color: _ephemeralTimer == 'after_seen'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                'After seen',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == 'after_seen'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == 'after_seen'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('after_seen'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.schedule,
+                color: _ephemeralTimer == '24_hours'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                '24 hours',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == '24_hours'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == '24_hours'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('24_hours'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.history,
+                color: _ephemeralTimer == '12_hours'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                '12 hours',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == '12_hours'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == '12_hours'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('12_hours'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.history,
+                color: _ephemeralTimer == '48_hours'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                '48 hours',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == '48_hours'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == '48_hours'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('48_hours'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.history,
+                color: _ephemeralTimer == '72_hours'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                '72 hours',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == '72_hours'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == '72_hours'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('72_hours'),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateEphemeralTimer(String timer) async {
+    Navigator.pop(context);
+    try {
+      await SupabaseService.instance.updateConversationTimer(
+        widget.recipientId,
+        timer,
+      );
+      if (mounted) {
+        setState(() {
+          _ephemeralTimer = timer;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Self-destruct set to: ${timer.replaceAll('_', ' ')}',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error: $e');
+    }
+  }
+
+  Future<void> _deleteConversation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Chat?'),
+        content: const Text(
+          'This will remove the chat from your lobby. Your relationship (following) will stay the same.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await SupabaseService.instance.deleteConversation(widget.recipientId);
+        if (mounted) {
+          Navigator.pop(context); // Close chat screen
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Conversation deleted from lobby')),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error deleting conversation: $e');
+      }
+    }
+  }
+
   void _showMoreOptionsBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -965,7 +1429,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.primary.withOpacity(0.1),
-                    child: widget.recipientAvatar != null
+                    child:
+                        widget.recipientAvatar != null &&
+                            widget.recipientAvatar!.startsWith('http')
                         ? ClipOval(
                             child: Image.network(
                               widget.recipientAvatar!,
@@ -986,7 +1452,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                             ),
                           )
                         : Text(
-                            widget.recipientName[0].toUpperCase(),
+                            (widget.recipientAvatar != null &&
+                                    widget.recipientAvatar!.isNotEmpty)
+                                ? widget.recipientAvatar!
+                                : widget.recipientName[0].toUpperCase(),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
@@ -1074,6 +1543,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   _showMediaAndFiles();
                 },
               ),
+            // Ephemeral (Self-destruct) settings
+            _buildBottomSheetOption(
+              icon: Icons.timer_outlined,
+              title: 'Self-destruct timer',
+              onTap: () {
+                Navigator.pop(context);
+                _showEphemeralTimerSheet();
+              },
+            ),
             // Show block/unblock option
             _buildBottomSheetOption(
               icon: _isBlocked ? Icons.person_add : Icons.block,
@@ -1083,6 +1561,16 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 _toggleBlockUser();
               },
               isDestructive: !_isBlocked,
+            ),
+            // Delete conversation from lobby
+            _buildBottomSheetOption(
+              icon: Icons.delete_outline,
+              title: 'Delete chat',
+              onTap: () {
+                Navigator.pop(context);
+                _deleteConversation();
+              },
+              isDestructive: true,
             ),
             const SizedBox(height: 20),
           ],
@@ -1505,6 +1993,16 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature feature coming soon!'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
