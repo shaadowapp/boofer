@@ -13,12 +13,15 @@ class LinkWarningBottomSheet extends StatelessWidget {
   });
 
   static Future<void> show(BuildContext context, String url) async {
-    final uri = Uri.parse(url);
-    final domain = uri.host.toLowerCase();
+    final uri = Uri.tryParse(url);
+    final domain = uri?.host.toLowerCase() ?? '';
+    debugPrint('🔗 Link Tapped: $url');
+    debugPrint('🌐 Extracted Domain: $domain');
 
     // Check if domain is trusted
     final trustedDomains = await LocalStorageService.getTrustedDomains();
     if (trustedDomains.any((d) => domain == d || domain.endsWith('.$d'))) {
+      debugPrint('✅ Domain $domain is TRUSTED. Opening directly.');
       // It's trusted, open directly
       final launchUri = Uri.parse(url);
       if (await canLaunchUrl(launchUri)) {

@@ -257,8 +257,9 @@ class MessageBubble extends StatelessWidget {
     ThemeData theme,
   ) {
     final text = message.text;
+    // Improved regex to catch: https://domain, www.domain, and domain.tld
     final urlRegExp = RegExp(
-      r'((https?:\/\/|www\.)[^\s]+)',
+      r'((https?:\/\/|www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)',
       caseSensitive: false,
     );
 
