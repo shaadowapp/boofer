@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/user_model.dart';
 import '../core/constants.dart';
 import 'local_storage_service.dart';
+import '../utils/string_utils.dart';
 
 class FollowService {
   static FollowService? _instance;
@@ -104,18 +105,32 @@ class FollowService {
   /// Gets mutual follows (friends) for the given user.
   Future<List<User>> getFriends({required String userId}) async {
     try {
+      // Validate userId is a UUID
+      if (!StringUtils.isUuid(userId)) {
+        debugPrint(
+          '⚠️ Skipping getFriends: userId is not a valid UUID ($userId)',
+        );
+        return [];
+      }
+
       // 1. Get everyone I follow
       final following = await getFollowing(userId: userId, limit: 1000);
       if (following.isEmpty) return [];
 
-      final followingIds = following.map((u) => u.id).toList();
+      // Filter to only valid UUIDs to avoid Postgrest errors in the 'in' filter
+      final followingIds = following
+          .map((u) => u.id)
+          .where((id) => StringUtils.isUuid(id))
+          .toList();
+
+      if (followingIds.isEmpty) return [];
 
       // 2. Filter for those who follow me back
       final response = await _supabase
           .from('follows')
           .select('follower_id')
           .eq('following_id', userId)
-          .filter('follower_id', 'in', followingIds);
+          .filter('follower_id', 'in', '(${followingIds.join(',')})');
 
       final mutualIds = (response as List)
           .map((f) => f['follower_id'] as String)

@@ -228,56 +228,71 @@ class User {
 
   /// Create from JSON
   factory User.fromJson(Map<String, dynamic> json) {
+    // Robust type conversion helpers
+    String toString(dynamic value) => value?.toString() ?? '';
+    int toInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    bool toBool(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      return false;
+    }
+
+    DateTime parseDate(dynamic value, [DateTime? fallback]) {
+      if (value == null) return fallback ?? DateTime.now();
+      try {
+        if (value is DateTime) return value;
+        return DateTime.parse(value.toString());
+      } catch (e) {
+        return fallback ?? DateTime.now();
+      }
+    }
+
     return User(
-      id: json['id'] ?? '',
-      email:
-          json['email'] ??
-          '', // Default to empty string if not present in Firestore
-      handle: json['handle'] ?? '',
-      fullName: json['fullName'] ?? json['full_name'] ?? '',
-      bio: json['bio'] ?? '',
-      isDiscoverable:
-          json['isDiscoverable'] ??
-          (json['is_discoverable'] is int
-              ? json['is_discoverable'] == 1
-              : json['is_discoverable']) ??
-          true,
-      lastUsernameChange: json['lastUsernameChange'] != null
-          ? DateTime.parse(json['lastUsernameChange'])
-          : json['last_username_change'] != null
-          ? DateTime.parse(json['last_username_change'])
+      id: toString(json['id']),
+      email: toString(json['email']),
+      handle: toString(json['handle']),
+      fullName: toString(json['fullName'] ?? json['full_name']),
+      bio: toString(json['bio']),
+      isDiscoverable: toBool(json['isDiscoverable'] ?? json['is_discoverable']),
+      lastUsernameChange:
+          json['lastUsernameChange'] != null ||
+              json['last_username_change'] != null
+          ? parseDate(
+              json['lastUsernameChange'] ?? json['last_username_change'],
+            )
           : null,
-      createdAt: DateTime.parse(json['createdAt'] ?? json['created_at']),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? json['updated_at']),
+      createdAt: parseDate(json['createdAt'] ?? json['created_at']),
+      updatedAt: parseDate(json['updatedAt'] ?? json['updated_at']),
       profilePicture: json['profilePicture'] ?? json['profile_picture'],
       avatar: json['avatar'],
       status: UserStatus.values.firstWhere(
-        (e) => e.name == json['status'],
+        (e) => e.name == toString(json['status']),
         orElse: () => UserStatus.offline,
       ),
-      lastSeen: json['lastSeen'] != null
-          ? DateTime.parse(json['lastSeen'])
-          : json['last_seen'] != null
-          ? DateTime.parse(json['last_seen'])
+      lastSeen: json['lastSeen'] != null || json['last_seen'] != null
+          ? parseDate(json['lastSeen'] ?? json['last_seen'])
           : null,
-      location: json['location'],
-      age: json['age'],
-      virtualNumber: json['virtualNumber'] ?? json['virtual_number'],
-      followerCount: json['followerCount'] ?? json['follower_count'] ?? 0,
-      followingCount: json['followingCount'] ?? json['following_count'] ?? 0,
-      friendsCount: json['friendsCount'] ?? json['friends_count'] ?? 0,
-      pendingReceivedRequests:
-          json['pendingReceivedRequests'] ??
-          json['pending_received_requests'] ??
-          0,
-      pendingSentRequests:
-          json['pendingSentRequests'] ?? json['pending_sent_requests'] ?? 0,
-      isVerified:
-          json['isVerified'] ??
-          (json['is_verified'] is int
-              ? json['is_verified'] == 1
-              : json['is_verified']) ??
-          false,
+      location: toString(json['location']),
+      age: toInt(json['age']),
+      virtualNumber: toString(json['virtualNumber'] ?? json['virtual_number']),
+      followerCount: toInt(json['followerCount'] ?? json['follower_count']),
+      followingCount: toInt(json['followingCount'] ?? json['following_count']),
+      friendsCount: toInt(json['friendsCount'] ?? json['friends_count']),
+      pendingReceivedRequests: toInt(
+        json['pendingReceivedRequests'] ?? json['pending_received_requests'],
+      ),
+      pendingSentRequests: toInt(
+        json['pendingSentRequests'] ?? json['pending_sent_requests'],
+      ),
+      isVerified: toBool(json['isVerified'] ?? json['is_verified']),
     );
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/message_model.dart';
 import '../providers/appearance_provider.dart';
+import 'package:flutter/gestures.dart';
+import 'link_warning_bottom_sheet.dart';
 
 /// Widget for displaying individual message bubbles
 class MessageBubble extends StatelessWidget {
@@ -102,15 +104,7 @@ class MessageBubble extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                             ],
-                            Text(
-                              message.text,
-                              style: TextStyle(
-                                color: isOwnMessage
-                                    ? Colors.white
-                                    : theme.colorScheme.onSurface,
-                                fontSize: 16,
-                              ),
-                            ),
+                            _buildMessageText(context, isOwnMessage, theme),
                             const SizedBox(height: 4),
                             Row(
                               mainAxisSize: MainAxisSize.min,
@@ -254,5 +248,79 @@ class MessageBubble extends StatelessWidget {
     final minute = localTime.minute.toString().padLeft(2, '0');
     final period = localTime.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
+  }
+
+  /// Build the message text with clickable URLs
+  Widget _buildMessageText(
+    BuildContext context,
+    bool isOwnMessage,
+    ThemeData theme,
+  ) {
+    final text = message.text;
+    final urlRegExp = RegExp(
+      r'((https?:\/\/|www\.)[^\s]+)',
+      caseSensitive: false,
+    );
+
+    final List<TextSpan> spans = [];
+    int start = 0;
+
+    for (final match in urlRegExp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(
+          TextSpan(
+            text: text.substring(start, match.start),
+            style: TextStyle(
+              color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
+              fontSize: 16,
+            ),
+          ),
+        );
+      }
+
+      final url = match.group(0)!;
+      final fullUrl = url.startsWith('http') ? url : 'https://$url';
+
+      spans.add(
+        TextSpan(
+          text: url,
+          style: TextStyle(
+            color: isOwnMessage ? Colors.white : theme.colorScheme.primary,
+            fontSize: 16,
+            decoration: TextDecoration.underline,
+            fontWeight: FontWeight.w500,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () {
+              LinkWarningBottomSheet.show(context, fullUrl);
+            },
+        ),
+      );
+
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(
+        TextSpan(
+          text: text.substring(start),
+          style: TextStyle(
+            color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
+          fontSize: 16,
+          fontFamily: theme.textTheme.bodyMedium?.fontFamily,
+        ),
+        children: spans,
+      ),
+    );
   }
 }

@@ -5,6 +5,7 @@ import '../models/user_model.dart' as app_user;
 import '../models/message_model.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
+import '../utils/string_utils.dart';
 import 'unified_storage_service.dart';
 
 /// Supabase service for real-time messaging and user management
@@ -431,6 +432,9 @@ class SupabaseService {
             .order('last_message_time', ascending: false);
 
         if ((response as List).isNotEmpty) {
+          print(
+            '✅ Found ${response.length} conversations in user_conversations for $userId',
+          );
           return (response as List).map((data) {
             final friend = data['friend'];
             return {
@@ -505,6 +509,14 @@ class SupabaseService {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
+      // Validate IDs are UUIDs since the database expects UUIDs
+      if (!StringUtils.isUuid(userId) || !StringUtils.isUuid(friendId)) {
+        debugPrint(
+          '⚠️ Skipping timer update: userId or friendId is not a valid UUID ($userId, $friendId)',
+        );
+        return;
+      }
+
       final sortedIds = [userId, friendId]..sort();
       final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
 
@@ -534,6 +546,14 @@ class SupabaseService {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return '24_hours';
+
+      // Validate IDs are UUIDs since the database expects UUIDs
+      if (!StringUtils.isUuid(userId) || !StringUtils.isUuid(friendId)) {
+        debugPrint(
+          '⚠️ Skipping timer fetch: userId or friendId is not a valid UUID ($userId, $friendId)',
+        );
+        return '24_hours';
+      }
 
       final response = await _supabase
           .from('user_conversations')

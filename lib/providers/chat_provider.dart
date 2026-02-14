@@ -227,7 +227,7 @@ class ChatProvider with ChangeNotifier {
       }
 
       print(
-        '📱 Loading friends with cache-first strategy (Force: $forceRefresh)',
+        '📱 Loading friends for user: ${currentUser.id} (Force: $forceRefresh)',
       );
 
       // Start global realtime listener for lobby updates
@@ -312,18 +312,26 @@ class ChatProvider with ChangeNotifier {
       // 3. Process Conversations (Priority)
       for (final conv in conversationData) {
         final otherUser = conv['otherUser'];
-        final friendId = otherUser['id'];
+        final friendId = otherUser['id']?.toString() ?? '';
         processedUserIds.add(friendId);
 
         combinedFriends.add(
           Friend(
             id: friendId,
-            name: otherUser['name'],
-            handle: otherUser['handle'],
-            virtualNumber: otherUser['virtualNumber'] ?? 'No number',
-            avatar: otherUser['avatar'],
-            lastMessage: conv['lastMessage'] ?? '',
-            lastMessageTime: DateTime.parse(conv['lastMessageTime']),
+            name: otherUser['name']?.toString() ?? 'Unknown',
+            handle: otherUser['handle']?.toString() ?? 'unknown',
+            virtualNumber:
+                (otherUser['virtualNumber'] ?? otherUser['virtual_number'])
+                    ?.toString() ??
+                'No number',
+            avatar: otherUser['avatar']?.toString(),
+            lastMessage:
+                (conv['lastMessage'] ?? conv['last_message_text'])
+                    ?.toString() ??
+                '',
+            lastMessageTime: conv['lastMessageTime'] != null
+                ? DateTime.parse(conv['lastMessageTime'].toString())
+                : DateTime.now(),
             unreadCount: 0, // Will be updated by lobby count logic if needed
             isOnline: otherUser['status'] == 'online',
             isArchived: false,

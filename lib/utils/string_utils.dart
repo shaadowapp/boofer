@@ -15,4 +15,14 @@ class StringUtils {
     // If it's not 10 digits, just return the original or cleaned digits
     return number;
   }
+
+  /// Checks if a string is a valid UUID
+  static bool isUuid(String? s) {
+    if (s == null) return false;
+    final uuidRegex = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    return uuidRegex.hasMatch(s);
+  }
 }

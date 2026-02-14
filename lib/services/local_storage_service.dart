@@ -11,6 +11,30 @@ class LocalStorageService {
   static const String _onboardingDataKey = 'onboarding_data';
   static const String _termsAcceptedKey = 'terms_accepted_v1';
   static const String _debugMutualFollowKey = 'debug_mutual_follow';
+  static const String _trustedDomainsKey = 'trusted_domains';
+
+  static const List<String> _defaultTrustedDomains = [
+    'google.com',
+    'facebook.com',
+    'instagram.com',
+    'twitter.com',
+    'x.com',
+    'linkedin.com',
+    'github.com',
+    'youtube.com',
+    'whatsapp.com',
+    'messenger.com',
+    'telegram.org',
+    'apple.com',
+    'microsoft.com',
+    'amazon.com',
+    'netflix.com',
+    'spotify.com',
+    'discord.com',
+    'reddit.com',
+    'tiktok.com',
+    'pinterest.com',
+  ];
 
   // Secure storage for sensitive data like PIN
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
@@ -254,6 +278,40 @@ class LocalStorageService {
       await prefs.setBool(_debugMutualFollowKey, forced);
     } catch (e) {
       throw Exception('Failed to set debug mutual follow forced: $e');
+    }
+  }
+
+  /// Get list of trusted domains
+  static Future<List<String>> getTrustedDomains() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_trustedDomainsKey);
+      if (list == null) {
+        // Initialize with defaults if never set
+        await prefs.setStringList(_trustedDomainsKey, _defaultTrustedDomains);
+        return _defaultTrustedDomains;
+      }
+      return list;
+    } catch (e) {
+      return _defaultTrustedDomains;
+    }
+  }
+
+  /// Add a domain to the trust list
+  static Future<void> addTrustedDomain(String domain) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list =
+          (prefs.getStringList(_trustedDomainsKey) ?? _defaultTrustedDomains)
+              .toList();
+
+      final normalizedDomain = domain.toLowerCase().trim();
+      if (!list.contains(normalizedDomain)) {
+        list.add(normalizedDomain);
+        await prefs.setStringList(_trustedDomainsKey, list);
+      }
+    } catch (e) {
+      throw Exception('Failed to add trusted domain: $e');
     }
   }
 }

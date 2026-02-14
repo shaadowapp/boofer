@@ -125,24 +125,49 @@ class Message {
 
   /// Create from JSON
   factory Message.fromJson(Map<String, dynamic> json) {
+    // Robust type conversion helpers
+    String toString(dynamic value) => value?.toString() ?? '';
+    bool toBool(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      return false;
+    }
+
+    DateTime parseDate(dynamic value, [DateTime? fallback]) {
+      if (value == null) return fallback ?? DateTime.now();
+      try {
+        if (value is DateTime) return value;
+        return DateTime.parse(value.toString());
+      } catch (e) {
+        return fallback ?? DateTime.now();
+      }
+    }
+
     return Message(
-      id: json['id'] ?? '',
-      text: json['text'] ?? '',
-      senderId: json['sender_id'] ?? json['senderId'] ?? '',
-      receiverId: json['receiver_id'] ?? json['receiverId'],
-      conversationId: json['conversation_id'] ?? json['conversationId'],
-      timestamp: DateTime.parse(json['timestamp']),
-      isOffline: (json['is_offline'] ?? json['isOffline']) ?? false,
+      id: toString(json['id']),
+      text: toString(json['text']),
+      senderId: toString(json['sender_id'] ?? json['senderId']),
+      receiverId: json['receiver_id'] != null || json['receiverId'] != null
+          ? toString(json['receiver_id'] ?? json['receiverId'])
+          : null,
+      conversationId:
+          json['conversation_id'] != null || json['conversationId'] != null
+          ? toString(json['conversation_id'] ?? json['conversationId'])
+          : null,
+      timestamp: parseDate(json['timestamp']),
+      isOffline: toBool(json['is_offline'] ?? json['isOffline']),
       status: MessageStatus.values.firstWhere(
-        (e) => e.name == json['status'],
+        (e) => e.name == toString(json['status']),
         orElse: () => MessageStatus.pending,
       ),
       type: MessageType.values.firstWhere(
-        (e) => e.name == json['type'],
+        (e) => e.name == toString(json['type']),
         orElse: () => MessageType.text,
       ),
-      messageHash: json['message_hash'] ?? json['messageHash'],
-      mediaUrl: json['media_url'] ?? json['mediaUrl'],
+      messageHash: toString(json['message_hash'] ?? json['messageHash']),
+      mediaUrl: toString(json['media_url'] ?? json['mediaUrl']),
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
           : null,

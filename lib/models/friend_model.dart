@@ -145,56 +145,76 @@ class Friend {
     // Handle nested format from SupabaseService.getUserConversations
     final otherUser = json['otherUser'] as Map<String, dynamic>?;
 
+    String toString(dynamic value) => value?.toString() ?? '';
+    int toInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    bool toBool(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      return false;
+    }
+
     if (otherUser != null) {
       return Friend(
-        id: otherUser['id'] as String,
-        name: otherUser['name'] as String? ?? 'Unknown',
-        handle: otherUser['handle'] as String? ?? 'unknown',
-        virtualNumber: otherUser['virtualNumber'] as String? ?? '',
-        avatar: otherUser['avatar'] as String?,
-        profilePicture:
-            otherUser['profile_picture'] as String? ??
-            otherUser['profilePicture'] as String?,
-        lastMessage: json['lastMessage'] as String? ?? '',
+        id: toString(otherUser['id']),
+        name: toString(
+          otherUser['name'] ?? otherUser['full_name'] ?? 'Unknown',
+        ),
+        handle: toString(otherUser['handle'] ?? 'unknown'),
+        virtualNumber: toString(
+          otherUser['virtualNumber'] ?? otherUser['virtual_number'] ?? '',
+        ),
+        avatar: toString(otherUser['avatar']),
+        profilePicture: toString(
+          otherUser['profile_picture'] ?? otherUser['profilePicture'],
+        ),
+        lastMessage: toString(json['lastMessage']),
         lastMessageTime: json['lastMessageTime'] != null
-            ? DateTime.parse(json['lastMessageTime'] as String)
+            ? DateTime.parse(json['lastMessageTime'].toString())
             : DateTime.now(),
-        unreadCount: json['unreadCount'] as int? ?? 0,
+        unreadCount: toInt(json['unreadCount'] ?? json['unread_count']),
         isOnline:
             (otherUser['status'] == 'online') || (json['isOnline'] == true),
-        isArchived: json['isArchived'] as bool? ?? false,
-        isBlocked: json['isBlocked'] as bool? ?? false,
-        isMuted: json['isMuted'] as bool? ?? false,
+        isArchived: toBool(json['isArchived'] ?? json['is_archived']),
+        isBlocked: toBool(json['isBlocked'] ?? json['is_blocked']),
+        isMuted: toBool(json['isMuted'] ?? json['is_muted']),
         isVerified:
-            otherUser['is_verified'] as bool? ??
-            json['isVerified'] as bool? ??
-            false,
-        ephemeralTimer: json['ephemeralTimer'] as String? ?? '24_hours',
-        isDeleted: json['isDeleted'] as bool? ?? false,
+            toBool(otherUser['is_verified'] ?? otherUser['isVerified']) ||
+            toBool(json['isVerified'] ?? json['is_verified']),
+        ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
+        isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
       );
     }
 
     return Friend(
-      id: json['id'] as String,
-      name: json['name'] as String? ?? '',
-      handle: json['handle'] as String? ?? '',
-      virtualNumber: json['virtualNumber'] as String? ?? '',
-      avatar: json['avatar'] as String?,
-      profilePicture:
-          json['profilePicture'] as String? ??
-          json['profile_picture'] as String?,
-      lastMessage: json['lastMessage'] as String? ?? '',
-      lastMessageTime: DateTime.parse(
-        json['lastMessageTime'] as String? ?? DateTime.now().toIso8601String(),
+      id: toString(json['id']),
+      name: toString(json['name']),
+      handle: toString(json['handle']),
+      virtualNumber: toString(json['virtualNumber'] ?? json['virtual_number']),
+      avatar: toString(json['avatar']),
+      profilePicture: toString(
+        json['profilePicture'] ?? json['profile_picture'],
       ),
-      unreadCount: json['unreadCount'] as int? ?? 0,
-      isOnline: json['isOnline'] as bool? ?? (json['status'] == 'online'),
-      isArchived: json['isArchived'] as bool? ?? false,
-      isBlocked: json['isBlocked'] as bool? ?? false,
-      isMuted: json['isMuted'] as bool? ?? false,
-      isVerified: json['isVerified'] as bool? ?? false,
-      ephemeralTimer: json['ephemeralTimer'] as String? ?? '24_hours',
-      isDeleted: json['isDeleted'] as bool? ?? false,
+      lastMessage: toString(json['lastMessage']),
+      lastMessageTime: DateTime.parse(
+        toString(json['lastMessageTime'] ?? DateTime.now().toIso8601String()),
+      ),
+      unreadCount: toInt(json['unreadCount'] ?? json['unread_count']),
+      isOnline:
+          toBool(json['isOnline']) || (toString(json['status']) == 'online'),
+      isArchived: toBool(json['isArchived'] ?? json['is_archived']),
+      isBlocked: toBool(json['isBlocked'] ?? json['is_blocked']),
+      isMuted: toBool(json['isMuted'] ?? json['is_muted']),
+      isVerified: toBool(json['isVerified'] ?? json['is_verified']),
+      ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
+      isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
     );
   }
 
