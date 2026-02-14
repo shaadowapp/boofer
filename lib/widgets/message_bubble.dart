@@ -257,9 +257,11 @@ class MessageBubble extends StatelessWidget {
     ThemeData theme,
   ) {
     final text = message.text;
-    // Improved regex to catch: https://domain, www.domain, and domain.tld
+    // Updated regex to catch links and domains with better boundary handling
+    // It captures: https://domain.com, www.domain.com, domain.com
+    // It purposefully excludes trailing punctuation like . , ! ?
     final urlRegExp = RegExp(
-      r'((https?:\/\/|www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)',
+      r'((https?:\/\/|www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\)\],\.?!]*)?|(?<![a-zA-Z0-9\-\.])(?:[a-zA-Z0-9\-]+\.)+(?:com|org|net|dev|io|app|gov|edu|me|info|biz|co|us|uk|in|tv|xyz)(?![a-zA-Z0-9\-\.]))',
       caseSensitive: false,
     );
 

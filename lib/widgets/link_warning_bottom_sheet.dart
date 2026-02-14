@@ -22,13 +22,11 @@ class LinkWarningBottomSheet extends StatelessWidget {
     final trustedDomains = await LocalStorageService.getTrustedDomains();
     if (trustedDomains.any((d) => domain == d || domain.endsWith('.$d'))) {
       debugPrint('✅ Domain $domain is TRUSTED. Opening directly.');
-      // It's trusted, open directly
-      final launchUri = Uri.parse(url);
-      if (await canLaunchUrl(launchUri)) {
-        await launchUrl(launchUri, mode: LaunchMode.externalApplication);
-      }
+      await _openUrl(url);
       return;
     }
+
+    if (!context.mounted) return;
 
     if (!context.mounted) return;
 
@@ -103,13 +101,7 @@ class LinkWarningBottomSheet extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              final launchUri = Uri.parse(url);
-              if (await canLaunchUrl(launchUri)) {
-                await launchUrl(
-                  launchUri,
-                  mode: LaunchMode.externalApplication,
-                );
-              }
+              await _openUrl(url);
             },
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -125,13 +117,7 @@ class LinkWarningBottomSheet extends StatelessWidget {
               await LocalStorageService.addTrustedDomain(domain);
               if (!context.mounted) return;
               Navigator.pop(context);
-              final launchUri = Uri.parse(url);
-              if (await canLaunchUrl(launchUri)) {
-                await launchUrl(
-                  launchUri,
-                  mode: LaunchMode.externalApplication,
-                );
-              }
+              await _openUrl(url);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('$domain added to trust list')),
               );
@@ -141,5 +127,28 @@ class LinkWarningBottomSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static Future<void> _openUrl(String url) async {
+    final launchUri = Uri.parse(url);
+    try {
+      // Try platform default first (usually better than externalApplication for web)
+      final launched = await launchUrl(
+        launchUri,
+        mode: LaunchMode.platformDefault,
+      );
+      if (!launched) {
+        // Fallback to external application
+        await launchUrl(launchUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to launch URL: $e');
+      // If everything fails, try one last time without mode (let the OS decide)
+      try {
+        await launchUrl(launchUri);
+      } catch (e2) {
+        debugPrint('❌ Final attempt failed: $e2');
+      }
+    }
   }
 }
