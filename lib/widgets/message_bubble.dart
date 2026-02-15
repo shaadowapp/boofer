@@ -1376,47 +1376,67 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
 
     if (!context.mounted) return;
 
-    showDialog(
+    _showOverlayDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Message Info'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildInfoRow(
-              'Sender',
-              profile?.fullName ?? widget.senderName ?? 'Unknown',
-              theme,
-            ),
-            _buildInfoRow(
-              'Handle',
-              profile?.handle != null ? '@${profile!.handle}' : 'N/A',
-              theme,
-            ),
-            _buildInfoRow(
-              'Time',
-              DateFormat(
-                'MMM d, yyyy • hh:mm a',
-              ).format(widget.message.timestamp),
-              theme,
-            ),
-            _buildInfoRow(
-              'Status',
-              widget.message.status.name.toUpperCase(),
-              theme,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      title: 'Message Info',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoRow(
+            'Sender',
+            profile?.fullName ?? widget.senderName ?? 'Unknown',
+            theme,
+          ),
+          _buildInfoRow(
+            'Handle',
+            profile?.handle != null ? '@${profile!.handle}' : 'N/A',
+            theme,
+          ),
+          _buildInfoRow(
+            'Time',
+            DateFormat(
+              'MMM d, yyyy • hh:mm a',
+            ).format(widget.message.timestamp),
+            theme,
+          ),
+          _buildInfoRow(
+            'Status',
+            widget.message.status.name.toUpperCase(),
+            theme,
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed:
+              () {}, // Handled by overlay dismissal, but we need a close button logic
+          child: const Text('Close'),
+        ),
+      ],
+      // Since actions in my custom overlay will be wrapped, I'll just pass a list of action widgets that call a dismiss callback I provide
     );
+  }
+
+  void _showOverlayDialog({
+    required BuildContext context,
+    required String title,
+    required Widget content,
+    List<Widget>? actions,
+  }) {
+    final overlayState = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (ctx) => _OverlayDialog(
+        title: title,
+        content: content,
+        actions: actions ?? [],
+        onDismiss: () => overlayEntry.remove(),
+      ),
+    );
+
+    overlayState.insert(overlayEntry);
   }
 
   Widget _buildInfoRow(String label, String value, ThemeData theme) {
@@ -1441,37 +1461,43 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
   }
 
   void _showDeleteDialog(BuildContext context) {
-    showDialog(
+    // We need to construct actions that can close the overlay
+    // But _showOverlayDialog injects onDismiss into the widget
+    // So we can pass a builder for actions?
+    // Let's allow passing a callback-aware builder for actions or just handle it in the widget
+
+    // Simpler: The _OverlayDialog will provide 'onDismiss' to its children if we structure it right.
+    // Or we just capture the overlay removal in a closure here?
+    // No, we can't capture 'overlayEntry.remove' before we create it easily without a wrapper.
+
+    // Solution: _showOverlayDialog returns a close function? No.
+    // I'll make _showOverlayDialog take a builder for actions: List<Widget> Function(VoidCallback close)
+
+    _showOverlayDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete message?'),
-        content: const Text('Would you like to delete this message?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+      title: 'Delete message?',
+      content: const Text('Would you like to delete this message?'),
+      actionBuilder: (close) => [
+        TextButton(onPressed: close, child: const Text('Cancel')),
+        TextButton(
+          onPressed: () {
+            close();
+            _executeDelete(context, forEveryone: false);
+          },
+          child: const Text('Delete for me'),
+        ),
+        if (widget.isOwnMessage)
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              _executeDelete(context, forEveryone: false);
+              close();
+              _executeDelete(context, forEveryone: true);
             },
-            child: const Text('Delete for me'),
-          ),
-          if (widget.isOwnMessage)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _executeDelete(context, forEveryone: true);
-              },
-              child: const Text(
-                'Delete for everyone',
-                style: TextStyle(color: Colors.red),
-              ),
+            child: const Text(
+              'Delete for everyone',
+              style: TextStyle(color: Colors.red),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -1508,5 +1534,113 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
         );
       }
     }
+  }
+}
+
+class _OverlayDialog extends StatefulWidget {
+  final String title;
+  final Widget content;
+  final List<Widget> actions;
+  final VoidCallback onDismiss;
+
+  const _OverlayDialog({
+    required this.title,
+    required this.content,
+    required this.actions,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_OverlayDialog> createState() => _OverlayDialogState();
+}
+
+class _OverlayDialogState extends State<_OverlayDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+    _controller.forward();
+  }
+
+  Future<void> _close() async {
+    await _controller.reverse();
+    widget.onDismiss();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _close,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.black54),
+            ),
+          ),
+          Center(
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).dialogBackgroundColor,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      DefaultTextStyle(
+                        style: Theme.of(context).textTheme.bodyMedium!,
+                        child: widget.content,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: widget.actions,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
