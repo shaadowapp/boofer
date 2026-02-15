@@ -35,6 +35,11 @@ class MessageBubble extends StatelessWidget {
     final appearance = Provider.of<AppearanceProvider>(context);
     final hasWallpaper = appearance.selectedWallpaper != 'none';
 
+    final reactionsData = message.metadata?['reactions'];
+    final hasReactions =
+        reactionsData != null &&
+        (reactionsData as Map).values.any((v) => (v as List).isNotEmpty);
+
     BoxDecoration decoration = BoxDecoration(
       color: isOwnMessage
           ? appearance.accentColor
@@ -51,14 +56,15 @@ class MessageBubble extends StatelessWidget {
       ],
     );
 
-    final bubbleContent = Container(
+    final bubbleInternal = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.75,
         minWidth: 60,
       ),
       decoration: decoration,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        // Add extra bottom padding if there are reactions to avoid overlap with text
+        padding: EdgeInsets.fromLTRB(14, 10, 14, hasReactions ? 18 : 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -78,15 +84,29 @@ class MessageBubble extends StatelessWidget {
               theme,
               appearance.bubbleFontSize,
             ),
-            _buildReactions(context, isOwnMessage, theme),
           ],
         ),
       ),
     );
 
+    final bubbleContent = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        bubbleInternal,
+        if (hasReactions)
+          Positioned(
+            bottom: -10,
+            left: isOwnMessage ? null : 12,
+            right: isOwnMessage ? 12 : null,
+            child: _buildReactions(context, isOwnMessage, theme),
+          ),
+      ],
+    );
+
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 12),
+        // Extra padding at bottom for the overflowing reactions
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
         child: _SwipeReplyWrapper(
           isOwnMessage: isOwnMessage,
           onReply: () {
@@ -133,6 +153,90 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  // ... (lines 136-770 omitted or unchanged)
+
+  Widget _buildReactions(
+    BuildContext context,
+    bool isOwnMessage,
+    ThemeData theme,
+  ) {
+    if (message.metadata == null || message.metadata!['reactions'] == null) {
+      return const SizedBox.shrink();
+    }
+
+    final reactions = Map<String, dynamic>.from(
+      message.metadata!['reactions'] as Map,
+    );
+    if (reactions.isEmpty) return const SizedBox.shrink();
+
+    // Flatten reactions to show first 3
+    final reactionItems = <Widget>[];
+    int totalCount = 0;
+
+    reactions.forEach((emoji, userIds) {
+      final ids = List<String>.from(userIds as List);
+      if (ids.isNotEmpty) {
+        if (reactionItems.length < 3) {
+          reactionItems.add(Text(emoji, style: const TextStyle(fontSize: 14)));
+        }
+        totalCount++;
+      }
+    });
+
+    if (reactionItems.isEmpty) return const SizedBox.shrink();
+
+    // Add count if more than 1
+    if (totalCount > 1) {
+      // Optional: Add logic to show +N count
+    }
+
+    return GestureDetector(
+      onTap: () {
+        // Find first populated reaction to show details, or show summary
+        final firstEmoji = reactions.keys.firstWhere(
+          (k) => (reactions[k] as List).isNotEmpty,
+        );
+        final ids = List<String>.from(reactions[firstEmoji] as List);
+        _showReactionDetails(context, firstEmoji, ids);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...reactionItems,
+            if (totalCount > 3) ...[
+              const SizedBox(width: 4),
+              Text(
+                '+$totalCount',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showReactionOverlay(
     BuildContext context,
     Offset position,
@@ -140,128 +244,24 @@ class MessageBubble extends StatelessWidget {
     Widget bubbleContent,
     bool isOwnMessage,
   ) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.black54,
-        transitionDuration: const Duration(milliseconds: 200),
-        reverseTransitionDuration: const Duration(milliseconds: 150),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          final screenHeight = MediaQuery.of(context).size.height;
-          final screenWidth = MediaQuery.of(context).size.width;
+    final overlayState = Overlay.of(context);
+    late OverlayEntry overlayEntry;
 
-          // Determine menu position (prefer below, flip if too close to bottom)
-          final showMenuBelow =
-              (position.dy + size.height + 250) < screenHeight;
-          final menuTop = showMenuBelow
-              ? position.dy + size.height + 8
-              : position.dy - 120; // Adjusted offset for horizontal menu
-
-          // Determine emoji bar position
-          final emojiBarTop = showMenuBelow
-              ? position.dy - 60
-              : position.dy + size.height + 8;
-
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  behavior: HitTestBehavior.translucent,
-                  child: const SizedBox.expand(),
-                ),
-              ),
-              // The Message Bubble (Static at position, no Hero for smoothness)
-              Positioned(
-                top: position.dy,
-                left: position.dx,
-                width: size.width,
-                height: size.height,
-                child: Material(
-                  color: Colors.transparent,
-                  // Use IgnorePointer to prevent interaction with the clone
-                  child: IgnorePointer(child: bubbleContent),
-                ),
-              ),
-              // Emoji Reaction Bar
-              Positioned(
-                top: emojiBarTop,
-                left: isOwnMessage ? null : position.dx,
-                right: isOwnMessage
-                    ? (screenWidth - position.dx - size.width)
-                    : null,
-                child: Material(
-                  color: Colors.transparent,
-                  child: ScaleTransition(
-                    scale: CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutBack,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: _buildEmojiPickerRow(context),
-                    ),
-                  ),
-                ),
-              ),
-              // Action Bar (Horizontal)
-              Positioned(
-                top: menuTop,
-                left: isOwnMessage ? null : position.dx,
-                right: isOwnMessage
-                    ? (screenWidth - position.dx - size.width)
-                    : null,
-                child: ScaleTransition(
-                  scale: CurvedAnimation(
-                    parent: animation,
-                    curve: const Interval(0.1, 1.0, curve: Curves.easeOut),
-                  ),
-                  child: Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(30),
-                    elevation: 8,
-                    shadowColor: Colors.black.withOpacity(0.3),
-                    clipBehavior: Clip.antiAlias,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: _buildActionBar(context, isOwnMessage),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          );
-        },
+    overlayEntry = OverlayEntry(
+      builder: (context) => _ReactionOverlayContent(
+        message: message,
+        currentUserId: currentUserId,
+        senderName: senderName,
+        position: position,
+        size: size,
+        bubbleContent: bubbleContent,
+        isOwnMessage: isOwnMessage,
+        onReply: onReply,
+        onDismiss: () => overlayEntry.remove(),
       ),
     );
+
+    overlayState.insert(overlayEntry);
   }
 
   Widget _buildEmojiPickerRow(BuildContext context) {
@@ -369,12 +369,10 @@ class MessageBubble extends StatelessWidget {
 
   void _copyMessage(BuildContext context) {
     Clipboard.setData(ClipboardData(text: message.text));
-    Navigator.pop(context);
     // Removed toast message as requested
   }
 
   void _shareMessage(BuildContext context) {
-    Navigator.pop(context);
     Share.share(message.text);
   }
 
@@ -479,7 +477,6 @@ class MessageBubble extends StatelessWidget {
   }
 
   void _showDeleteDialog(BuildContext context, bool isOwnMessage) {
-    Navigator.pop(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -768,117 +765,6 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildReactions(
-    BuildContext context,
-    bool isOwnMessage,
-    ThemeData theme,
-  ) {
-    if (message.metadata == null || message.metadata!['reactions'] == null) {
-      return const SizedBox.shrink();
-    }
-
-    final reactions = Map<String, dynamic>.from(
-      message.metadata!['reactions'] as Map,
-    );
-    if (reactions.isEmpty) return const SizedBox.shrink();
-
-    final reactionWidgets = <Widget>[];
-
-    reactions.forEach((emoji, userIds) {
-      final ids = List<String>.from(userIds as List);
-      if (ids.isEmpty) return;
-
-      final isMe = ids.contains(currentUserId);
-
-      reactionWidgets.add(
-        GestureDetector(
-          onTap: () => _showReactionDetails(context, emoji, ids),
-          child: Container(
-            margin: const EdgeInsets.only(right: 4, top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: isMe
-                  ? theme.colorScheme.primaryContainer
-                  : theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isMe
-                    ? theme.colorScheme.primary.withOpacity(0.3)
-                    : Colors.transparent,
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 12)),
-                if (ids.length > 1) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    ids.length.toString(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    });
-
-    return Wrap(
-      alignment: isOwnMessage ? WrapAlignment.end : WrapAlignment.start,
-      children: reactionWidgets,
-    );
-  }
-
-  Widget _buildEmojiPicker(BuildContext context) {
-    final emojis = ['❤️', '😂', '😮', '😢', '👍'];
-
-    return SizedBox(
-      height: 60,
-      child: Center(
-        child: ListView.separated(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          scrollDirection: Axis.horizontal,
-          itemCount: emojis.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 16),
-          itemBuilder: (context, index) {
-            final emoji = emojis[index];
-            return GestureDetector(
-              onTap: () {
-                Navigator.pop(context);
-                _handleReaction(emoji);
-              },
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Text(emoji, style: const TextStyle(fontSize: 28)),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   Future<void> _handleReaction(String emoji) async {
     HapticFeedback.lightImpact();
 
@@ -1128,5 +1014,464 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
         ],
       ),
     );
+  }
+}
+
+class _ReactionOverlayContent extends StatefulWidget {
+  final Message message;
+  final String currentUserId;
+  final String? senderName;
+  final Offset position;
+  final Size size;
+  final Widget bubbleContent;
+  final bool isOwnMessage;
+  final VoidCallback onDismiss;
+  final Function(Message)? onReply;
+
+  const _ReactionOverlayContent({
+    super.key,
+    required this.message,
+    required this.currentUserId,
+    this.senderName,
+    required this.position,
+    required this.size,
+    required this.bubbleContent,
+    required this.isOwnMessage,
+    required this.onDismiss,
+    this.onReply,
+  });
+
+  @override
+  State<_ReactionOverlayContent> createState() =>
+      _ReactionOverlayContentState();
+}
+
+class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    await _controller.reverse();
+    widget.onDismiss();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Position logic
+    final showMenuBelow =
+        (widget.position.dy + widget.size.height + 250) < screenHeight;
+
+    double? emojiTop = widget.position.dy - 60;
+    double? actionTop = widget.position.dy + widget.size.height + 8;
+
+    // Adjust if too close to top
+    if (widget.position.dy < 70) {
+      emojiTop = widget.position.dy + widget.size.height + 8;
+      actionTop = emojiTop + 60;
+    }
+
+    // Adjust if too close to bottom
+    if (screenHeight - widget.position.dy - widget.size.height < 150) {
+      actionTop = widget.position.dy - 60;
+      emojiTop = actionTop - 60;
+    }
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          // Background dismiss detector
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _close,
+              behavior: HitTestBehavior.translucent,
+              child: Container(color: Colors.black12),
+            ),
+          ),
+
+          // The Clone Message Bubble (Static)
+          Positioned(
+            top: widget.position.dy,
+            left: widget.position.dx,
+            width: widget.size.width,
+            height: widget.size.height,
+            child: IgnorePointer(child: widget.bubbleContent),
+          ),
+
+          // Emoji Reaction Bar
+          Positioned(
+            top: emojiTop,
+            left: widget.isOwnMessage ? null : widget.position.dx,
+            right: widget.isOwnMessage
+                ? (screenWidth - widget.position.dx - widget.size.width)
+                : null,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: _buildEmojiBar(context),
+            ),
+          ),
+
+          // Action Bar
+          Positioned(
+            top: actionTop,
+            left: widget.isOwnMessage ? null : widget.position.dx,
+            right: widget.isOwnMessage
+                ? (screenWidth - widget.position.dx - widget.size.width)
+                : null,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: _buildActionBar(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiBar(BuildContext context) {
+    final emojis = ['❤️', '😂', '😮', '😢', '👍'];
+    final reactions = widget.message.metadata?['reactions'] != null
+        ? Map<String, dynamic>.from(
+            widget.message.metadata!['reactions'] as Map,
+          )
+        : <String, dynamic>{};
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...emojis.map((emoji) {
+            final isReacted =
+                reactions[emoji]?.contains(widget.currentUserId) ?? false;
+            return GestureDetector(
+              onTap: () async {
+                await _close();
+                _handleReaction(emoji);
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isReacted
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              ),
+            );
+          }),
+          GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Custom reactions coming soon!'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+              _close();
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.add,
+                size: 24,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final iconColor = theme.iconTheme.color;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: () {
+              _close();
+              if (widget.onReply != null) widget.onReply!(widget.message);
+            },
+            icon: Icon(Icons.reply_rounded, color: iconColor),
+            tooltip: 'Reply',
+          ),
+          IconButton(
+            onPressed: () {
+              _close();
+              _copyMessage(context);
+            },
+            icon: Icon(Icons.copy_rounded, color: iconColor),
+            tooltip: 'Copy',
+          ),
+          IconButton(
+            onPressed: () {
+              _close();
+              _showMessageInfo(context);
+            },
+            icon: Icon(Icons.info_outline_rounded, color: iconColor),
+            tooltip: 'Info',
+          ),
+          IconButton(
+            onPressed: () {
+              _close();
+              _shareMessage();
+            },
+            icon: Icon(Icons.share_rounded, color: iconColor),
+            tooltip: 'Share',
+          ),
+          if (widget.isOwnMessage)
+            IconButton(
+              onPressed: () {
+                _close();
+                _showDeleteDialog(context);
+              },
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              tooltip: 'Delete',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleReaction(String emoji) async {
+    HapticFeedback.lightImpact();
+    // Use widget.message and widget.currentUserId
+    final messageId = widget.message.id;
+    final userId = widget.currentUserId;
+
+    if (widget.message.metadata?['reactions'] != null) {
+      final reactions = widget.message.metadata!['reactions'];
+      if (reactions[emoji] != null) {
+        final ids = List<String>.from(reactions[emoji]);
+        if (ids.contains(userId)) {
+          await SupabaseService.instance.removeMessageReaction(
+            messageId,
+            emoji,
+          );
+          return;
+        }
+      }
+    }
+    await SupabaseService.instance.addMessageReaction(messageId, emoji);
+  }
+
+  void _copyMessage(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: widget.message.text));
+  }
+
+  void _shareMessage() {
+    Share.share(widget.message.text);
+  }
+
+  void _showMessageInfo(BuildContext context) async {
+    final theme = Theme.of(context);
+    app_user.User? profile;
+    try {
+      profile = await SupabaseService.instance.getUserProfile(
+        widget.message.senderId,
+      );
+    } catch (_) {}
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Message Info'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoRow(
+              'Sender',
+              profile?.fullName ?? widget.senderName ?? 'Unknown',
+              theme,
+            ),
+            _buildInfoRow(
+              'Handle',
+              profile?.handle != null ? '@${profile!.handle}' : 'N/A',
+              theme,
+            ),
+            _buildInfoRow(
+              'Time',
+              DateFormat(
+                'MMM d, yyyy • hh:mm a',
+              ).format(widget.message.timestamp),
+              theme,
+            ),
+            _buildInfoRow(
+              'Status',
+              widget.message.status.name.toUpperCase(),
+              theme,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textTheme.bodySmall?.color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 15)),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete message?'),
+        content: const Text('Would you like to delete this message?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _executeDelete(context, forEveryone: false);
+            },
+            child: const Text('Delete for me'),
+          ),
+          if (widget.isOwnMessage)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _executeDelete(context, forEveryone: true);
+              },
+              child: const Text(
+                'Delete for everyone',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _executeDelete(BuildContext context, {required bool forEveryone}) async {
+    try {
+      if (forEveryone) {
+        await SupabaseService.instance.deleteMessageForEveryone(
+          widget.message.id,
+        );
+      } else {
+        await SupabaseService.instance.deleteMsgForMe(
+          widget.message.id,
+          widget.currentUserId,
+        );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              forEveryone ? 'Deleted for everyone' : 'Deleted for you',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
