@@ -1225,13 +1225,10 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
           GestureDetector(
             onTap: () {
               _close(); // Close the menu overlay
-              _showCustomReactionPicker(
-                widget.parentContext,
-                (emoji) {
-                   Navigator.of(widget.parentContext).pop(); // Close picker dialog
-                   _handleReaction(emoji);
-                },
-              );
+              _showCustomReactionPicker(widget.parentContext, (emoji) {
+                Navigator.of(widget.parentContext).pop(); // Close picker dialog
+                _handleReaction(emoji);
+              });
             },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -1584,6 +1581,7 @@ class _OverlayDialogState extends State<_OverlayDialog>
 
   @override
   Widget build(BuildContext context) {
+    return Material(
       type: MaterialType.transparency,
       child: Stack(
         children: [
@@ -1624,9 +1622,8 @@ class _OverlayDialogState extends State<_OverlayDialog>
                       children: [
                         Text(
                           widget.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 12),
@@ -1723,9 +1720,7 @@ void _showCustomReactionPicker(
             tabIndicatorAnimDuration: kTabScrollDuration,
             categoryIcons: const CategoryIcons(),
           ),
-          bottomActionBarConfig: const BottomActionBarConfig(
-            enabled: false,
-          ),
+          bottomActionBarConfig: const BottomActionBarConfig(enabled: false),
           searchViewConfig: const SearchViewConfig(),
         ),
       ),

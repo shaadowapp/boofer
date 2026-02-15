@@ -51,7 +51,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get privacySettings => 'Paramètres de Confidentialité';
 
   @override
-  String get managePrivacyPreferences => 'Gérer vos préférences de confidentialité';
+  String get managePrivacyPreferences =>
+      'Gérer vos préférences de confidentialité';
 
   @override
   String get blockedUsers => 'Utilisateurs Bloqués';
@@ -63,7 +64,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get twoFactorAuthentication => 'Authentification à Deux Facteurs';
 
   @override
-  String get addExtraSecurityToAccount => 'Ajouter une sécurité supplémentaire à votre compte';
+  String get addExtraSecurityToAccount =>
+      'Ajouter une sécurité supplémentaire à votre compte';
 
   @override
   String get notifications => 'Notifications';
@@ -72,13 +74,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageNotifications => 'Notifications de Messages';
 
   @override
-  String get receiveNotificationsForNewMessages => 'Recevoir des notifications pour les nouveaux messages';
+  String get receiveNotificationsForNewMessages =>
+      'Recevoir des notifications pour les nouveaux messages';
 
   @override
   String get soundAndVibration => 'Son et Vibration';
 
   @override
-  String get customizeNotificationSounds => 'Personnaliser les sons de notification';
+  String get customizeNotificationSounds =>
+      'Personnaliser les sons de notification';
 
   @override
   String get storage => 'Stockage';
@@ -93,7 +97,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get autoDownloadMedia => 'Téléchargement Automatique des Médias';
 
   @override
-  String get configureMediaDownloadSettings => 'Configurer les paramètres de téléchargement des médias';
+  String get configureMediaDownloadSettings =>
+      'Configurer les paramètres de téléchargement des médias';
 
   @override
   String get support => 'Support';
@@ -108,13 +113,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUs => 'Nous Contacter';
 
   @override
-  String get sendFeedbackOrReportIssues => 'Envoyer des commentaires ou signaler des problèmes';
+  String get sendFeedbackOrReportIssues =>
+      'Envoyer des commentaires ou signaler des problèmes';
 
   @override
   String get aboutBoofer => 'À Propos de Boofer';
 
   @override
-  String get appVersionAndInformation => 'Version de l\'application et informations';
+  String get appVersionAndInformation =>
+      'Version de l\'application et informations';
 
   @override
   String languageChangedTo(String language) {
@@ -166,13 +173,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get enterNewUsername => 'Entrez un nouveau nom d\'utilisateur';
 
   @override
-  String get usernameRules => 'Règles du nom d\'utilisateur:\n• 3-20 caractères\n• Lettres, chiffres et underscores uniquement\n• Doit commencer par une lettre\n• Ne peut pas finir par un underscore';
+  String get usernameRules =>
+      'Règles du nom d\'utilisateur:\n• 3-20 caractères\n• Lettres, chiffres et underscores uniquement\n• Doit commencer par une lettre\n• Ne peut pas finir par un underscore';
 
   @override
-  String get usernameChangedSuccessfully => 'Nom d\'utilisateur changé avec succès!';
+  String get usernameChangedSuccessfully =>
+      'Nom d\'utilisateur changé avec succès!';
 
   @override
-  String get usernameChangeError => 'Échec du changement de nom d\'utilisateur. Veuillez réessayer.';
+  String get usernameChangeError =>
+      'Échec du changement de nom d\'utilisateur. Veuillez réessayer.';
 
   @override
   String get save => 'Enregistrer';

@@ -72,7 +72,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageNotifications => 'Message Notifications';
 
   @override
-  String get receiveNotificationsForNewMessages => 'Receive notifications for new messages';
+  String get receiveNotificationsForNewMessages =>
+      'Receive notifications for new messages';
 
   @override
   String get soundAndVibration => 'Sound & Vibration';
@@ -93,7 +94,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get autoDownloadMedia => 'Auto-Download Media';
 
   @override
-  String get configureMediaDownloadSettings => 'Configure media download settings';
+  String get configureMediaDownloadSettings =>
+      'Configure media download settings';
 
   @override
   String get support => 'Support';
@@ -166,13 +168,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enterNewUsername => 'Enter new username';
 
   @override
-  String get usernameRules => 'Username rules:\n• 3-20 characters\n• Letters, numbers, underscores only\n• Must start with a letter\n• Cannot end with underscore';
+  String get usernameRules =>
+      'Username rules:\n• 3-20 characters\n• Letters, numbers, underscores only\n• Must start with a letter\n• Cannot end with underscore';
 
   @override
   String get usernameChangedSuccessfully => 'Username changed successfully!';
 
   @override
-  String get usernameChangeError => 'Failed to change username. Please try again.';
+  String get usernameChangeError =>
+      'Failed to change username. Please try again.';
 
   @override
   String get save => 'Save';
