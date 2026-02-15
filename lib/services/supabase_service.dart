@@ -946,6 +946,19 @@ class SupabaseService {
           ? Map<String, dynamic>.from(metadata['reactions'] as Map)
           : <String, dynamic>{};
 
+      // Remove user from ALL other emoji lists first (enforce single reaction)
+      reactions.forEach((key, value) {
+        final existingUsers = List<String>.from(value as List);
+        if (existingUsers.contains(userId)) {
+          existingUsers.remove(userId);
+          reactions[key] = existingUsers;
+        }
+      });
+
+      // Clean up empty reaction lists
+      reactions.removeWhere((key, value) => (value as List).isEmpty);
+
+      // Add to new emoji list
       final userIds = reactions[emoji] != null
           ? List<String>.from(reactions[emoji] as List)
           : <String>[];

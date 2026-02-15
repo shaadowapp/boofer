@@ -156,7 +156,7 @@ class MessageBubble extends StatelessWidget {
               (position.dy + size.height + 250) < screenHeight;
           final menuTop = showMenuBelow
               ? position.dy + size.height + 8
-              : position.dy - 300; // Increased offset for larger menu
+              : position.dy - 120; // Adjusted offset for horizontal menu
 
           // Determine emoji bar position
           final emojiBarTop = showMenuBelow
@@ -219,67 +219,34 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
-              // Context Menu
+              // Action Bar (Horizontal)
               Positioned(
                 top: menuTop,
                 left: isOwnMessage ? null : position.dx,
                 right: isOwnMessage
                     ? (screenWidth - position.dx - size.width)
                     : null,
-                width: 220, // Slightly wider for better text fit
                 child: ScaleTransition(
                   scale: CurvedAnimation(
                     parent: animation,
                     curve: const Interval(0.1, 1.0, curve: Curves.easeOut),
                   ),
                   child: Material(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    elevation: 12,
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(30),
+                    elevation: 8,
                     shadowColor: Colors.black.withOpacity(0.3),
                     clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildMenuOption(
-                          context,
-                          Icons.reply_rounded,
-                          'Reply',
-                          () {
-                            Navigator.pop(context);
-                            onReply?.call(message);
-                          },
-                        ),
-                        _buildMenuOption(
-                          context,
-                          Icons.copy_rounded,
-                          'Copy',
-                          () => _copyMessage(context),
-                        ),
-                        _buildMenuOption(
-                          context,
-                          Icons.info_outline_rounded,
-                          'Info',
-                          () {
-                            Navigator.pop(context);
-                            _showMessageInfo(context);
-                          },
-                        ),
-                        _buildMenuOption(
-                          context,
-                          Icons.share_rounded,
-                          'Share',
-                          () => _shareMessage(context),
-                        ),
-                        if (isOwnMessage)
-                          _buildMenuOption(
-                            context,
-                            Icons.delete_outline_rounded,
-                            'Delete for me',
-                            () => _showDeleteDialog(context, isOwnMessage),
-                            isDestructive: true,
-                          ),
-                      ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: _buildActionBar(context, isOwnMessage),
                     ),
                   ),
                 ),
@@ -357,27 +324,46 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuOption(
-    BuildContext context,
-    IconData icon,
-    String title,
-    VoidCallback onTap, {
-    bool isDestructive = false,
-  }) {
+  Widget _buildActionBar(BuildContext context, bool isOwnMessage) {
     final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? Colors.red : theme.iconTheme.color,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isDestructive ? Colors.red : theme.textTheme.bodyLarge?.color,
-          fontWeight: FontWeight.w500,
+    final iconColor = theme.iconTheme.color;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () {
+            Navigator.pop(context);
+            onReply?.call(message);
+          },
+          icon: Icon(Icons.reply_rounded, color: iconColor),
+          tooltip: 'Reply',
         ),
-      ),
-      onTap: onTap,
+        IconButton(
+          onPressed: () => _copyMessage(context),
+          icon: Icon(Icons.copy_rounded, color: iconColor),
+          tooltip: 'Copy',
+        ),
+        IconButton(
+          onPressed: () {
+            Navigator.pop(context);
+            _showMessageInfo(context);
+          },
+          icon: Icon(Icons.info_outline_rounded, color: iconColor),
+          tooltip: 'Info',
+        ),
+        IconButton(
+          onPressed: () => _shareMessage(context),
+          icon: Icon(Icons.share_rounded, color: iconColor),
+          tooltip: 'Share',
+        ),
+        if (isOwnMessage)
+          IconButton(
+            onPressed: () => _showDeleteDialog(context, isOwnMessage),
+            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+            tooltip: 'Delete',
+          ),
+      ],
     );
   }
 
