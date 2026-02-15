@@ -4,7 +4,7 @@ import 'theme_provider.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
-enum ChatBubbleShape { rounded, square, standard }
+enum ChatBubbleShape { round, curve, square, capsule, leaf }
 
 enum NavBarStyle { simple, modern, ios, bubble, liquid, genz }
 
@@ -16,8 +16,7 @@ class AppearanceProvider extends ChangeNotifier {
   double _cornerRadius = 16.0; // UI Corner radius
   NavBarStyle _navBarStyle = NavBarStyle.modern; // Navigation bar style
 
-  ChatBubbleShape _chatBubbleShape =
-      ChatBubbleShape.rounded; // Chat bubble shape
+  ChatBubbleShape _chatBubbleShape = ChatBubbleShape.round; // Chat bubble shape
 
   bool _useGradientAccent = false;
   String? _selectedGradientId;
@@ -89,11 +88,22 @@ class AppearanceProvider extends ChangeNotifier {
       orElse: () => NavBarStyle.modern,
     );
 
-    _chatBubbleShape = ChatBubbleShape.values.firstWhere(
-      (e) =>
-          e.toString() == (chatBubbleShapeValue ?? 'ChatBubbleShape.rounded'),
-      orElse: () => ChatBubbleShape.rounded,
-    );
+    // Migration Handling
+    if (chatBubbleShapeValue == 'ChatBubbleShape.ios' ||
+        chatBubbleShapeValue == 'ChatBubbleShape.classic') {
+      _chatBubbleShape = ChatBubbleShape.curve;
+    } else if (chatBubbleShapeValue == 'ChatBubbleShape.rounded') {
+      _chatBubbleShape = ChatBubbleShape.round;
+    } else if (chatBubbleShapeValue == 'ChatBubbleShape.standard' ||
+        chatBubbleShapeValue == 'ChatBubbleShape.glass') {
+      _chatBubbleShape = ChatBubbleShape.capsule;
+    } else {
+      _chatBubbleShape = ChatBubbleShape.values.firstWhere(
+        (e) =>
+            e.toString() == (chatBubbleShapeValue ?? 'ChatBubbleShape.round'),
+        orElse: () => ChatBubbleShape.round,
+      );
+    }
 
     _useGradientAccent = useGradientAccentValue;
     _selectedGradientId = selectedGradientIdValue;
@@ -172,6 +182,18 @@ class AppearanceProvider extends ChangeNotifier {
         return [const Color(0xFF8B5CF6), const Color(0xFF6366F1)];
       case 'fire':
         return [const Color(0xFFEF4444), const Color(0xFFF59E0B)];
+      case 'midnight':
+        return [const Color(0xFF232526), const Color(0xFF414345)];
+      case 'neon':
+        return [const Color(0xFF00F2FE), const Color(0xFF4FACFE)];
+      case 'cosmic':
+        return [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
+      case 'emerald':
+        return [const Color(0xFF02AAB0), const Color(0xFF00CDAC)];
+      case 'ruby':
+        return [const Color(0xFFCB2D3E), const Color(0xFFEF473A)];
+      case 'gold':
+        return [const Color(0xFFF2994A), const Color(0xFFF2C94C)];
       default:
         return [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)];
     }

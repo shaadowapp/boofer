@@ -263,18 +263,31 @@ class ChatProvider with ChangeNotifier {
       if (forceRefresh) {
         final isThrottled = await cacheService.isFriendsRefreshThrottled();
         if (isThrottled) {
-          print('⏳ Friends refresh throttled. Using cache.');
+          debugPrint('⏳ Friends refresh throttled. Using cache.');
           _friendsLoaded = true;
           notifyListeners();
           return;
         }
       }
 
-      // STEP 3: Check if cache is still valid
-      final isCacheValid = await cacheService.isFriendsCacheValid();
+      // STEP 3: Check if background refresh is needed
+      final lastSync = await cacheService.getLastSyncTime('last_friends_sync');
+      final isCacheStale =
+          lastSync == null ||
+          DateTime.now().difference(lastSync) > const Duration(minutes: 5);
 
-      if (!forceRefresh && isCacheValid && cachedFriends.isNotEmpty) {
-        print('✅ Friends cache is fresh (<24h), skipping network call');
+      // FORCE refresh if this is the first time the app is loading in this session
+      // to ensure we catch any relationship updates
+      final bool isFirstTimeThisSession =
+          !_isLoadingFromNetwork && !_friendsLoaded;
+
+      if (!forceRefresh &&
+          !isCacheStale &&
+          !isFirstTimeThisSession &&
+          _friends.isNotEmpty) {
+        debugPrint(
+          '✅ Friends cache is fresh (<5m), skipping background network call',
+        );
         _friendsLoaded = true;
         notifyListeners();
         return;
@@ -308,35 +321,17 @@ class ChatProvider with ChangeNotifier {
       // Map to keep track of friends we've processed from conversations
       final Set<String> processedUserIds = {};
       final List<Friend> combinedFriends = [];
+      final Set<String> mutualFriendIds = friendUsers.map((u) => u.id).toSet();
 
       // 3. Process Conversations (Priority)
       for (final conv in conversationData) {
-        final otherUser = conv['otherUser'];
-        final friendId = otherUser['id']?.toString() ?? '';
-        processedUserIds.add(friendId);
-
-        combinedFriends.add(
-          Friend(
-            id: friendId,
-            name: otherUser['name']?.toString() ?? 'Unknown',
-            handle: otherUser['handle']?.toString() ?? 'unknown',
-            virtualNumber:
-                (otherUser['virtualNumber'] ?? otherUser['virtual_number'])
-                    ?.toString() ??
-                'No number',
-            avatar: otherUser['avatar']?.toString(),
-            lastMessage:
-                (conv['lastMessage'] ?? conv['last_message_text'])
-                    ?.toString() ??
-                '',
-            lastMessageTime: conv['lastMessageTime'] != null
-                ? DateTime.parse(conv['lastMessageTime'].toString())
-                : DateTime.now(),
-            unreadCount: 0, // Will be updated by lobby count logic if needed
-            isOnline: otherUser['status'] == 'online',
-            isArchived: false,
-          ),
-        );
+        var friend = Friend.fromJson(conv);
+        // Check if this contact is also a mutual friend
+        if (mutualFriendIds.contains(friend.id)) {
+          friend = friend.copyWith(isMutual: true);
+        }
+        processedUserIds.add(friend.id);
+        combinedFriends.add(friend);
       }
 
       // 4. Add friends who we haven't messaged yet
@@ -356,6 +351,9 @@ class ChatProvider with ChangeNotifier {
               unreadCount: 0,
               isOnline: user.status == UserStatus.online,
               isArchived: false,
+              isVerified: user.isVerified,
+              isMutual: true, // They are from the mutual friends list
+              profilePicture: user.profilePicture,
             ),
           );
         }

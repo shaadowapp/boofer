@@ -17,7 +17,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 6;
+  static const int _databaseVersion = 8;
 
   /// Get database instance
   Future<Database> get database async {
@@ -94,6 +94,7 @@ class DatabaseManager {
         message_hash TEXT UNIQUE,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        metadata TEXT,
         FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
       )
     ''');
@@ -404,6 +405,26 @@ class DatabaseManager {
       await db.execute(
         'ALTER TABLE cached_start_chat_users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0',
       );
+    }
+
+    if (oldVersion < 7) {
+      // Add is_mutual column to all relevant tables
+      await db.execute(
+        'ALTER TABLE cached_friends ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+      );
+
+      await db.execute(
+        'ALTER TABLE cached_discover_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+      );
+
+      await db.execute(
+        'ALTER TABLE cached_start_chat_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+
+    if (oldVersion < 8) {
+      // Add metadata column to messages table
+      await db.execute('ALTER TABLE messages ADD COLUMN metadata TEXT');
     }
   }
 

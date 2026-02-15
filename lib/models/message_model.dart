@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 enum MessageType { text, image, video, audio, file }
 
@@ -169,7 +170,9 @@ class Message {
       messageHash: toString(json['message_hash'] ?? json['messageHash']),
       mediaUrl: toString(json['media_url'] ?? json['mediaUrl']),
       metadata: json['metadata'] != null
-          ? Map<String, dynamic>.from(json['metadata'])
+          ? (json['metadata'] is String
+                ? jsonDecode(json['metadata']) as Map<String, dynamic>
+                : Map<String, dynamic>.from(json['metadata']))
           : null,
       expiresAt: json['expires_at'] != null
           ? DateTime.parse(json['expires_at'])

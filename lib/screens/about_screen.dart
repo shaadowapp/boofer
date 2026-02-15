@@ -31,14 +31,14 @@ class AboutScreen extends StatelessWidget {
                   icon: Icons.info_outline,
                   color: Colors.blue,
                   children: [
-                    _buildInfoTile(context, 'Version', '1.0.0'),
-                    _buildInfoTile(context, 'Build Number', '100'),
-                    _buildInfoTile(context, 'Release Date', 'January 2025'),
-                    _buildInfoTile(context, 'Platform', 'Flutter'),
+                    _buildInfoTile(context, 'Version', '1.1.2'),
+                    _buildInfoTile(context, 'Build', '2026.02'),
+                    _buildInfoTile(context, 'Release Date', 'February 2026'),
+                    _buildInfoTile(context, 'Engine', 'Flutter 3.24 (Stable)'),
                     _buildInfoTile(
                       context,
-                      'Minimum OS',
-                      'Android 6.0 / iOS 12.0',
+                      'Identity',
+                      'Virtual Number System',
                     ),
                   ],
                 ),
@@ -48,59 +48,51 @@ class AboutScreen extends StatelessWidget {
                 // Company Information
                 _buildSectionContainer(
                   context,
-                  title: 'Company',
+                  title: 'Developer',
                   icon: Icons.business_outlined,
                   color: Colors.indigo,
                   children: [
-                    _buildInfoTile(context, 'Developer', 'Boofer Team'),
-                    _buildInfoTile(context, 'Website', 'boofer.app'),
+                    _buildInfoTile(
+                      context,
+                      'Developer',
+                      'Shaadow / Surya Subhrajit',
+                    ),
+                    _buildInfoTile(context, 'Website', 'shaadow.io'),
                     _buildInfoTile(
                       context,
                       'Support Email',
-                      'support@boofer.app',
+                      'hello@shaadow.io',
                     ),
-                    _buildInfoTile(context, 'Location', 'Global'),
+                    _buildInfoTile(context, 'Headquarters', 'Odisha, India'),
                   ],
                 ),
 
                 const SizedBox(height: 24),
 
-                // Features
+                // Key Features
                 _buildSectionContainer(
                   context,
-                  title: 'Key Features',
-                  icon: Icons.star_outline,
-                  color: Colors.amber,
+                  title: 'Privacy Focus',
+                  icon: Icons.security_rounded,
+                  color: Colors.green,
                   children: [
                     _buildFeatureTile(
                       context,
-                      'Virtual Identity',
-                      'Anonymous profile with virtual number',
-                      Colors.purple,
-                    ),
-                    _buildFeatureTile(
-                      context,
-                      'Private Messaging',
-                      'Secure, end-to-end encrypted chats',
-                      Colors.green,
-                    ),
-                    _buildFeatureTile(
-                      context,
-                      'Friend Discovery',
-                      'Find friends via username or QR',
+                      'Virtual Numbers',
+                      'Communicate without revealing your real SIM number.',
                       Colors.blue,
                     ),
                     _buildFeatureTile(
                       context,
-                      'Media Sharing',
-                      'Share photos, videos, and files',
-                      Colors.orange,
+                      'No Tracking',
+                      'We do not collect personal usage metadata or logs.',
+                      Colors.red,
                     ),
                     _buildFeatureTile(
                       context,
-                      'No Data Tracking',
-                      'Your conversations belong to you',
-                      Colors.red,
+                      'End-to-End Encryption',
+                      'Your data is encrypted before it leaves your device.',
+                      Colors.green,
                     ),
                   ],
                 ),
@@ -135,13 +127,6 @@ class AboutScreen extends StatelessWidget {
                       color: Colors.black87,
                       onTap: () => _showOpenSourceLicenses(context),
                     ),
-                    _buildActionTile(
-                      context,
-                      title: 'Rate the App',
-                      icon: Icons.star_rate_rounded,
-                      color: Colors.amber,
-                      onTap: () => _showRateApp(context),
-                    ),
                   ],
                 ),
 
@@ -165,27 +150,27 @@ class AboutScreen extends StatelessWidget {
       children: [
         const SizedBox(height: 16),
         Container(
-          width: 100,
-          height: 100,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: theme.colorScheme.primary.withOpacity(0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: const Icon(
-            Icons.message_rounded,
+            Icons.chat_bubble_rounded,
             color: Colors.white,
-            size: 50,
+            size: 40,
           ),
         ),
         const SizedBox(height: 16),
@@ -199,29 +184,11 @@ class AboutScreen extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Secure messaging with virtual numbers',
-          style: theme.textTheme.bodyLarge?.copyWith(
+          'Next-gen private messaging with virtual identities',
+          style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
           textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-            ),
-          ),
-          child: Text(
-            'Version 1.0.0',
-            style: TextStyle(
-              color: theme.colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
@@ -239,11 +206,9 @@ class AboutScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        color: theme.colorScheme.surfaceContainerLow.withOpacity(0.5),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.05),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,7 +218,7 @@ class AboutScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
+                  color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -317,7 +282,7 @@ class AboutScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(Icons.check_rounded, color: color, size: 16),
@@ -363,7 +328,7 @@ class AboutScreen extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: color, size: 20),
@@ -374,7 +339,7 @@ class AboutScreen extends StatelessWidget {
       ),
       trailing: Icon(
         Icons.chevron_right,
-        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
         size: 20,
       ),
       onTap: onTap,
@@ -387,89 +352,23 @@ class AboutScreen extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'Made with ❤️ by Boofer Technologies',
+          'Developed by Shaadow',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          '© 2025 Boofer Technologies. All rights reserved.',
+          '© 2026 Shaadow Technologies. All rights reserved.',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildSocialButton(
-              context,
-              icon: Icons.language,
-              label: 'Website',
-              onTap: () =>
-                  _copyToClipboard(context, 'www.boofer.com', 'Website URL'),
-            ),
-            const SizedBox(width: 16),
-            _buildSocialButton(
-              context,
-              icon: Icons.email_outlined,
-              label: 'Email',
-              onTap: () =>
-                  _copyToClipboard(context, 'support@boofer.com', 'Email'),
-            ),
-          ],
-        ),
       ],
     );
-  }
-
-  Widget _buildSocialButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.2),
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: theme.colorScheme.surface,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: theme.colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _copyToClipboard(BuildContext context, String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$label copied to clipboard')));
   }
 
   void _showPrivacyPolicy(BuildContext context) {
@@ -496,36 +395,14 @@ class AboutScreen extends StatelessWidget {
           height: 400,
           child: ListView(
             children: [
-              _buildLicenseTile(
-                context,
-                'Flutter',
-                'BSD 3-Clause License',
-                'https://flutter.dev',
-              ),
-              _buildLicenseTile(
-                context,
-                'Provider',
-                'MIT License',
-                'https://pub.dev/packages/provider',
-              ),
-              _buildLicenseTile(
-                context,
-                'Shared Preferences',
-                'BSD 3-Clause License',
-                'https://pub.dev/packages/shared_preferences',
-              ),
-              _buildLicenseTile(
-                context,
-                'Flutter SVG',
-                'MIT License',
-                'https://pub.dev/packages/flutter_svg',
-              ),
-              _buildLicenseTile(
-                context,
-                'Path Provider',
-                'BSD 3-Clause License',
-                'https://pub.dev/packages/path_provider',
-              ),
+              _buildLicenseTile(context, 'Flutter Framework', 'Google (BSD-3)'),
+              _buildLicenseTile(context, 'Supabase Flutter', 'MIT License'),
+              _buildLicenseTile(context, 'Provider', 'MIT License'),
+              _buildLicenseTile(context, 'SQLite (sqflite)', 'MIT License'),
+              _buildLicenseTile(context, 'Flutter SVG', 'MIT License'),
+              _buildLicenseTile(context, 'Shared Preferences', 'BSD-3'),
+              _buildLicenseTile(context, 'Google Fonts', 'OFL'),
+              _buildLicenseTile(context, 'Lucide Icons', 'ISC License'),
             ],
           ),
         ),
@@ -539,77 +416,20 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  void _showRateApp(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rate Boofer'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enjoying Boofer? Please rate us on the app store!'),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                (index) => const Icon(
-                  Icons.star_rounded,
-                  color: Colors.amber,
-                  size: 32,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Your feedback helps us improve the app for everyone.'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Maybe Later'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Thank you for your feedback!')),
-              );
-            },
-            child: const Text('Rate Now'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLicenseTile(
-    BuildContext context,
-    String name,
-    String license,
-    String url,
-  ) {
+  Widget _buildLicenseTile(BuildContext context, String name, String subtitle) {
     final theme = Theme.of(context);
 
     return ListTile(
-      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(
+        name,
+        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+      ),
       subtitle: Text(
-        license,
+        subtitle,
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
-      trailing: Icon(
-        Icons.open_in_new,
-        size: 16,
-        color: theme.colorScheme.primary,
-      ),
-      onTap: () {
-        // In a real app, this would open the URL
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Would open: $url')));
-      },
     );
   }
 }

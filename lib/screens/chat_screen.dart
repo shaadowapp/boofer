@@ -15,11 +15,7 @@ class ChatScreen extends StatefulWidget {
   final String userId;
   final String? conversationId;
 
-  const ChatScreen({
-    super.key,
-    required this.userId,
-    this.conversationId,
-  });
+  const ChatScreen({super.key, required this.userId, this.conversationId});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -30,6 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isInitialized = false;
   String _initializationError = '';
+  Message? _replyToMessage;
 
   @override
   void initState() {
@@ -65,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(context),
-      body: _isInitialized 
+      body: _isInitialized
           ? _buildChatBody(context)
           : _buildInitializationScreen(context),
     );
@@ -86,7 +83,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
               ),
               onPressed: () => themeProvider.toggleTheme(),
-              tooltip: themeProvider.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              tooltip: themeProvider.isDarkMode
+                  ? 'Switch to Light Mode'
+                  : 'Switch to Dark Mode',
             );
           },
         ),
@@ -106,9 +105,11 @@ class _ChatScreenState extends State<ChatScreen> {
         }
 
         final networkState = snapshot.data!;
-        final isOnline = networkState.isOnlineMode && networkState.hasInternetConnection;
-        final isOffline = networkState.isOfflineMode && networkState.connectedPeers > 0;
-        
+        final isOnline =
+            networkState.isOnlineMode && networkState.hasInternetConnection;
+        final isOffline =
+            networkState.isOfflineMode && networkState.connectedPeers > 0;
+
         Color statusColor;
         IconData statusIcon;
         String statusText;
@@ -215,26 +216,23 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Build main chat body
   Widget _buildChatBody(BuildContext context) {
     final appearanceProvider = Provider.of<AppearanceProvider>(context);
-    
+
     return appearanceProvider.getWallpaperWidget(
-      child: Column(
-        children: [
-          Expanded(
-            child: _buildMessagesList(context),
+          child: Column(
+            children: [
+              Expanded(child: _buildMessagesList(context)),
+              _buildChatInput(context),
+            ],
           ),
-          _buildChatInput(context),
-        ],
-      ),
-    ) ?? Container(
-      child: Column(
-        children: [
-          Expanded(
-            child: _buildMessagesList(context),
+        ) ??
+        Container(
+          child: Column(
+            children: [
+              Expanded(child: _buildMessagesList(context)),
+              _buildChatInput(context),
+            ],
           ),
-          _buildChatInput(context),
-        ],
-      ),
-    );
+        );
   }
 
   /// Build messages list
@@ -243,9 +241,7 @@ class _ChatScreenState extends State<ChatScreen> {
       stream: _chatService.messagesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
@@ -302,7 +298,7 @@ class _ChatScreenState extends State<ChatScreen> {
               message: message,
               currentUserId: widget.userId,
               onTap: () => _handleMessageTap(message),
-              onLongPress: () => _handleMessageLongPress(message),
+              onReply: _handleReply,
             );
           },
         );
@@ -316,8 +312,9 @@ class _ChatScreenState extends State<ChatScreen> {
       stream: _chatService.networkState,
       builder: (context, snapshot) {
         final networkState = snapshot.data;
-        final isConnected = networkState?.hasInternetConnection == true || 
-                           (networkState?.connectedPeers ?? 0) > 0;
+        final isConnected =
+            networkState?.hasInternetConnection == true ||
+            (networkState?.connectedPeers ?? 0) > 0;
 
         return Center(
           child: Column(
@@ -330,9 +327,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                isConnected 
-                    ? 'No messages yet'
-                    : 'Waiting for connection...',
+                isConnected ? 'No messages yet' : 'Waiting for connection...',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -356,29 +351,89 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Build chat input
   Widget _buildChatInput(BuildContext context) {
+    final theme = Theme.of(context);
     return StreamBuilder<NetworkState>(
       stream: _chatService.networkState,
       builder: (context, snapshot) {
-        final networkState = snapshot.data ?? NetworkState(
-          mode: NetworkMode.auto,
-          hasInternetConnection: false,
-          connectedPeers: 0,
-          lastSync: DateTime.now(),
-          isOnlineServiceActive: false,
-          isMeshActive: false,
-        );
+        final networkState =
+            snapshot.data ??
+            NetworkState(
+              mode: NetworkMode.auto,
+              hasInternetConnection: false,
+              connectedPeers: 0,
+              lastSync: DateTime.now(),
+              isOnlineServiceActive: false,
+              isMeshActive: false,
+            );
 
-        return ChatInput(
-          onSendMessage: _handleSendMessage,
-          onModeToggle: _handleModeToggle,
-          currentMode: networkState.mode,
-          isOnlineMode: networkState.isOnlineMode,
-          isOfflineMode: networkState.isOfflineMode,
-          connectedPeers: networkState.connectedPeers,
-          hasInternetConnection: networkState.hasInternetConnection,
-          isEnabled: _isInitialized,
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_replyToMessage != null) _buildReplyPreview(context, theme),
+            ChatInput(
+              onSendMessage: _handleSendMessage,
+              onModeToggle: _handleModeToggle,
+              currentMode: networkState.mode,
+              isOnlineMode: networkState.isOnlineMode,
+              isOfflineMode: networkState.isOfflineMode,
+              connectedPeers: networkState.connectedPeers,
+              hasInternetConnection: networkState.hasInternetConnection,
+              isEnabled: _isInitialized,
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildReplyPreview(BuildContext context, ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 32,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  _replyToMessage!.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _replyToMessage = null),
+          ),
+        ],
+      ),
     );
   }
 
@@ -387,11 +442,29 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!_isInitialized || text.trim().isEmpty) return;
 
     try {
+      Map<String, dynamic>? metadata;
+      if (_replyToMessage != null) {
+        metadata = {
+          'reply_to': {
+            'id': _replyToMessage!.id,
+            'text': _replyToMessage!.text,
+            'sender_name': _replyToMessage!.senderId == widget.userId
+                ? 'You'
+                : 'User', // Ideally we'd have the sender's name here
+          },
+        };
+      }
+
       await _chatService.sendMessage(
         conversationId: widget.conversationId ?? 'default',
         senderId: widget.userId,
         content: text.trim(),
+        metadata: metadata,
       );
+
+      setState(() {
+        _replyToMessage = null;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -429,101 +502,9 @@ class _ChatScreenState extends State<ChatScreen> {
     print('Message tapped: ${message.id}');
   }
 
-  /// Handle message long press
-  void _handleMessageLongPress(Message message) {
-    // Show context menu for message actions
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => _buildMessageContextMenu(context, message),
-    );
-  }
-
-  /// Build message context menu
-  Widget _buildMessageContextMenu(BuildContext context, Message message) {
-    final isOwnMessage = message.senderId == widget.userId;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.copy),
-            title: const Text('Copy text'),
-            onTap: () {
-              // Copy message text to clipboard
-              Navigator.pop(context);
-            },
-          ),
-          // Retry functionality not yet implemented
-          // if (isOwnMessage && message.status == MessageStatus.failed)
-          //   ListTile(
-          //     leading: const Icon(Icons.refresh),
-          //     title: const Text('Retry sending'),
-          //     onTap: () {
-          //       Navigator.pop(context);
-          //       // _chatService.retryFailedMessages();
-          //     },
-          //   ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Message info'),
-            onTap: () {
-              Navigator.pop(context);
-              _showMessageInfo(context, message);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Show message information dialog
-  void _showMessageInfo(BuildContext context, Message message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Message Info'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildInfoRow('Sender', message.senderId),
-            _buildInfoRow('Status', message.status.name),
-            _buildInfoRow('Mode', message.isOffline ? 'Offline' : 'Online'),
-            _buildInfoRow('Time', message.timestamp.toString()),
-            _buildInfoRow('ID', message.id.toString()),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build info row for message details
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 60,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
-      ),
-    );
+  void _handleReply(Message message) {
+    setState(() {
+      _replyToMessage = message;
+    });
   }
 }

@@ -393,12 +393,38 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Flexible(
-                        child: Text(
-                          friend.name,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                friend.name,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (friend.isVerified) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.verified,
+                                size: 14,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ],
+                            if (friend.isMutual) ...[
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                message: 'Mutual Connection',
+                                child: Icon(
+                                  Icons.people,
+                                  size: 14,
+                                  color: Colors.green.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       Text(
@@ -427,7 +453,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               child: Text(
                                 friend.lastMessage.isNotEmpty
                                     ? friend.lastMessage
-                                    : '@${friend.handle}',
+                                    : 'Say hi to ${friend.name}! 👋',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodyMedium
@@ -439,7 +465,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           : Theme.of(context)
                                                 .colorScheme
                                                 .onSurface
-                                                .withOpacity(0.6),
+                                                .withOpacity(0.5),
+                                      fontStyle: friend.lastMessage.isEmpty
+                                          ? FontStyle.italic
+                                          : FontStyle.normal,
                                       fontWeight: friend.unreadCount > 0
                                           ? FontWeight.w600
                                           : FontWeight.normal,

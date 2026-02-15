@@ -322,6 +322,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
 
+                // Discover More Section
+                if (_matchesSearch('shaadow other apps discover'))
+                  _buildSettingsSection(
+                    context,
+                    title: 'Discover More',
+                    children: [
+                      _buildColorfulTile(
+                        context,
+                        title: 'More from Shaadow',
+                        subtitle: 'Explore our ecosystem',
+                        icon: Icons.auto_awesome_outlined,
+                        color: Colors.deepPurple,
+                        onTap: () {
+                          _showOtherAppsBottomSheet(context);
+                        },
+                      ),
+                    ],
+                  ),
+
                 // Support & About Section
                 if (_matchesSearch('help support about feedback'))
                   _buildSettingsSection(
@@ -562,6 +581,209 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  void _showOtherAppsBottomSheet(BuildContext context) {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.deepPurple,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'More from Shaadow',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Built with privacy and elegance',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                children: [
+                  _buildAppCard(
+                    context,
+                    'Vaultra',
+                    'The ultimate private asset vault for sensitive media and documents.',
+                    Icons.lock_person_rounded,
+                    Colors.blue,
+                    'Coming Q3 2026',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAppCard(
+                    context,
+                    'Lumina',
+                    'Minimalist journal with psychiatric-grade mood tracking.',
+                    Icons.wb_sunny_rounded,
+                    Colors.amber,
+                    'Coming Q4 2026',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAppCard(
+                    context,
+                    'Nyx',
+                    'Anonymous playground for creative developers.',
+                    Icons.code_rounded,
+                    Colors.black87,
+                    'Available Now',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAppCard(
+                    context,
+                    'Zenith',
+                    'High-performance task mesh for agile teams.',
+                    Icons.rocket_launch_rounded,
+                    Colors.indigo,
+                    'Private Beta',
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppCard(
+    BuildContext context,
+    String name,
+    String description,
+    IconData icon,
+    Color color,
+    String status,
+  ) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color, color.withOpacity(0.7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

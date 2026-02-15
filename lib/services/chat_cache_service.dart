@@ -19,8 +19,8 @@ class ChatCacheService {
 
   ChatCacheService._internal();
 
-  // Cache validity duration (24 hours)
-  static const Duration _cacheValidityDuration = Duration(hours: 24);
+  // Cache validity duration (1 hour)
+  static const Duration _cacheValidityDuration = Duration(hours: 1);
 
   // Keys for tracking last sync times
   static const String _lastFriendsSyncKey = 'last_friends_sync';
@@ -117,6 +117,7 @@ class ChatCacheService {
           'is_online': friend.isOnline ? 1 : 0,
           'is_archived': friend.isArchived ? 1 : 0,
           'is_verified': friend.isVerified ? 1 : 0,
+          'is_mutual': friend.isMutual ? 1 : 0,
           'cached_at': DateTime.now().toIso8601String(),
         });
       }
@@ -436,6 +437,7 @@ class ChatCacheService {
           'is_verified': user['is_verified'] == true || user['is_verified'] == 1
               ? 1
               : 0,
+          'is_mutual': user['isMutual'] == true ? 1 : 0,
           'cached_at': DateTime.now().toIso8601String(),
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
@@ -484,6 +486,17 @@ class ChatCacheService {
       final lastSyncStr = await LocalStorageService.getString(
         _lastDiscoverSyncKey,
       );
+      if (lastSyncStr == null) return null;
+      return DateTime.parse(lastSyncStr);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get last sync timestamp for any sync key
+  Future<DateTime?> getLastSyncTime(String syncKey) async {
+    try {
+      final lastSyncStr = await LocalStorageService.getString(syncKey);
       if (lastSyncStr == null) return null;
       return DateTime.parse(lastSyncStr);
     } catch (e) {
@@ -565,6 +578,7 @@ class ChatCacheService {
           'is_verified': user['is_verified'] == true || user['is_verified'] == 1
               ? 1
               : 0,
+          'is_mutual': user['isMutual'] == true ? 1 : 0,
           'cached_at': DateTime.now().toIso8601String(),
         }, conflictAlgorithm: ConflictAlgorithm.replace);
       }

@@ -347,28 +347,17 @@ class SupabaseService {
                 .limit(
                   50,
                 ); // Only load last 50 messages initially (WhatsApp style)
-
+            final currentUserId = _supabase.auth.currentUser?.id;
             final messages = (response as List)
-                .map(
-                  (data) => Message.fromJson({
-                    'id': data['id'],
-                    'text': data['text'],
-                    'senderId': data['sender_id'],
-                    'receiverId': data['receiver_id'],
-                    'conversationId': data['conversation_id'],
-                    'timestamp': data['timestamp'],
-                    'isOffline': data['is_offline'],
-                    'status': data['status'],
-                    'type': data['type'],
-                    'messageHash': data['message_hash'],
-                    'mediaUrl': data['media_url'],
-                    'metadata': data['metadata'],
-                  }),
-                )
+                .map((data) => Message.fromJson(data))
+                .where((m) {
+                  final deletedFor = m.metadata?['deleted_for'] as List?;
+                  return deletedFor == null ||
+                      !deletedFor.contains(currentUserId);
+                })
                 .toList()
                 .reversed
-                .toList(); // Reverse because we fetched latest 50 in descending order
-
+                .toList();
             onUpdate(messages);
           },
         )
@@ -869,6 +858,159 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ Error deleting user account: $e');
       throw Exception('Failed to delete account: $e');
+    }
+  }
+
+  /// Message Deletion Methods
+
+  /// Delete message for everyone (permanent deletion)
+  Future<void> deleteMessageForEveryone(String messageId) async {
+    try {
+      await _supabase.from('messages').delete().eq('id', messageId);
+      debugPrint('✅ Message deleted for everyone: $messageId');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to delete message for everyone: $e');
+      _errorHandler.handleError(
+        AppError.service(
+          message: 'Failed to delete message for everyone: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      rethrow;
+    }
+  }
+
+  /// Delete message for current user (soft delete using metadata)
+  Future<void> deleteMsgForMe(String messageId, String userId) async {
+    try {
+      final response = await _supabase
+          .from('messages')
+          .select('metadata')
+          .eq('id', messageId)
+          .single();
+
+      final metadata = response['metadata'] != null
+          ? Map<String, dynamic>.from(response['metadata'] as Map)
+          : <String, dynamic>{};
+
+      final List<dynamic> deletedFor = metadata['deleted_for'] != null
+          ? List<dynamic>.from(metadata['deleted_for'] as List)
+          : [];
+
+      if (!deletedFor.contains(userId)) {
+        deletedFor.add(userId);
+      }
+
+      metadata['deleted_for'] = deletedFor;
+
+      await _supabase
+          .from('messages')
+          .update({'metadata': metadata})
+          .eq('id', messageId);
+
+      debugPrint('✅ Message hidden for user $userId: $messageId');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to delete message for me: $e');
+      _errorHandler.handleError(
+        AppError.service(
+          message: 'Failed to delete message for me: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      rethrow;
+    }
+  }
+
+  /// Add a reaction to a message
+  Future<void> addMessageReaction(String messageId, String emoji) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // 1. Fetch current message metadata
+      final response = await _supabase
+          .from('messages')
+          .select('metadata')
+          .eq('id', messageId)
+          .single();
+
+      final metadata = response['metadata'] != null
+          ? Map<String, dynamic>.from(response['metadata'] as Map)
+          : <String, dynamic>{};
+
+      // 2. Update reactions
+      // Structure: metadata['reactions'] = {'emoji': ['userId1', 'userId2']}
+      final reactions = metadata['reactions'] != null
+          ? Map<String, dynamic>.from(metadata['reactions'] as Map)
+          : <String, dynamic>{};
+
+      final userIds = reactions[emoji] != null
+          ? List<String>.from(reactions[emoji] as List)
+          : <String>[];
+
+      if (!userIds.contains(userId)) {
+        userIds.add(userId);
+        reactions[emoji] = userIds;
+        metadata['reactions'] = reactions;
+
+        // 3. Save back to DB
+        await _supabase
+            .from('messages')
+            .update({'metadata': metadata})
+            .eq('id', messageId);
+
+        debugPrint('✅ Added reaction $emoji to message $messageId');
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to add reaction: $e');
+    }
+  }
+
+  /// Remove a reaction from a message
+  Future<void> removeMessageReaction(String messageId, String emoji) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // 1. Fetch current message metadata
+      final response = await _supabase
+          .from('messages')
+          .select('metadata')
+          .eq('id', messageId)
+          .single();
+
+      final metadata = response['metadata'] != null
+          ? Map<String, dynamic>.from(response['metadata'] as Map)
+          : <String, dynamic>{};
+
+      if (metadata['reactions'] == null) return;
+
+      final reactions = Map<String, dynamic>.from(metadata['reactions'] as Map);
+
+      if (reactions[emoji] != null) {
+        final userIds = List<String>.from(reactions[emoji] as List);
+        userIds.remove(userId);
+
+        if (userIds.isEmpty) {
+          reactions.remove(emoji);
+        } else {
+          reactions[emoji] = userIds;
+        }
+
+        metadata['reactions'] = reactions;
+
+        // 3. Save back to DB
+        await _supabase
+            .from('messages')
+            .update({'metadata': metadata})
+            .eq('id', messageId);
+
+        debugPrint('✅ Removed reaction $emoji from message $messageId');
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to remove reaction: $e');
     }
   }
 

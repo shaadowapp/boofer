@@ -122,6 +122,8 @@ class BooferApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
+            // Wrap with Consumer to make locale reactive
+            locale: context.watch<LocaleProvider>().locale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             initialRoute: initialRoute,

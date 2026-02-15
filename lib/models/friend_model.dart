@@ -16,6 +16,7 @@ class Friend {
   final bool isBlocked;
   final bool isMuted;
   final bool isVerified;
+  final bool isMutual;
   final String ephemeralTimer; // 'none', 'after_seen', '24_hours', '72_hours'
   final bool isDeleted; // Intentional deletion from lobby
 
@@ -34,6 +35,7 @@ class Friend {
     this.isBlocked = false,
     this.isMuted = false,
     this.isVerified = false,
+    this.isMutual = false,
     this.ephemeralTimer = '24_hours',
     this.isDeleted = false,
   });
@@ -77,6 +79,7 @@ class Friend {
     bool? isBlocked,
     bool? isMuted,
     bool? isVerified,
+    bool? isMutual,
     String? ephemeralTimer,
     bool? isDeleted,
   }) {
@@ -95,6 +98,7 @@ class Friend {
       isBlocked: isBlocked ?? this.isBlocked,
       isMuted: isMuted ?? this.isMuted,
       isVerified: isVerified ?? this.isVerified,
+      isMutual: isMutual ?? this.isMutual,
       ephemeralTimer: ephemeralTimer ?? this.ephemeralTimer,
       isDeleted: isDeleted ?? this.isDeleted,
     );
@@ -117,6 +121,7 @@ class Friend {
       'isBlocked': isBlocked,
       'isMuted': isMuted,
       'isVerified': isVerified,
+      'isMutual': isMutual,
       'ephemeralTimer': ephemeralTimer,
       'isDeleted': isDeleted,
     };
@@ -188,6 +193,7 @@ class Friend {
         isVerified:
             toBool(otherUser['is_verified'] ?? otherUser['isVerified']) ||
             toBool(json['isVerified'] ?? json['is_verified']),
+        isMutual: toBool(json['isMutual'] ?? json['is_mutual']),
         ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
         isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
       );
@@ -213,6 +219,7 @@ class Friend {
       isBlocked: toBool(json['isBlocked'] ?? json['is_blocked']),
       isMuted: toBool(json['isMuted'] ?? json['is_muted']),
       isVerified: toBool(json['isVerified'] ?? json['is_verified']),
+      isMutual: toBool(json['isMutual'] ?? json['is_mutual']),
       ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
       isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
     );

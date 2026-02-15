@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import '../core/database/database_manager.dart';
 import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
@@ -136,6 +137,7 @@ class ChatService {
     MessageType type = MessageType.text,
     String? mediaUrl,
     MessageStatus? status,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       // Validate following status before sending message
@@ -171,6 +173,7 @@ class ChatService {
         type: type,
         mediaUrl: mediaUrl,
         status: status ?? MessageStatus.pending,
+        metadata: metadata,
       );
 
       Message messageToSave = message;
@@ -202,8 +205,10 @@ class ChatService {
         'is_offline': messageToSave.isOffline ? 1 : 0,
         'status': messageToSave.status.name,
         'message_hash': messageToSave.messageHash,
-        'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
+        'metadata': messageToSave.metadata != null
+            ? jsonEncode(messageToSave.metadata)
+            : null,
       });
 
       // Update cache

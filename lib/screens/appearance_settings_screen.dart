@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:provider/provider.dart';
 
 import '../providers/appearance_provider.dart';
@@ -77,7 +78,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       'type': 'solid',
       'color': const Color(0xFFFFF8E1),
     },
-    // Modern gradients
+    // Gradients
     {'id': 'gradient1', 'name': 'Warm Yellow', 'type': 'gradient'},
     {'id': 'gradient2', 'name': 'Soft Pink', 'type': 'gradient'},
     {'id': 'gradient3', 'name': 'Peach', 'type': 'gradient'},
@@ -114,209 +115,111 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Chat Typography Section
+                // Bubble Customization Preview
                 _buildSectionContainer(
                   context,
-                  title: 'Chat Typography',
-                  icon: Icons.text_fields_rounded,
-                  color: Colors.orange,
-                  children: [
-                    Text(
-                      'Adjust text size for chat bubbles',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.1),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'A',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Expanded(
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 6.0,
-                                    activeTrackColor: theme.colorScheme.primary,
-                                    inactiveTrackColor: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 10.0,
-                                    ),
-                                    overlayShape: const RoundSliderOverlayShape(
-                                      overlayRadius: 20.0,
-                                    ),
-                                  ),
-                                  child: Slider(
-                                    value: appearanceProvider.bubbleFontSize,
-                                    min: 12.0,
-                                    max: 24.0,
-                                    divisions: 6,
-                                    label:
-                                        '${appearanceProvider.bubbleFontSize.toInt()}',
-                                    onChanged: (value) {
-                                      appearanceProvider.setBubbleFontSize(
-                                        value,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'A',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Chat Bubble Preview
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Sent message
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: Container(
-                                  margin: const EdgeInsets.only(
-                                    bottom: 8,
-                                    left: 40,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary,
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
-                                      bottomRight: Radius.circular(4),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Hello! How are you?',
-                                    style: TextStyle(
-                                      fontSize:
-                                          appearanceProvider.bubbleFontSize,
-                                      color: theme.colorScheme.onPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Received message
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Container(
-                                  margin: const EdgeInsets.only(
-                                    bottom: 8,
-                                    right: 40,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(4),
-                                      bottomRight: Radius.circular(16),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'I\'m doing great, thanks!',
-                                    style: TextStyle(
-                                      fontSize:
-                                          appearanceProvider.bubbleFontSize,
-                                      color: theme.colorScheme.onSurface,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        'Preview: ${appearanceProvider.bubbleFontSize.toInt()} px',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Bubble Style Section
-                _buildSectionContainer(
-                  context,
-                  title: 'Bubble Style',
+                  title: 'Chat Appearance',
                   icon: Icons.chat_bubble_outline_rounded,
                   color: Colors.blue,
                   children: [
                     Text(
-                      'Choose message bubble appearance',
+                      'Customize your chat experience',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 24),
+                    // Bubble Shape Selection
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildShapeOption(
+                            context,
+                            appearanceProvider,
+                            ChatBubbleShape.round,
+                            Icons.circle_outlined,
+                            'Round',
+                          ),
+                          const SizedBox(width: 12),
+                          _buildShapeOption(
+                            context,
+                            appearanceProvider,
+                            ChatBubbleShape.curve,
+                            Icons.bubble_chart_outlined,
+                            'Curve',
+                          ),
+                          const SizedBox(width: 12),
+                          _buildShapeOption(
+                            context,
+                            appearanceProvider,
+                            ChatBubbleShape.square,
+                            Icons.crop_square_rounded,
+                            'Square',
+                          ),
+                          const SizedBox(width: 12),
+                          _buildShapeOption(
+                            context,
+                            appearanceProvider,
+                            ChatBubbleShape.capsule,
+                            Icons.stadium_outlined,
+                            'Capsule',
+                          ),
+                          const SizedBox(width: 12),
+                          _buildShapeOption(
+                            context,
+                            appearanceProvider,
+                            ChatBubbleShape.leaf,
+                            Icons.eco_outlined,
+                            'Leaf',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    // Typography Slider
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _buildShapeOption(
-                          context,
-                          appearanceProvider,
-                          ChatBubbleShape.rounded,
-                          Icons.circle_outlined,
-                          'Rounded',
+                        const Icon(Icons.text_format, size: 18),
+                        Expanded(
+                          child: Slider(
+                            value: appearanceProvider.bubbleFontSize,
+                            min: 12,
+                            max: 24,
+                            divisions: 6,
+                            onChanged: (v) =>
+                                appearanceProvider.setBubbleFontSize(v),
+                          ),
                         ),
-                        _buildShapeOption(
-                          context,
-                          appearanceProvider,
-                          ChatBubbleShape.standard,
-                          Icons.message_outlined,
-                          'Standard',
-                        ),
-                        _buildShapeOption(
-                          context,
-                          appearanceProvider,
-                          ChatBubbleShape.square,
-                          Icons.crop_square,
-                          'Square',
-                        ),
+                        const Icon(Icons.text_format, size: 26),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Live Preview
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest
+                            .withAlpha(50),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildPreviewBubble(
+                            context,
+                            appearanceProvider,
+                            'Hey! How does this look?',
+                            true,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildPreviewBubble(
+                            context,
+                            appearanceProvider,
+                            'It looks absolutely stunning.',
+                            false,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -715,6 +618,104 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         return [const Color(0xFF00C9FF), const Color(0xFF92FE9D)];
       default:
         return [Colors.grey.shade200, Colors.grey.shade300];
+    }
+  }
+
+  Widget _buildPreviewBubble(
+    BuildContext context,
+    AppearanceProvider appearance,
+    String text,
+    bool isOwn,
+  ) {
+    return Row(
+      mainAxisAlignment: isOwn
+          ? MainAxisAlignment.end
+          : MainAxisAlignment.start,
+      children: [_buildBubbleContent(context, appearance, text, isOwn)],
+    );
+  }
+
+  Widget _buildBubbleContent(
+    BuildContext context,
+    AppearanceProvider appearance,
+    String text,
+    bool isOwn,
+  ) {
+    final theme = Theme.of(context);
+
+    return Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.6,
+        minWidth: 60,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: isOwn
+            ? appearance.accentColor
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: _getPreviewRadius(isOwn, appearance.chatBubbleShape),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: appearance.bubbleFontSize,
+          color: isOwn ? Colors.white : theme.colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  BorderRadius _getPreviewRadius(bool isOwn, ChatBubbleShape shape) {
+    switch (shape) {
+      case ChatBubbleShape.round: // Pill style (Uniform)
+        return BorderRadius.circular(32);
+      case ChatBubbleShape.curve: // Round with tail
+        return BorderRadius.only(
+          topLeft: const Radius.circular(20),
+          topRight: const Radius.circular(20),
+          bottomLeft: isOwn
+              ? const Radius.circular(20)
+              : const Radius.circular(6),
+          bottomRight: isOwn
+              ? const Radius.circular(6)
+              : const Radius.circular(20),
+        );
+      case ChatBubbleShape.square: // Rectangular minimal rounded
+        return BorderRadius.only(
+          topLeft: const Radius.circular(8),
+          topRight: const Radius.circular(8),
+          bottomLeft: isOwn
+              ? const Radius.circular(8)
+              : const Radius.circular(2),
+          bottomRight: isOwn
+              ? const Radius.circular(2)
+              : const Radius.circular(8),
+        );
+      case ChatBubbleShape.capsule: // Rounded with rounded tail
+        return BorderRadius.only(
+          topLeft: const Radius.circular(28),
+          topRight: const Radius.circular(28),
+          bottomLeft: isOwn
+              ? const Radius.circular(28)
+              : const Radius.circular(12),
+          bottomRight: isOwn
+              ? const Radius.circular(12)
+              : const Radius.circular(28),
+        );
+      case ChatBubbleShape.leaf:
+        return BorderRadius.only(
+          topLeft: const Radius.circular(24),
+          topRight: isOwn
+              ? const Radius.circular(4)
+              : const Radius.circular(24),
+          bottomLeft: isOwn
+              ? const Radius.circular(24)
+              : const Radius.circular(4),
+          bottomRight: const Radius.circular(24),
+        );
     }
   }
 }

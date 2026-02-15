@@ -19,6 +19,7 @@ import '../providers/chat_provider.dart';
 import '../services/supabase_service.dart';
 import '../widgets/user_avatar.dart';
 import '../utils/svg_icons.dart';
+import '../widgets/modern_chat_input.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -47,7 +48,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   late final ChatService _chatService;
   final FollowService _followService = FollowService.instance;
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _messageController = TextEditingController();
 
   String? _currentUserId;
   String? _conversationId;
@@ -60,6 +60,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   bool _isFollowing = false;
   String _ephemeralTimer = '24_hours';
   User? _recipientUser;
+  Message? _replyToMessage;
   RealtimeChannel? _realtimeChannel;
   RealtimeChannel? _timerSubscription;
 
@@ -75,7 +76,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       context.read<ChatProvider>().updatePresenceWithConversationId(null);
     }
     _scrollController.dispose();
-    _messageController.dispose();
     _realtimeChannel?.unsubscribe();
     _timerSubscription?.unsubscribe();
     super.dispose();
@@ -186,7 +186,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         _cleanupExpiredMessages();
       }
 
-      if (canChat) {
+      if (canChat && mounted) {
         // Update presence with this conversation ID
         context.read<ChatProvider>().updatePresenceWithConversationId(
           conversationId,
@@ -194,6 +194,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
         // Load existing messages from Supabase
         await _loadMessages(conversationId);
+
+        if (!mounted) return;
 
         // Set up realtime listener
         _setupRealtimeListener(conversationId);
@@ -231,6 +233,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       final messages = (response as List)
           .map((data) => Message.fromJson(data))
+          .where((m) {
+            final deletedFor = m.metadata?['deleted_for'] as List?;
+            return deletedFor == null || !deletedFor.contains(_currentUserId);
+          })
           .toList()
           .reversed
           .toList();
@@ -269,6 +275,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
             if (payload.eventType == PostgresChangeEvent.insert) {
               final newMessage = Message.fromJson(payload.newRecord);
+              final deletedFor = newMessage.metadata?['deleted_for'] as List?;
+              if (deletedFor != null && deletedFor.contains(_currentUserId)) {
+                return;
+              }
 
               if (mounted) {
                 setState(() {
@@ -295,23 +305,26 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               }
             } else if (payload.eventType == PostgresChangeEvent.update) {
               final data = payload.newRecord;
-              final updatedMessageId = data['id'];
+              final updatedMessage = Message.fromJson(data);
+              final deletedFor =
+                  updatedMessage.metadata?['deleted_for'] as List?;
+
               if (mounted) {
+                if (deletedFor != null && deletedFor.contains(_currentUserId)) {
+                  setState(() {
+                    _messages.removeWhere((m) => m.id == updatedMessage.id);
+                    _updateChatItems();
+                  });
+                  return;
+                }
+
                 setState(() {
                   final index = _messages.indexWhere(
-                    (m) => m.id == updatedMessageId,
+                    (m) => m.id == updatedMessage.id,
                   );
                   if (index != -1) {
-                    _messages[index] = _messages[index].copyWith(
-                      status: MessageStatus.values.firstWhere(
-                        (e) => e.name == (data['status'] ?? 'sent'),
-                        orElse: () => MessageStatus.sent,
-                      ),
-                    );
+                    _messages[index] = updatedMessage;
                     _updateChatItems();
-
-                    // Trigger cleanup immediately after any update (like 'seen')
-                    _cleanupExpiredMessages();
                   }
                 });
               }
@@ -705,92 +718,38 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
     if (_isBlocked) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         color: theme.colorScheme.errorContainer.withOpacity(0.3),
-        child: const Center(
-          child: Text(
-            'You have blocked this user',
-            style: TextStyle(color: Colors.red),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.block, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              Text(
+                'You have blocked this user',
+                style: TextStyle(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        8,
-        12,
-        12 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyToMessage != null) _buildReplyPreview(theme),
+        ModernChatInput(
+          autofocus: true,
+          onSendMessage: (text) {
+            _handleSendMessage(text);
+          },
         ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.emoji_emotions_outlined,
-                color: theme.colorScheme.primary,
-              ),
-              onPressed: _showEmojiPicker,
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                ),
-                maxLines: 5,
-                minLines: 1,
-                onChanged: (value) {
-                  setState(() {});
-                },
-              ),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _messageController.text.trim().isEmpty
-                  ? const SizedBox.shrink()
-                  : Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        key: const ValueKey('send'),
-                        icon: const Icon(
-                          Icons.send,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        onPressed: () {
-                          final text = _messageController.text;
-                          if (text.trim().isNotEmpty) {
-                            _handleSendMessage(text);
-                            _messageController.clear();
-                          }
-                        },
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -838,7 +797,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 ? null
                 : widget.recipientName,
             onTap: () => _handleMessageTap(item),
-            onLongPress: () => _handleMessageLongPress(item),
+            onReply: _handleReply,
           );
         } else if (item is DateTime) {
           return _buildDateHeader(item);
@@ -939,11 +898,23 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         receiverId: widget.recipientId,
         conversationId: _conversationId!,
         status: initialStatus,
+        metadata: _replyToMessage != null
+            ? {
+                'reply_to': {
+                  'id': _replyToMessage!.id,
+                  'text': _replyToMessage!.text,
+                  'sender_name': _replyToMessage!.senderId == _currentUserId
+                      ? 'You'
+                      : widget.recipientName,
+                },
+              }
+            : null,
       );
 
       if (mounted) {
         setState(() {
           _messages.add(optimisticMessage);
+          _replyToMessage = null; // Clear reply
           _updateChatItems();
         });
         _scrollToBottom();
@@ -999,120 +970,76 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
-  void _handleMessageTap(Message message) {
-    // Handle message tap
-  }
-
-  void _handleMessageLongPress(Message message) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => _buildMessageContextMenu(message),
-    );
-  }
-
-  Widget _buildMessageContextMenu(Message message) {
-    final isOwnMessage = message.senderId == _currentUserId;
-
+  Widget _buildReplyPreview(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.copy),
-            title: const Text('Copy text'),
-            onTap: () {
-              Navigator.pop(context);
-              // Copy to clipboard
-            },
-          ),
-          if (isOwnMessage)
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete message'),
-              onTap: () {
-                Navigator.pop(context);
-                _deleteMessage(message);
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Message info'),
-            onTap: () {
-              Navigator.pop(context);
-              _showMessageInfo(message);
-            },
-          ),
-        ],
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
       ),
-    );
-  }
-
-  Future<void> _deleteMessage(Message message) async {
-    try {
-      await _chatService.deleteMessage(message.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Message deleted'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete message: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showMessageInfo(Message message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Message Info'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildInfoRow('Sender', message.senderId),
-            _buildInfoRow('Status', message.status.name),
-            _buildInfoRow('Time', message.timestamp.toString()),
-            _buildInfoRow('ID', message.id),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 60,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+          Container(
+            width: 4,
+            height: 32,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Expanded(child: Text(value)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _replyToMessage!.senderId == _currentUserId
+                      ? 'Reply to yourself'
+                      : 'Reply to ${widget.recipientName}',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _replyToMessage!.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: _cancelReply,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
         ],
       ),
     );
+  }
+
+  void _handleMessageTap(Message message) {
+    // Basic tap handler
+  }
+
+  void _handleReply(Message message) {
+    setState(() {
+      _replyToMessage = message;
+    });
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyToMessage = null;
+    });
   }
 
   Future<void> _sendFollowRequest() async {
@@ -1751,259 +1678,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   void _showUserProfile() {
     _navigateToProfile();
-  }
-
-  void _showEmojiPicker() {
-    final theme = Theme.of(context);
-    final emojis = [
-      '😀',
-      '😃',
-      '😄',
-      '😁',
-      '😆',
-      '😅',
-      '🤣',
-      '😂',
-      '🙂',
-      '🙃',
-      '😉',
-      '😊',
-      '😇',
-      '🥰',
-      '😍',
-      '🤩',
-      '😘',
-      '😗',
-      '😚',
-      '😙',
-      '😋',
-      '😛',
-      '😜',
-      '🤪',
-      '😝',
-      '🤑',
-      '🤗',
-      '🤭',
-      '🤫',
-      '🤔',
-      '🤐',
-      '🤨',
-      '😐',
-      '😑',
-      '😶',
-      '😏',
-      '😒',
-      '🙄',
-      '😬',
-      '🤥',
-      '😌',
-      '😔',
-      '😪',
-      '🤤',
-      '😴',
-      '😷',
-      '🤒',
-      '🤕',
-      '🤢',
-      '🤮',
-      '🤧',
-      '🥵',
-      '🥶',
-      '🥴',
-      '😵',
-      '🤯',
-      '🤠',
-      '🥳',
-      '😎',
-      '🤓',
-      '🧐',
-      '😕',
-      '😟',
-      '🙁',
-      '☹️',
-      '😮',
-      '😯',
-      '😲',
-      '😳',
-      '🥺',
-      '😦',
-      '😧',
-      '😨',
-      '😰',
-      '😥',
-      '😢',
-      '😭',
-      '😱',
-      '😖',
-      '😣',
-      '😞',
-      '😓',
-      '😩',
-      '😫',
-      '🥱',
-      '😤',
-      '😡',
-      '😠',
-      '🤬',
-      '😈',
-      '👿',
-      '💀',
-      '☠️',
-      '💩',
-      '🤡',
-      '👹',
-      '👺',
-      '👻',
-      '👽',
-      '👾',
-      '🤖',
-      '😺',
-      '😸',
-      '😹',
-      '😻',
-      '😼',
-      '😽',
-      '🙀',
-      '😿',
-      '😾',
-      '❤️',
-      '🧡',
-      '💛',
-      '💚',
-      '💙',
-      '💜',
-      '🖤',
-      '🤍',
-      '🤎',
-      '💔',
-      '❣️',
-      '💕',
-      '💞',
-      '💓',
-      '💗',
-      '💖',
-      '💘',
-      '💝',
-      '💟',
-      '☮️',
-      '✝️',
-      '☪️',
-      '🕉️',
-      '☸️',
-      '✡️',
-      '🔯',
-      '🕎',
-      '☯️',
-      '☦️',
-      '🛐',
-      '⛎',
-      '♈',
-      '♉',
-      '♊',
-      '♋',
-      '♌',
-      '♍',
-      '♎',
-      '♏',
-      '♐',
-      '👍',
-      '👎',
-      '👊',
-      '✊',
-      '🤛',
-      '🤜',
-      '🤞',
-      '✌️',
-      '🤟',
-      '🤘',
-      '👌',
-      '🤏',
-      '👈',
-      '👉',
-      '👆',
-      '👇',
-      '☝️',
-      '✋',
-      '🤚',
-      '🖐️',
-      '🖖',
-      '👋',
-      '🤙',
-      '💪',
-      '🦾',
-      '🖕',
-      '✍️',
-      '🙏',
-      '🦶',
-      '🦵',
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: 300,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outline.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'Pick an Emoji',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 8,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                ),
-                itemCount: emojis.length,
-                itemBuilder: (context, index) {
-                  return InkWell(
-                    onTap: () {
-                      _messageController.text += emojis[index];
-                      setState(() {});
-                      Navigator.pop(context);
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          emojis[index],
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showComingSoon(String feature) {
