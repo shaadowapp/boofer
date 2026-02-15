@@ -1,3 +1,4 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -177,7 +178,12 @@ class MessageBubble extends StatelessWidget {
       final ids = List<String>.from(userIds as List);
       if (ids.isNotEmpty) {
         if (reactionItems.length < 3) {
-          reactionItems.add(Text(emoji, style: const TextStyle(fontSize: 14)));
+          reactionItems.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(emoji, style: const TextStyle(fontSize: 18)),
+            ),
+          );
         }
         totalCount++;
       }
@@ -200,10 +206,10 @@ class MessageBubble extends StatelessWidget {
         _showReactionDetailsOverlay(context, firstEmoji, ids, currentUserId);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -225,7 +231,7 @@ class MessageBubble extends StatelessWidget {
               Text(
                 '+$totalCount',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   color: theme.colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1218,14 +1224,14 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
           }),
           GestureDetector(
             onTap: () {
-              ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-                // Use parentContext
-                const SnackBar(
-                  content: Text('Custom reactions coming soon!'),
-                  duration: Duration(seconds: 1),
-                ),
+              _close(); // Close the menu overlay
+              _showCustomReactionPicker(
+                widget.parentContext,
+                (emoji) {
+                   Navigator.of(widget.parentContext).pop(); // Close picker dialog
+                   _handleReaction(emoji);
+                },
               );
-              _close();
             },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -1418,21 +1424,32 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
   }
 
   Widget _buildInfoRow(String label, String value, ThemeData theme) {
+    // Minimal design as requested: "Label: Value" in one or two lines but compact.
+    // Actually user said: "show full name (@userhandle) and status read/seen/sent (at timestamp)"
+    // So this generic row might be used differently.
+    // I'll update the CALLER instead?
+    // No, let's just make this row compact.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: TextStyle(
               fontSize: 12,
               color: theme.textTheme.bodySmall?.color,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.end,
+            ),
+          ),
         ],
       ),
     );
@@ -1567,7 +1584,6 @@ class _OverlayDialogState extends State<_OverlayDialog>
 
   @override
   Widget build(BuildContext context) {
-    return Material(
       type: MaterialType.transparency,
       child: Stack(
         children: [
@@ -1579,43 +1595,52 @@ class _OverlayDialogState extends State<_OverlayDialog>
             ),
           ),
           Center(
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).dialogBackgroundColor,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 16),
-                      DefaultTextStyle(
-                        style: Theme.of(context).textTheme.bodyMedium!,
-                        child: widget.content,
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: widget.actions,
-                      ),
-                    ],
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.85,
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).dialogBackgroundColor,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        DefaultTextStyle(
+                          style: Theme.of(context).textTheme.bodyMedium!,
+                          child: widget.content,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: widget.actions,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1648,6 +1673,67 @@ void _showOverlayDialog({
   );
 
   overlayState.insert(overlayEntry);
+}
+
+void _showCustomReactionPicker(
+  BuildContext context,
+  Function(String) onEmojiSelected,
+) {
+  _showOverlayDialog(
+    context: context,
+    title: 'React with...',
+    content: SizedBox(
+      height: 300,
+      width: double.maxFinite,
+      child: EmojiPicker(
+        onEmojiSelected: (category, emoji) {
+          onEmojiSelected(emoji.emoji);
+        },
+        config: Config(
+          height: 256,
+          checkPlatformCompatibility: true,
+          emojiViewConfig: EmojiViewConfig(
+            emojiSizeMax: 28,
+            columns: 7,
+            verticalSpacing: 0,
+            horizontalSpacing: 0,
+            gridPadding: EdgeInsets.zero,
+            recentsLimit: 28,
+            replaceEmojiOnLimitExceed: false,
+            noRecents: const Text(
+              'No Recents',
+              style: TextStyle(fontSize: 20, color: Colors.black26),
+              textAlign: TextAlign.center,
+            ),
+            backgroundColor: Theme.of(context).dialogBackgroundColor,
+            buttonMode: ButtonMode.MATERIAL,
+          ),
+          skinToneConfig: SkinToneConfig(
+            dialogBackgroundColor: Theme.of(context).dialogBackgroundColor,
+            indicatorColor: Theme.of(context).colorScheme.onSurface,
+            enabled: true,
+          ),
+          categoryViewConfig: CategoryViewConfig(
+            initCategory: Category.SMILEYS,
+            backgroundColor: Theme.of(context).dialogBackgroundColor,
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            iconColorSelected: Theme.of(context).colorScheme.primary,
+            backspaceColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            tabIndicatorAnimDuration: kTabScrollDuration,
+            categoryIcons: const CategoryIcons(),
+          ),
+          bottomActionBarConfig: const BottomActionBarConfig(
+            enabled: false,
+          ),
+          searchViewConfig: const SearchViewConfig(),
+        ),
+      ),
+    ),
+    actionBuilder: (close) => [
+      TextButton(onPressed: close, child: const Text('Cancel')),
+    ],
+  );
 }
 
 // Top-level Helper Functions for Overlays

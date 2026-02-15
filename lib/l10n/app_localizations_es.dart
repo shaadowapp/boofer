@@ -51,8 +51,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get privacySettings => 'Configuración de Privacidad';
 
   @override
-  String get managePrivacyPreferences =>
-      'Gestiona tus preferencias de privacidad';
+  String get managePrivacyPreferences => 'Gestiona tus preferencias de privacidad';
 
   @override
   String get blockedUsers => 'Usuarios Bloqueados';
@@ -73,15 +72,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get messageNotifications => 'Notificaciones de Mensajes';
 
   @override
-  String get receiveNotificationsForNewMessages =>
-      'Recibir notificaciones de nuevos mensajes';
+  String get receiveNotificationsForNewMessages => 'Recibir notificaciones de nuevos mensajes';
 
   @override
   String get soundAndVibration => 'Sonido y Vibración';
 
   @override
-  String get customizeNotificationSounds =>
-      'Personalizar sonidos de notificación';
+  String get customizeNotificationSounds => 'Personalizar sonidos de notificación';
 
   @override
   String get storage => 'Almacenamiento';
@@ -96,8 +93,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get autoDownloadMedia => 'Descarga Automática de Medios';
 
   @override
-  String get configureMediaDownloadSettings =>
-      'Configurar ajustes de descarga de medios';
+  String get configureMediaDownloadSettings => 'Configurar ajustes de descarga de medios';
 
   @override
   String get support => 'Soporte';
@@ -112,8 +108,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get contactUs => 'Contáctanos';
 
   @override
-  String get sendFeedbackOrReportIssues =>
-      'Enviar comentarios o reportar problemas';
+  String get sendFeedbackOrReportIssues => 'Enviar comentarios o reportar problemas';
 
   @override
   String get aboutBoofer => 'Acerca de Boofer';
@@ -171,16 +166,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get enterNewUsername => 'Ingresa nuevo nombre de usuario';
 
   @override
-  String get usernameRules =>
-      'Reglas del nombre de usuario:\n• 3-20 caracteres\n• Solo letras, números y guiones bajos\n• Debe comenzar con una letra\n• No puede terminar con guión bajo';
+  String get usernameRules => 'Reglas del nombre de usuario:\n• 3-20 caracteres\n• Solo letras, números y guiones bajos\n• Debe comenzar con una letra\n• No puede terminar con guión bajo';
 
   @override
-  String get usernameChangedSuccessfully =>
-      '¡Nombre de usuario cambiado exitosamente!';
+  String get usernameChangedSuccessfully => '¡Nombre de usuario cambiado exitosamente!';
 
   @override
-  String get usernameChangeError =>
-      'Error al cambiar el nombre de usuario. Inténtalo de nuevo.';
+  String get usernameChangeError => 'Error al cambiar el nombre de usuario. Inténtalo de nuevo.';
 
   @override
   String get save => 'Guardar';

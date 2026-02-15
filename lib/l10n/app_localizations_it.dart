@@ -51,8 +51,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get privacySettings => 'Impostazioni privacy';
 
   @override
-  String get managePrivacyPreferences =>
-      'Gestisci le tue preferenze sulla privacy';
+  String get managePrivacyPreferences => 'Gestisci le tue preferenze sulla privacy';
 
   @override
   String get blockedUsers => 'Utenti bloccati';
@@ -64,8 +63,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get twoFactorAuthentication => 'Autenticazione a due fattori';
 
   @override
-  String get addExtraSecurityToAccount =>
-      'Aggiungi sicurezza extra al tuo account';
+  String get addExtraSecurityToAccount => 'Aggiungi sicurezza extra al tuo account';
 
   @override
   String get notifications => 'Notifiche';
@@ -74,8 +72,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get messageNotifications => 'Notifiche messaggi';
 
   @override
-  String get receiveNotificationsForNewMessages =>
-      'Ricevi notifiche per nuovi messaggi';
+  String get receiveNotificationsForNewMessages => 'Ricevi notifiche per nuovi messaggi';
 
   @override
   String get soundAndVibration => 'Suono e vibrazione';
@@ -96,8 +93,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get autoDownloadMedia => 'Download automatico media';
 
   @override
-  String get configureMediaDownloadSettings =>
-      'Configura impostazioni download media';
+  String get configureMediaDownloadSettings => 'Configura impostazioni download media';
 
   @override
   String get support => 'Supporto';
@@ -170,16 +166,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get enterNewUsername => 'Inserisci nuovo nome utente';
 
   @override
-  String get usernameRules =>
-      'Regole nome utente:\n• 3-20 caratteri\n• Solo lettere, numeri e underscore\n• Deve iniziare con una lettera\n• Non può finire con underscore';
+  String get usernameRules => 'Regole nome utente:\n• 3-20 caratteri\n• Solo lettere, numeri e underscore\n• Deve iniziare con una lettera\n• Non può finire con underscore';
 
   @override
-  String get usernameChangedSuccessfully =>
-      'Nome utente cambiato con successo!';
+  String get usernameChangedSuccessfully => 'Nome utente cambiato con successo!';
 
   @override
-  String get usernameChangeError =>
-      'Errore nel cambiare il nome utente. Riprova.';
+  String get usernameChangeError => 'Errore nel cambiare il nome utente. Riprova.';
 
   @override
   String get save => 'Salva';

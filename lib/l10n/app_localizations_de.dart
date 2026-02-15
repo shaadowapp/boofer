@@ -63,8 +63,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get twoFactorAuthentication => 'Zwei-Faktor-Authentifizierung';
 
   @override
-  String get addExtraSecurityToAccount =>
-      'Zusätzliche Sicherheit für Ihr Konto';
+  String get addExtraSecurityToAccount => 'Zusätzliche Sicherheit für Ihr Konto';
 
   @override
   String get notifications => 'Benachrichtigungen';
@@ -73,8 +72,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messageNotifications => 'Nachrichten-Benachrichtigungen';
 
   @override
-  String get receiveNotificationsForNewMessages =>
-      'Benachrichtigungen für neue Nachrichten erhalten';
+  String get receiveNotificationsForNewMessages => 'Benachrichtigungen für neue Nachrichten erhalten';
 
   @override
   String get soundAndVibration => 'Ton & Vibration';
@@ -95,8 +93,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get autoDownloadMedia => 'Medien automatisch herunterladen';
 
   @override
-  String get configureMediaDownloadSettings =>
-      'Medien-Download-Einstellungen konfigurieren';
+  String get configureMediaDownloadSettings => 'Medien-Download-Einstellungen konfigurieren';
 
   @override
   String get support => 'Support';
@@ -111,8 +108,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUs => 'Kontakt';
 
   @override
-  String get sendFeedbackOrReportIssues =>
-      'Feedback senden oder Probleme melden';
+  String get sendFeedbackOrReportIssues => 'Feedback senden oder Probleme melden';
 
   @override
   String get aboutBoofer => 'Über Boofer';
@@ -170,16 +166,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get enterNewUsername => 'Neuen Benutzernamen eingeben';
 
   @override
-  String get usernameRules =>
-      'Benutzername-Regeln:\n• 3-20 Zeichen\n• Nur Buchstaben, Zahlen und Unterstriche\n• Muss mit einem Buchstaben beginnen\n• Kann nicht mit Unterstrich enden';
+  String get usernameRules => 'Benutzername-Regeln:\n• 3-20 Zeichen\n• Nur Buchstaben, Zahlen und Unterstriche\n• Muss mit einem Buchstaben beginnen\n• Kann nicht mit Unterstrich enden';
 
   @override
-  String get usernameChangedSuccessfully =>
-      'Benutzername erfolgreich geändert!';
+  String get usernameChangedSuccessfully => 'Benutzername erfolgreich geändert!';
 
   @override
-  String get usernameChangeError =>
-      'Fehler beim Ändern des Benutzernamens. Bitte versuchen Sie es erneut.';
+  String get usernameChangeError => 'Fehler beim Ändern des Benutzernamens. Bitte versuchen Sie es erneut.';
 
   @override
   String get save => 'Speichern';

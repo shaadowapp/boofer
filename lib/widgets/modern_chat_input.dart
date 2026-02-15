@@ -1,3 +1,4 @@
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -28,50 +29,6 @@ class _ModernChatInputState extends State<ModernChatInput>
   bool _showEmojiPicker = false;
   late AnimationController _emojiController;
   late Animation<double> _emojiAnimation;
-
-  // Curated modern emoji collection
-  final List<String> _emojis = [
-    '👍',
-    '❤️',
-    '😂',
-    '😮',
-    '😢',
-    '😡',
-    '🎉',
-    '🔥',
-    '🤔',
-    '👀',
-    '👋',
-    '🙌',
-    '🤮',
-    '🤯',
-    '👻',
-    '💀',
-    '💩',
-    '🤡',
-    '🌞',
-    '🌚',
-    '💯',
-    '🚀',
-    '✨',
-    '🌈',
-    '🍕',
-    '🍔',
-    '🍺',
-    '🍻',
-    '🍷',
-    '🥡',
-    '⚽',
-    '🏀',
-    '🎮',
-    '🎲',
-    '🎵',
-    '📷',
-    '✈️',
-    '🏝️',
-    '🏠',
-    '💼',
-  ];
 
   @override
   void initState() {
@@ -278,35 +235,50 @@ class _ModernChatInputState extends State<ModernChatInput>
                       ),
                     ),
                   ),
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 7,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                        ),
-                    itemCount: _emojis.length,
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          _onEmojiSelected(_emojis[index]);
-                        },
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _emojis[index],
-                            style: const TextStyle(fontSize: 22),
-                          ),
-                        ),
-                      );
+                  child: EmojiPicker(
+                    onEmojiSelected: (category, emoji) {
+                      HapticFeedback.lightImpact();
+                      _onEmojiSelected(emoji.emoji);
                     },
+                    config: Config(
+                      height: 256,
+                      checkPlatformCompatibility: true,
+                      emojiViewConfig: EmojiViewConfig(
+                        emojiSizeMax: 28,
+                        columns: 7,
+                        verticalSpacing: 0,
+                        horizontalSpacing: 0,
+                        gridPadding: EdgeInsets.zero,
+                        recentsLimit: 28,
+                        replaceEmojiOnLimitExceed: false,
+                        noRecents: const Text(
+                          'No Recents',
+                          style: TextStyle(fontSize: 20, color: Colors.black26),
+                          textAlign: TextAlign.center,
+                        ),
+                        backgroundColor: theme.colorScheme.surface,
+                        buttonMode: ButtonMode.MATERIAL,
+                      ),
+                      skinToneConfig: SkinToneConfig(
+                        dialogBackgroundColor: theme.colorScheme.surface,
+                        indicatorColor: theme.colorScheme.onSurface,
+                        enabled: true,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        initCategory: Category.SMILEYS,
+                        backgroundColor: theme.colorScheme.surface,
+                        indicatorColor: theme.colorScheme.primary,
+                        iconColor: theme.colorScheme.onSurface.withOpacity(0.5),
+                        iconColorSelected: theme.colorScheme.primary,
+                        backspaceColor: theme.colorScheme.primary,
+                        tabIndicatorAnimDuration: kTabScrollDuration,
+                        categoryIcons: const CategoryIcons(),
+                      ),
+                      bottomActionBarConfig: const BottomActionBarConfig(
+                        enabled: false,
+                      ),
+                      searchViewConfig: const SearchViewConfig(),
+                    ),
                   ),
                 ),
               ),
