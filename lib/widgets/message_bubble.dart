@@ -197,7 +197,7 @@ class MessageBubble extends StatelessWidget {
           (k) => (reactions[k] as List).isNotEmpty,
         );
         final ids = List<String>.from(reactions[firstEmoji] as List);
-        _showReactionDetails(context, firstEmoji, ids);
+        _showReactionDetailsOverlay(context, firstEmoji, ids, currentUserId);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1417,29 +1417,6 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
     );
   }
 
-  void _showOverlayDialog({
-    required BuildContext context,
-    required String title,
-    required Widget content,
-    List<Widget> Function(VoidCallback close)? actionBuilder,
-  }) {
-    final overlayState = Overlay.of(context);
-    late OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (ctx) => _OverlayDialog(
-        title: title,
-        content: content,
-        actions: actionBuilder != null
-            ? actionBuilder(() => overlayEntry.remove())
-            : [],
-        onDismiss: () => overlayEntry.remove(),
-      ),
-    );
-
-    overlayState.insert(overlayEntry);
-  }
-
   Widget _buildInfoRow(String label, String value, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1502,80 +1479,9 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
     );
   }
 
-  void _showReactionDetailsOverlay(
-    BuildContext context,
-    String emoji,
-    List<String> userIds,
-  ) async {
-    // Fetch user details for these IDs
-    // Since we are inside an overlay, better to fetch first or show loading
-    // For simplicity, let's show the overlay with a FutureBuilder or similar.
-    // However, overlays are synchronous. We'll pass the future.
+  // Methods moved to global helpers
 
-    _showOverlayDialog(
-      context: context,
-      title: 'Reactions $emoji',
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 200, // Fixed height for list
-        child: FutureBuilder<List<Map<String, String>>>(
-          future: _fetchReactors(userIds),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No details available'));
-            }
-            return ListView.builder(
-              itemCount: snapshot.data!.length,
-              itemBuilder: (context, index) {
-                final user = snapshot.data![index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundImage: user['avatar'] != null
-                        ? NetworkImage(user['avatar']!)
-                        : null,
-                    child: user['avatar'] == null
-                        ? Text(user['name']![0].toUpperCase())
-                        : null,
-                  ),
-                  title: Text(user['name'] ?? 'Unknown'),
-                );
-              },
-            );
-          },
-        ),
-      ),
-      actionBuilder: (close) => [
-        TextButton(onPressed: close, child: const Text('Close')),
-      ],
-    );
-  }
-
-  Future<List<Map<String, String>>> _fetchReactors(List<String> userIds) async {
-    final List<Map<String, String>> reactors = [];
-    for (final id in userIds) {
-      if (id == widget.currentUserId) {
-        reactors.add({
-          'name': 'You',
-          'avatar': null,
-        }); // Add avatar if available in context
-        continue;
-      }
-      try {
-        final profile = await SupabaseService.instance.getUserProfile(id);
-        reactors.add({
-          'name': profile?.fullName ?? 'Unknown',
-          'avatar': profile?.avatar,
-        });
-      } catch (e) {
-        reactors.add({'name': 'Unknown User', 'avatar': null});
-      }
-    }
-    return reactors;
-  }
+  // Moved to top-level helper functions
 
   void _executeDelete(BuildContext context, {required bool forEveryone}) async {
     try {
@@ -1719,4 +1625,101 @@ class _OverlayDialogState extends State<_OverlayDialog>
       ),
     );
   }
+}
+
+void _showOverlayDialog({
+  required BuildContext context,
+  required String title,
+  required Widget content,
+  List<Widget> Function(VoidCallback close)? actionBuilder,
+}) {
+  final overlayState = Overlay.of(context);
+  late OverlayEntry overlayEntry;
+
+  overlayEntry = OverlayEntry(
+    builder: (ctx) => _OverlayDialog(
+      title: title,
+      content: content,
+      actions: actionBuilder != null
+          ? actionBuilder(() => overlayEntry.remove())
+          : [],
+      onDismiss: () => overlayEntry.remove(),
+    ),
+  );
+
+  overlayState.insert(overlayEntry);
+}
+
+// Top-level Helper Functions for Overlays
+// Method removed - provided by global helper
+
+void _showReactionDetailsOverlay(
+  BuildContext context,
+  String emoji,
+  List<String> userIds,
+  String? currentUserId,
+) async {
+  _showOverlayDialog(
+    context: context,
+    title: 'Reactions $emoji',
+    content: SizedBox(
+      width: double.maxFinite,
+      height: 200,
+      child: FutureBuilder<List<Map<String, String?>>>(
+        future: _fetchReactors(userIds, currentUserId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No details available'));
+          }
+          return ListView.builder(
+            itemCount: snapshot.data!.length,
+            itemBuilder: (context, index) {
+              final user = snapshot.data![index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundImage: user['avatar'] != null
+                      ? NetworkImage(user['avatar']!)
+                      : null,
+                  child: user['avatar'] == null
+                      ? Text((user['name'] ?? '?')[0].toUpperCase())
+                      : null,
+                ),
+                title: Text(user['name'] ?? 'Unknown'),
+              );
+            },
+          );
+        },
+      ),
+    ),
+    actionBuilder: (close) => [
+      TextButton(onPressed: close, child: const Text('Close')),
+    ],
+  );
+}
+
+Future<List<Map<String, String?>>> _fetchReactors(
+  List<String> userIds,
+  String? currentUserId,
+) async {
+  final List<Map<String, String?>> reactors = [];
+  for (final id in userIds) {
+    if (id == currentUserId) {
+      reactors.add({'name': 'You', 'avatar': null});
+      continue;
+    }
+    try {
+      final profile = await SupabaseService.instance.getUserProfile(id);
+      reactors.add({
+        'name': profile?.fullName ?? 'Unknown',
+        'avatar': profile?.avatar,
+      });
+    } catch (e) {
+      reactors.add({'name': 'Unknown User', 'avatar': null});
+    }
+  }
+  return reactors;
 }

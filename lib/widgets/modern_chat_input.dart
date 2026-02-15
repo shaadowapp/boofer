@@ -170,10 +170,7 @@ class _ModernChatInputState extends State<ModernChatInput>
                 offset: const Offset(0, 4),
               ),
             ],
-            border: Border.all(
-              color: theme.colorScheme.outline.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.transparent, width: 0),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -222,6 +219,10 @@ class _ModernChatInputState extends State<ModernChatInput>
                               ),
                             ),
                             border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 14,
@@ -252,7 +253,7 @@ class _ModernChatInputState extends State<ModernChatInput>
                       child: IconButton(
                         icon: Icon(
                           Icons.arrow_upward_rounded,
-                          size: 24,
+                          size: 28,
                           color: _isComposing
                               ? theme.colorScheme.onPrimary
                               : theme.colorScheme.onSurface.withOpacity(0.3),
