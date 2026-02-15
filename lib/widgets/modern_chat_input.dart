@@ -158,8 +158,8 @@ class _ModernChatInputState extends State<ModernChatInput>
             16,
             8,
             16,
-            16 + 24.0,
-          ), // Added bottom padding for safe area/nav bar
+            16,
+          ), // Docked to bottom, standard padding
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(32),

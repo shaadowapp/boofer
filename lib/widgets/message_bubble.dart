@@ -248,7 +248,8 @@ class MessageBubble extends StatelessWidget {
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
-      builder: (context) => _ReactionOverlayContent(
+      builder: (ctx) => _ReactionOverlayContent(
+        parentContext: context, // Pass original context
         message: message,
         currentUserId: currentUserId,
         senderName: senderName,
@@ -1018,6 +1019,7 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
 }
 
 class _ReactionOverlayContent extends StatefulWidget {
+  final BuildContext parentContext;
   final Message message;
   final String currentUserId;
   final String? senderName;
@@ -1030,6 +1032,7 @@ class _ReactionOverlayContent extends StatefulWidget {
 
   const _ReactionOverlayContent({
     super.key,
+    required this.parentContext,
     required this.message,
     required this.currentUserId,
     this.senderName,
@@ -1169,15 +1172,18 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
         : <String, dynamic>{};
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ), // Reduced padding
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1193,21 +1199,27 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
                 _handleReaction(emoji);
               },
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(6),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 2,
+                ), // Reduced margin
+                padding: const EdgeInsets.all(4), // Reduced padding
                 decoration: BoxDecoration(
                   color: isReacted
                       ? Theme.of(context).colorScheme.primaryContainer
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                child: Text(
+                  emoji,
+                  style: const TextStyle(fontSize: 22),
+                ), // Reduced font size slightly
               ),
             );
           }),
           GestureDetector(
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+                // Use parentContext
                 const SnackBar(
                   content: Text('Custom reactions coming soon!'),
                   duration: Duration(seconds: 1),
@@ -1216,15 +1228,15 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
               _close();
             },
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.all(6),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.add,
-                size: 24,
+                size: 20, // Reduced size
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
@@ -1239,15 +1251,18 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
     final iconColor = theme.iconTheme.color;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 4,
+        vertical: 2,
+      ), // Reduced padding
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1255,46 +1270,66 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
+            padding: EdgeInsets.zero, // Remove internal padding
+            constraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 40,
+            ), // Tighter constraints
             onPressed: () {
               _close();
               if (widget.onReply != null) widget.onReply!(widget.message);
             },
-            icon: Icon(Icons.reply_rounded, color: iconColor),
+            icon: Icon(
+              Icons.reply_rounded,
+              color: iconColor,
+              size: 20,
+            ), // Smaller icon
             tooltip: 'Reply',
           ),
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
             onPressed: () {
               _close();
-              _copyMessage(context);
+              _copyMessage(widget.parentContext); // Use parentContext
             },
-            icon: Icon(Icons.copy_rounded, color: iconColor),
+            icon: Icon(Icons.copy_rounded, color: iconColor, size: 20),
             tooltip: 'Copy',
           ),
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
             onPressed: () {
               _close();
-              _showMessageInfo(context);
+              _showMessageInfo(widget.parentContext); // Use parentContext
             },
-            icon: Icon(Icons.info_outline_rounded, color: iconColor),
+            icon: Icon(Icons.info_outline_rounded, color: iconColor, size: 20),
             tooltip: 'Info',
           ),
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
             onPressed: () {
               _close();
               _shareMessage();
             },
-            icon: Icon(Icons.share_rounded, color: iconColor),
+            icon: Icon(Icons.share_rounded, color: iconColor, size: 20),
             tooltip: 'Share',
           ),
-          if (widget.isOwnMessage)
-            IconButton(
-              onPressed: () {
-                _close();
-                _showDeleteDialog(context);
-              },
-              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-              tooltip: 'Delete',
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
+            onPressed: () {
+              _close();
+              _showDeleteDialog(widget.parentContext); // Use parentContext
+            },
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.red,
+              size: 20,
             ),
+            tooltip: 'Delete',
+          ),
         ],
       ),
     );
