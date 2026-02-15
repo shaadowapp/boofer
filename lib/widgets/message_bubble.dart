@@ -1407,14 +1407,13 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
           ),
         ],
       ),
-      actions: [
+      actionBuilder: (close) => [
         TextButton(
           onPressed:
-              () {}, // Handled by overlay dismissal, but we need a close button logic
+              close, // Handled by overlay dismissal, but we need a close button logic
           child: const Text('Close'),
         ),
       ],
-      // Since actions in my custom overlay will be wrapped, I'll just pass a list of action widgets that call a dismiss callback I provide
     );
   }
 
@@ -1422,7 +1421,7 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
     required BuildContext context,
     required String title,
     required Widget content,
-    List<Widget>? actions,
+    List<Widget> Function(VoidCallback close)? actionBuilder,
   }) {
     final overlayState = Overlay.of(context);
     late OverlayEntry overlayEntry;
@@ -1431,7 +1430,9 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
       builder: (ctx) => _OverlayDialog(
         title: title,
         content: content,
-        actions: actions ?? [],
+        actions: actionBuilder != null
+            ? actionBuilder(() => overlayEntry.remove())
+            : [],
         onDismiss: () => overlayEntry.remove(),
       ),
     );
@@ -1499,6 +1500,81 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
           ),
       ],
     );
+  }
+
+  void _showReactionDetailsOverlay(
+    BuildContext context,
+    String emoji,
+    List<String> userIds,
+  ) async {
+    // Fetch user details for these IDs
+    // Since we are inside an overlay, better to fetch first or show loading
+    // For simplicity, let's show the overlay with a FutureBuilder or similar.
+    // However, overlays are synchronous. We'll pass the future.
+
+    _showOverlayDialog(
+      context: context,
+      title: 'Reactions $emoji',
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 200, // Fixed height for list
+        child: FutureBuilder<List<Map<String, String>>>(
+          future: _fetchReactors(userIds),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No details available'));
+            }
+            return ListView.builder(
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                final user = snapshot.data![index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundImage: user['avatar'] != null
+                        ? NetworkImage(user['avatar']!)
+                        : null,
+                    child: user['avatar'] == null
+                        ? Text(user['name']![0].toUpperCase())
+                        : null,
+                  ),
+                  title: Text(user['name'] ?? 'Unknown'),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actionBuilder: (close) => [
+        TextButton(onPressed: close, child: const Text('Close')),
+      ],
+    );
+  }
+
+  Future<List<Map<String, String>>> _fetchReactors(List<String> userIds) async {
+    final List<Map<String, String>> reactors = [];
+    for (final id in userIds) {
+      if (id == widget.currentUserId) {
+        reactors.add({
+          'name': 'You',
+          'avatar': null,
+        }); // Add avatar if available in context
+        continue;
+      }
+      try {
+        final profile = await SupabaseService.instance.getUserProfile(id);
+        reactors.add({
+          'name': profile?.fullName ?? 'Unknown',
+          'avatar': profile?.avatar,
+        });
+      } catch (e) {
+        reactors.add({'name': 'Unknown User', 'avatar': null});
+      }
+    }
+    return reactors;
   }
 
   void _executeDelete(BuildContext context, {required bool forEveryone}) async {
