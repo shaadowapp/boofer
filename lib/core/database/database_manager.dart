@@ -409,9 +409,16 @@ class DatabaseManager {
 
     if (oldVersion < 7) {
       // Add is_mutual column to all relevant tables
-      await db.execute(
-        'ALTER TABLE cached_friends ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
-      );
+      try {
+        await db.execute(
+          'ALTER TABLE cached_friends ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        // Ignore duplicate column error if it already exists
+        if (!e.toString().contains('duplicate column name')) {
+          rethrow;
+        }
+      }
 
       await db.execute(
         'ALTER TABLE cached_discover_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',

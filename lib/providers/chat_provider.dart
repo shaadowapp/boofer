@@ -415,7 +415,16 @@ class ChatProvider with ChangeNotifier {
 
   // Chat management methods
   List<Friend> get activeChats {
-    return _friends.where((friend) => !friend.isArchived).toList();
+    final active = _friends.where((friend) => !friend.isArchived).toList();
+    active.sort((a, b) {
+      // Sort pinned chats first
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      // Then by last message time if both or neither are pinned
+      return b.lastMessageTime.compareTo(a.lastMessageTime);
+    });
+    return active;
   }
 
   List<Friend> get archivedChats {
@@ -461,6 +470,47 @@ class ChatProvider with ChangeNotifier {
   Future<void> unmuteChat(String chatId) async {
     _mutedChats.remove(chatId);
     notifyListeners();
+  }
+
+  bool isChatPinned(String chatId) {
+    // Check if the friend is pinned by looking at the _friends list
+    try {
+      final friend = _friends.firstWhere((f) => f.id == chatId);
+      return friend.isPinned;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> pinChat(String chatId) async {
+    final friendIndex = _friends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      _friends[friendIndex] = _friends[friendIndex].copyWith(isPinned: true);
+
+      // Re-sort active chats implicitly by updating list order or letting getter handle sort
+      // Since activeChats getter re-sorts, we just need to notify.
+      // But we should probably also update cache to persist pinning.
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser != null) {
+        await ChatCacheService.instance.cacheFriends(currentUser.id, _friends);
+      }
+
+      notifyListeners();
+    }
+  }
+
+  Future<void> unpinChat(String chatId) async {
+    final friendIndex = _friends.indexWhere((friend) => friend.id == chatId);
+    if (friendIndex != -1) {
+      _friends[friendIndex] = _friends[friendIndex].copyWith(isPinned: false);
+
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser != null) {
+        await ChatCacheService.instance.cacheFriends(currentUser.id, _friends);
+      }
+
+      notifyListeners();
+    }
   }
 
   Future<bool> markAsRead(String chatId) async {

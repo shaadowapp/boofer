@@ -427,18 +427,40 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ],
                         ),
                       ),
-                      Text(
-                        _formatTime(friend.lastMessageTime),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: friend.unreadCount > 0
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.5),
-                          fontWeight: friend.unreadCount > 0
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
+                      Row(
+                        children: [
+                          if (chatProvider.isChatMuted(friend.id)) ...[
+                            Icon(
+                              Icons.volume_off,
+                              size: 16,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          if (chatProvider.isChatPinned(friend.id)) ...[
+                            Icon(
+                              Icons.push_pin,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            _formatTime(friend.lastMessageTime),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: friend.unreadCount > 0
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withOpacity(0.5),
+                                  fontWeight: friend.unreadCount > 0
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -521,185 +543,217 @@ class _LobbyScreenState extends State<LobbyScreen> {
   ) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true, // Allow full height if needed
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
 
-            // Header with friend info
-            Row(
-              children: [
-                Hero(
-                  tag: 'avatar_sheet_${friend.id}',
-                  child: UserAvatar(
-                    avatar: friend.avatar,
-                    profilePicture: friend.profilePicture,
-                    name: friend.name,
-                    radius: 30,
-                    fontSize: 24,
+              // Header with friend info
+              Row(
+                children: [
+                  Hero(
+                    tag: 'avatar_sheet_${friend.id}',
+                    child: UserAvatar(
+                      avatar: friend.avatar,
+                      profilePicture: friend.profilePicture,
+                      name: friend.name,
+                      radius: 30,
+                      fontSize: 24,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            friend.name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          if (friend.isVerified ||
-                              AppConstants.officialIds.contains(friend.id)) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.verified,
-                              size: 16,
-                              color: friend.id == AppConstants.booferId
-                                  ? Colors.green
-                                  : Theme.of(context).colorScheme.primary,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              friend.name,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
+                            if (friend.isVerified ||
+                                AppConstants.officialIds.contains(
+                                  friend.id,
+                                )) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.verified,
+                                size: 16,
+                                color: friend.id == AppConstants.booferId
+                                    ? Colors.green
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                            ],
+                            // Unread eye indicator after name
+                            if (friend.unreadCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.visibility_off,
+                                size: 16,
+                                color: chatProvider.isChatMuted(friend.id)
+                                    ? Colors.orange
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                            ],
                           ],
-                          // Unread eye indicator after name
-                          if (friend.unreadCount > 0) ...[
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.visibility_off,
-                              size: 16,
-                              color: chatProvider.isChatMuted(friend.id)
-                                  ? Colors.orange
-                                  : Theme.of(context).colorScheme.primary,
-                            ),
-                          ],
-                        ],
-                      ),
-                      Text(
-                        '${friend.formattedHandle} • (${friend.formattedVirtualNumber})',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.6),
                         ),
-                      ),
-                    ],
+                        Text(
+                          '${friend.formattedHandle} • (${friend.formattedVirtualNumber})',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Chat options
-            _buildChatOption(
-              context,
-              icon: Icons.archive,
-              title: chatProvider.isChatArchived(friend.id)
-                  ? l10n.unarchiveChat
-                  : l10n.archiveChat,
-              onTap: () async {
-                Navigator.pop(context);
-                if (chatProvider.isChatArchived(friend.id)) {
-                  await chatProvider.unarchiveChat(friend.id);
-                  _showSnackBar(l10n.chatUnarchived, Colors.green);
-                } else {
-                  await chatProvider.archiveChat(friend.id);
-                  _showSnackBar(l10n.chatArchived, Colors.green);
-                }
-              },
-            ),
-
-            _buildChatOption(
-              context,
-              icon: chatProvider.isChatMuted(friend.id)
-                  ? Icons.volume_up
-                  : Icons.volume_off,
-              title: chatProvider.isChatMuted(friend.id)
-                  ? l10n.unmuteChat
-                  : l10n.muteChat,
-              onTap: () async {
-                Navigator.pop(context);
-                if (chatProvider.isChatMuted(friend.id)) {
-                  await chatProvider.unmuteChat(friend.id);
-                  _showSnackBar(l10n.chatUnmuted, Colors.green);
-                } else {
-                  await chatProvider.muteChat(friend.id);
-                  _showSnackBar(l10n.chatMuted, Colors.orange);
-                }
-              },
-            ),
-
-            _buildChatOption(
-              context,
-              icon: friend.unreadCount > 0
-                  ? Icons.mark_email_read
-                  : Icons.mark_email_unread,
-              title: friend.unreadCount > 0
-                  ? l10n.markAsRead
-                  : l10n.markAsUnread,
-              onTap: () async {
-                Navigator.pop(context);
-                if (friend.unreadCount > 0) {
-                  final success = await chatProvider.markAsRead(friend.id);
-                  if (success) {
-                    _showSnackBar('Marked as read', Colors.green);
+              // Chat options
+              // Pin/Unpin
+              _buildChatOption(
+                context,
+                icon: chatProvider.isChatPinned(friend.id)
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin,
+                title: chatProvider.isChatPinned(friend.id)
+                    ? 'Unpin Chat'
+                    : 'Pin Chat',
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (chatProvider.isChatPinned(friend.id)) {
+                    await chatProvider.unpinChat(friend.id);
+                    _showSnackBar('Chat unpinned', Colors.green);
                   } else {
-                    _showSnackBar('Failed to mark as read', Colors.red);
+                    await chatProvider.pinChat(friend.id);
+                    _showSnackBar('Chat pinned', Colors.green);
                   }
-                } else {
-                  final success = await chatProvider.markAsUnread(friend.id);
-                  if (success) {
-                    _showSnackBar('Marked as unread', Colors.blue);
+                },
+              ),
+
+              _buildChatOption(
+                context,
+                icon: Icons.archive,
+                title: chatProvider.isChatArchived(friend.id)
+                    ? l10n.unarchiveChat
+                    : l10n.archiveChat,
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (chatProvider.isChatArchived(friend.id)) {
+                    await chatProvider.unarchiveChat(friend.id);
+                    _showSnackBar(l10n.chatUnarchived, Colors.green);
                   } else {
-                    _showSnackBar('Failed to mark as unread', Colors.red);
+                    await chatProvider.archiveChat(friend.id);
+                    _showSnackBar(l10n.chatArchived, Colors.green);
                   }
-                }
-              },
-            ),
+                },
+              ),
 
-            _buildChatOption(
-              context,
-              icon: Icons.block,
-              title: chatProvider.isUserBlocked(friend.id)
-                  ? l10n.unblockUser
-                  : l10n.blockUser,
-              isDestructive: !chatProvider.isUserBlocked(friend.id),
-              onTap: () {
-                Navigator.pop(context);
-                if (chatProvider.isUserBlocked(friend.id)) {
-                  _unblockUser(friend, chatProvider, l10n);
-                } else {
-                  _showBlockConfirmation(friend, chatProvider, l10n);
-                }
-              },
-            ),
+              _buildChatOption(
+                context,
+                icon: chatProvider.isChatMuted(friend.id)
+                    ? Icons.volume_up
+                    : Icons.volume_off,
+                title: chatProvider.isChatMuted(friend.id)
+                    ? l10n.unmuteChat
+                    : l10n.muteChat,
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (chatProvider.isChatMuted(friend.id)) {
+                    await chatProvider.unmuteChat(friend.id);
+                    _showSnackBar(l10n.chatUnmuted, Colors.green);
+                  } else {
+                    await chatProvider.muteChat(friend.id);
+                    _showSnackBar(l10n.chatMuted, Colors.orange);
+                  }
+                },
+              ),
 
-            _buildChatOption(
-              context,
-              icon: Icons.delete,
-              title: l10n.deleteChat,
-              isDestructive: true,
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(friend, chatProvider, l10n);
-              },
-            ),
-          ],
+              _buildChatOption(
+                context,
+                icon: friend.unreadCount > 0
+                    ? Icons.mark_email_read
+                    : Icons.mark_email_unread,
+                title: friend.unreadCount > 0
+                    ? l10n.markAsRead
+                    : l10n.markAsUnread,
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (friend.unreadCount > 0) {
+                    final success = await chatProvider.markAsRead(friend.id);
+                    if (success) {
+                      _showSnackBar('Marked as read', Colors.green);
+                    } else {
+                      _showSnackBar('Failed to mark as read', Colors.red);
+                    }
+                  } else {
+                    final success = await chatProvider.markAsUnread(friend.id);
+                    if (success) {
+                      _showSnackBar('Marked as unread', Colors.blue);
+                    } else {
+                      _showSnackBar('Failed to mark as unread', Colors.red);
+                    }
+                  }
+                },
+              ),
+
+              _buildChatOption(
+                context,
+                icon: Icons.block,
+                title: chatProvider.isUserBlocked(friend.id)
+                    ? l10n.unblockUser
+                    : l10n.blockUser,
+                isDestructive: !chatProvider.isUserBlocked(friend.id),
+                onTap: () {
+                  Navigator.pop(context);
+                  if (chatProvider.isUserBlocked(friend.id)) {
+                    _unblockUser(friend, chatProvider, l10n);
+                  } else {
+                    _showBlockConfirmation(friend, chatProvider, l10n);
+                  }
+                },
+              ),
+
+              _buildChatOption(
+                context,
+                icon: Icons.delete,
+                title: l10n.deleteChat,
+                isDestructive: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation(friend, chatProvider, l10n);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

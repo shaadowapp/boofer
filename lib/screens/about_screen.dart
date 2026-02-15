@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 
@@ -52,16 +53,12 @@ class AboutScreen extends StatelessWidget {
                   icon: Icons.business_outlined,
                   color: Colors.indigo,
                   children: [
-                    _buildInfoTile(
-                      context,
-                      'Developer',
-                      'Shaadow / Surya Subhrajit',
-                    ),
-                    _buildInfoTile(context, 'Website', 'shaadow.io'),
+                    _buildInfoTile(context, 'Developer', 'Shaadow Platforms'),
+                    _buildInfoTile(context, 'Website', 'shaadow.com'),
                     _buildInfoTile(
                       context,
                       'Support Email',
-                      'hello@shaadow.io',
+                      'hello@shaadow.com',
                     ),
                     _buildInfoTile(context, 'Headquarters', 'Odisha, India'),
                   ],
@@ -146,43 +143,18 @@ class AboutScreen extends StatelessWidget {
   Widget _buildAppHeader(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Using layout similar to MainScreen app bar branding but centered
     return Column(
       children: [
-        const SizedBox(height: 16),
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: theme.colorScheme.primary.withOpacity(0.2),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.chat_bubble_rounded,
-            color: Colors.white,
-            size: 40,
-          ),
+        const SizedBox(height: 32),
+        // Just the logo, simpler and consistent with request
+        SvgPicture.asset(
+          'assets/images/logo/boofer-logo.svg',
+          height: 60,
+          width: 200,
+          // Removed manual color filter to let original logo colors show
         ),
         const SizedBox(height: 16),
-        Text(
-          'Boofer',
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
         Text(
           'Next-gen private messaging with virtual identities',
           style: theme.textTheme.bodyMedium?.copyWith(
@@ -352,7 +324,7 @@ class AboutScreen extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'Developed by Shaadow',
+          'Developed by Shaadow Platforms',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -361,7 +333,7 @@ class AboutScreen extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '© 2026 Shaadow Technologies. All rights reserved.',
+          '© 2026. Shaadow Platforms. All rights reserved.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
           ),

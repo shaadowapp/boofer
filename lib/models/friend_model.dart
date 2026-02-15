@@ -17,6 +17,7 @@ class Friend {
   final bool isMuted;
   final bool isVerified;
   final bool isMutual;
+  final bool isPinned;
   final String ephemeralTimer; // 'none', 'after_seen', '24_hours', '72_hours'
   final bool isDeleted; // Intentional deletion from lobby
 
@@ -36,6 +37,7 @@ class Friend {
     this.isMuted = false,
     this.isVerified = false,
     this.isMutual = false,
+    this.isPinned = false,
     this.ephemeralTimer = '24_hours',
     this.isDeleted = false,
   });
@@ -80,6 +82,7 @@ class Friend {
     bool? isMuted,
     bool? isVerified,
     bool? isMutual,
+    bool? isPinned,
     String? ephemeralTimer,
     bool? isDeleted,
   }) {
@@ -99,6 +102,7 @@ class Friend {
       isMuted: isMuted ?? this.isMuted,
       isVerified: isVerified ?? this.isVerified,
       isMutual: isMutual ?? this.isMutual,
+      isPinned: isPinned ?? this.isPinned,
       ephemeralTimer: ephemeralTimer ?? this.ephemeralTimer,
       isDeleted: isDeleted ?? this.isDeleted,
     );
@@ -122,6 +126,7 @@ class Friend {
       'isMuted': isMuted,
       'isVerified': isVerified,
       'isMutual': isMutual,
+      'isPinned': isPinned,
       'ephemeralTimer': ephemeralTimer,
       'isDeleted': isDeleted,
     };
@@ -194,6 +199,7 @@ class Friend {
             toBool(otherUser['is_verified'] ?? otherUser['isVerified']) ||
             toBool(json['isVerified'] ?? json['is_verified']),
         isMutual: toBool(json['isMutual'] ?? json['is_mutual']),
+        isPinned: toBool(json['isPinned'] ?? json['is_pinned']),
         ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
         isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
       );
@@ -220,6 +226,7 @@ class Friend {
       isMuted: toBool(json['isMuted'] ?? json['is_muted']),
       isVerified: toBool(json['isVerified'] ?? json['is_verified']),
       isMutual: toBool(json['isMutual'] ?? json['is_mutual']),
+      isPinned: toBool(json['isPinned'] ?? json['is_pinned']),
       ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
       isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
     );

@@ -18,6 +18,7 @@ import 'blocked_users_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -170,19 +171,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       _buildColorfulTile(
                         context,
-                        title: 'Account',
-                        subtitle: 'Manage your account',
-                        icon: Icons.person_outline,
-                        color: Colors.blue,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const AccountSettingsScreen(),
-                          ),
-                        ),
-                      ),
-                      _buildColorfulTile(
-                        context,
                         title: 'Privacy',
                         subtitle: 'Visibility and data',
                         icon: Icons.lock_outline,
@@ -322,25 +310,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
 
-                // Discover More Section
-                if (_matchesSearch('shaadow other apps discover'))
-                  _buildSettingsSection(
-                    context,
-                    title: 'Discover More',
-                    children: [
-                      _buildColorfulTile(
-                        context,
-                        title: 'More from Shaadow',
-                        subtitle: 'Explore our ecosystem',
-                        icon: Icons.auto_awesome_outlined,
-                        color: Colors.deepPurple,
-                        onTap: () {
-                          _showOtherAppsBottomSheet(context);
-                        },
-                      ),
-                    ],
-                  ),
-
                 // Support & About Section
                 if (_matchesSearch('help support about feedback'))
                   _buildSettingsSection(
@@ -416,12 +385,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
 
-                // Account Actions
-                if (_matchesSearch('sign out logout'))
+                // By Shaadow Section (Moved here)
+                if (_matchesSearch('shaadow favtunes music other apps'))
                   _buildSettingsSection(
                     context,
-                    title: 'Actions',
+                    title: 'By Shaadow',
                     children: [
+                      _buildImageTile(
+                        context,
+                        title: 'FavTunes',
+                        subtitle: 'Songs, Playlists & Favorite Songs🎵',
+                        imageUrl:
+                            'https://play-lh.googleusercontent.com/Ma4z5yry3h9q8spnvO1_Y-eu-N4YduL2WyIm_EozgifUAbfz4g34J8o88L74iYRmPLEDm-EfF2skMZ963ixBdg=w240-h480-rw',
+                        color: Colors.deepPurple,
+                        onTap: () {
+                          launchUrl(
+                            Uri.parse(
+                              'https://play.google.com/store/apps/details?id=com.shaadow.tunes',
+                            ),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+
+                // Account Actions
+                if (_matchesSearch('sign out logout account')) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: Divider(
+                      height: 1.2,
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.8,
+                      ),
+                    ),
+                  ),
+                  _buildSettingsSection(
+                    context,
+                    title: '', // Remove title as requested
+                    children: [
+                      _buildColorfulTile(
+                        context,
+                        title: 'Account',
+                        subtitle: 'Manage your account',
+                        icon: Icons.person_outline,
+                        color: Colors.blue,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AccountSettingsScreen(),
+                          ),
+                        ),
+                      ),
                       _buildColorfulTile(
                         context,
                         title: 'Sign Out',
@@ -433,8 +452,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ],
                   ),
+                ],
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 40),
+
+                // App Footer
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 28, 60),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PROUDLY',
+                        style: theme.textTheme.displayMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 55,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'INDIAN',
+                        style: theme.textTheme.displayMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 55,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'APP',
+                        style: theme.textTheme.displayMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 55,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Made with ❤️ & support.',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "We're feeling grateful for having you here.",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ]),
             ),
           ),
@@ -458,16 +540,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-          child: Text(
-            title,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
+        if (title.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Text(
+              title,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
         Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
@@ -548,6 +631,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildImageTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required String imageUrl,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 48, // Slightly larger for image visibility
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  image: DecorationImage(
+                    image: NetworkImage(imageUrl),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 20,
+                color: theme.colorScheme.primary.withValues(alpha: 0.7),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildColorfulSwitchTile(
     BuildContext context, {
     required String title,
@@ -581,209 +730,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           Switch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-
-  void _showOtherAppsBottomSheet(BuildContext context) {
-    final theme = Theme.of(context);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(5),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.deepPurple.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'More from Shaadow',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Built with privacy and elegance',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  _buildAppCard(
-                    context,
-                    'Vaultra',
-                    'The ultimate private asset vault for sensitive media and documents.',
-                    Icons.lock_person_rounded,
-                    Colors.blue,
-                    'Coming Q3 2026',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAppCard(
-                    context,
-                    'Lumina',
-                    'Minimalist journal with psychiatric-grade mood tracking.',
-                    Icons.wb_sunny_rounded,
-                    Colors.amber,
-                    'Coming Q4 2026',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAppCard(
-                    context,
-                    'Nyx',
-                    'Anonymous playground for creative developers.',
-                    Icons.code_rounded,
-                    Colors.black87,
-                    'Available Now',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAppCard(
-                    context,
-                    'Zenith',
-                    'High-performance task mesh for agile teams.',
-                    Icons.rocket_launch_rounded,
-                    Colors.indigo,
-                    'Private Beta',
-                  ),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppCard(
-    BuildContext context,
-    String name,
-    String description,
-    IconData icon,
-    Color color,
-    String status,
-  ) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color, color.withOpacity(0.7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

@@ -41,21 +41,39 @@ class MessageBubble extends StatelessWidget {
         reactionsData != null &&
         (reactionsData as Map).values.any((v) => (v as List).isNotEmpty);
 
-    BoxDecoration decoration = BoxDecoration(
-      color: isOwnMessage
-          ? appearance.accentColor
-          : (hasWallpaper
-                ? theme.colorScheme.surface.withAlpha(204)
-                : theme.colorScheme.surfaceContainerHighest),
-      borderRadius: _getBorderRadius(isOwnMessage, appearance.chatBubbleShape),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withAlpha(20),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    );
+    // Check if message is strictly a SINGLE emoji
+    bool isEmojiOnly = false;
+    if (message.type == MessageType.text) {
+      final text = message.text.trim();
+      // "Single emoji size will be big, multiple emoji... shown with bubble"
+      if (text.isNotEmpty && text.characters.length == 1) {
+        final hasLettersOrNumbers = RegExp(r'[a-zA-Z0-9]').hasMatch(text);
+        if (!hasLettersOrNumbers) {
+          isEmojiOnly = true;
+        }
+      }
+    }
+
+    BoxDecoration decoration = isEmojiOnly
+        ? const BoxDecoration() // No background for emoji-only
+        : BoxDecoration(
+            color: isOwnMessage
+                ? appearance.accentColor
+                : (hasWallpaper
+                      ? theme.colorScheme.surface.withValues(alpha: 0.8)
+                      : theme.colorScheme.surfaceContainerHighest),
+            borderRadius: _getBorderRadius(
+              isOwnMessage,
+              appearance.chatBubbleShape,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          );
 
     final bubbleInternal = Container(
       constraints: BoxConstraints(
@@ -65,7 +83,9 @@ class MessageBubble extends StatelessWidget {
       decoration: decoration,
       child: Padding(
         // Add extra bottom padding if there are reactions to avoid overlap with text
-        padding: EdgeInsets.fromLTRB(14, 10, 14, hasReactions ? 18 : 10),
+        padding: isEmojiOnly
+            ? EdgeInsets.zero
+            : EdgeInsets.fromLTRB(14, 10, 14, hasReactions ? 18 : 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -83,7 +103,10 @@ class MessageBubble extends StatelessWidget {
               context,
               isOwnMessage,
               theme,
-              appearance.bubbleFontSize,
+              isEmojiOnly
+                  ? 56.0
+                  : appearance.bubbleFontSize, // Larger size for emoji
+              isEmojiOnly,
             ),
           ],
         ),
@@ -198,23 +221,20 @@ class MessageBubble extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        // Find first populated reaction to show details, or show summary
-        final firstEmoji = reactions.keys.firstWhere(
-          (k) => (reactions[k] as List).isNotEmpty,
-        );
-        final ids = List<String>.from(reactions[firstEmoji] as List);
-        _showReactionDetailsOverlay(context, firstEmoji, ids, currentUserId);
+        _showReactionDetailsBottomSheet(context, reactions);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        width: 28, // Fixed width for circle
+        height: 28, // Fixed height for circle
+        padding: const EdgeInsets.all(0),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
             ),
           ],
           border: Border.all(
@@ -222,24 +242,93 @@ class MessageBubble extends StatelessWidget {
             width: 0.5,
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...reactionItems,
-            if (totalCount > 3) ...[
-              const SizedBox(width: 4),
+        alignment: Alignment.center,
+        child: Text(
+          reactions.keys.first,
+          style: const TextStyle(
+            fontSize: 14,
+            height: 1.2,
+          ), // Adjusted height for centering
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  void _showReactionDetailsBottomSheet(
+    BuildContext context,
+    Map<String, dynamic> reactions,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // Aggregate all reactions into a list of (User, Emoji) tuples or similar
+        // For simplicity, let's just list users grouped by emoji or a flat list
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                '+$totalCount',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
+                'Reactions',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: reactions.entries.expand((entry) {
+                    final emoji = entry.key;
+                    final userIds = List<String>.from(entry.value as List);
+                    return userIds.map((userId) {
+                      final isMe = userId == currentUserId;
+                      return FutureBuilder<app_user.User?>(
+                        future: isMe
+                            ? null
+                            : SupabaseService.instance.getUserProfile(userId),
+                        builder: (context, snapshot) {
+                          final user = snapshot.data;
+                          final name = isMe
+                              ? 'You'
+                              : (user?.fullName ?? 'Unknown');
+                          return ListTile(
+                            leading: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                            title: Text(name),
+                            trailing: isMe
+                                ? TextButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+                                      await SupabaseService.instance
+                                          .removeMessageReaction(
+                                            message.id,
+                                            emoji,
+                                          );
+                                    },
+                                    child: const Text(
+                                      'Remove',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  )
+                                : null,
+                          );
+                        },
+                      );
+                    });
+                  }).toList(),
                 ),
               ),
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -696,13 +785,24 @@ class MessageBubble extends StatelessWidget {
     BuildContext context,
     bool isOwnMessage,
     ThemeData theme,
-    double fontSize,
+    double fontSize, // This is now used as base size
+    bool isEmojiOnly,
   ) {
     final text = message.text;
     final urlRegExp = RegExp(
       r'((https?:\/\/|www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\)\],\.?!]*)?|(?<![a-zA-Z0-9\-\.])(?:[a-zA-Z0-9\-]+\.)+(?:com|org|net|dev|io|app|gov|edu|me|info|biz|co|us|uk|in|tv|xyz)(?![a-zA-Z0-9\-\.]))',
       caseSensitive: false,
     );
+
+    if (isEmojiOnly) {
+      return Text(
+        text,
+        style: TextStyle(
+          fontSize: fontSize, // Passed as 40.0 or similar
+          // No color override needed for emojis usually, but good to be safe
+        ),
+      );
+    }
 
     if (!text.contains(urlRegExp)) {
       return Text(
@@ -1733,54 +1833,6 @@ void _showCustomReactionPicker(
 
 // Top-level Helper Functions for Overlays
 // Method removed - provided by global helper
-
-void _showReactionDetailsOverlay(
-  BuildContext context,
-  String emoji,
-  List<String> userIds,
-  String? currentUserId,
-) async {
-  _showOverlayDialog(
-    context: context,
-    title: 'Reactions $emoji',
-    content: SizedBox(
-      width: double.maxFinite,
-      height: 200,
-      child: FutureBuilder<List<Map<String, String?>>>(
-        future: _fetchReactors(userIds, currentUserId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No details available'));
-          }
-          return ListView.builder(
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) {
-              final user = snapshot.data![index];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundImage: user['avatar'] != null
-                      ? NetworkImage(user['avatar']!)
-                      : null,
-                  child: user['avatar'] == null
-                      ? Text((user['name'] ?? '?')[0].toUpperCase())
-                      : null,
-                ),
-                title: Text(user['name'] ?? 'Unknown'),
-              );
-            },
-          );
-        },
-      ),
-    ),
-    actionBuilder: (close) => [
-      TextButton(onPressed: close, child: const Text('Close')),
-    ],
-  );
-}
 
 Future<List<Map<String, String?>>> _fetchReactors(
   List<String> userIds,
