@@ -249,9 +249,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0F0F1A),
-        body: Center(child: CircularProgressIndicator(color: Colors.white24)),
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F0F1A),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Colors.white.withValues(alpha: 0.24),
+          ),
+        ),
       );
     }
 
@@ -418,16 +422,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           child: _isLoggingIn
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Center(
                     child: Column(
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF845EF7)),
-                        SizedBox(height: 12),
+                        const CircularProgressIndicator(
+                          color: Color(0xFF845EF7),
+                        ),
+                        const SizedBox(height: 12),
                         Text(
                           'Logging you in...',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.54),
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -653,7 +662,9 @@ class _SliderDots extends StatelessWidget {
           width: current == i ? 22 : 6,
           height: 6,
           decoration: BoxDecoration(
-            color: current == i ? Colors.white70 : Colors.white20,
+            color: current == i
+                ? Colors.white.withValues(alpha: 0.70)
+                : Colors.white.withValues(alpha: 0.20),
             borderRadius: BorderRadius.circular(3),
           ),
         ),
@@ -921,8 +932,10 @@ class _SwipeBarState extends State<_SwipeBar>
                                 Flexible(
                                   child: Text(
                                     widget.label,
-                                    style: const TextStyle(
-                                      color: Colors.white54,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.54,
+                                      ),
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                       letterSpacing: 0.3,
@@ -931,9 +944,9 @@ class _SwipeBarState extends State<_SwipeBar>
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Icon(
+                                Icon(
                                   Icons.arrow_forward_rounded,
-                                  color: Colors.white30,
+                                  color: Colors.white.withValues(alpha: 0.30),
                                   size: 16,
                                 ),
                               ],
