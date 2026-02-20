@@ -19,7 +19,6 @@ class StringUtils {
   /// Checks if a string is a valid UUID or the Boofer ID "0"
   static bool isUuid(String? s) {
     if (s == null) return false;
-    if (s == '0') return true; // Boofer hack
     final uuidRegex = RegExp(
       r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
       caseSensitive: false,

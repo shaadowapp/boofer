@@ -1,4 +1,5 @@
 import 'user_model.dart';
+import 'message_model.dart';
 import '../utils/string_utils.dart';
 
 class Friend {
@@ -20,6 +21,10 @@ class Friend {
   final bool isPinned;
   final String ephemeralTimer; // 'none', 'after_seen', '24_hours', '72_hours'
   final bool isDeleted; // Intentional deletion from lobby
+  final bool isLastMessageEncrypted;
+  final Map<String, dynamic>? lastMessageEncryptedContent;
+  final String? lastSenderId;
+  final MessageStatus? lastMessageStatus;
 
   Friend({
     required this.id,
@@ -40,6 +45,10 @@ class Friend {
     this.isPinned = false,
     this.ephemeralTimer = '24_hours',
     this.isDeleted = false,
+    this.isLastMessageEncrypted = false,
+    this.lastMessageEncryptedContent,
+    this.lastSenderId,
+    this.lastMessageStatus,
   });
 
   /// Get formatted virtual number (XXX-XXX-XXXX)
@@ -85,6 +94,10 @@ class Friend {
     bool? isPinned,
     String? ephemeralTimer,
     bool? isDeleted,
+    bool? isLastMessageEncrypted,
+    Map<String, dynamic>? lastMessageEncryptedContent,
+    String? lastSenderId,
+    MessageStatus? lastMessageStatus,
   }) {
     return Friend(
       id: id ?? this.id,
@@ -105,6 +118,12 @@ class Friend {
       isPinned: isPinned ?? this.isPinned,
       ephemeralTimer: ephemeralTimer ?? this.ephemeralTimer,
       isDeleted: isDeleted ?? this.isDeleted,
+      isLastMessageEncrypted:
+          isLastMessageEncrypted ?? this.isLastMessageEncrypted,
+      lastMessageEncryptedContent:
+          lastMessageEncryptedContent ?? this.lastMessageEncryptedContent,
+      lastSenderId: lastSenderId ?? this.lastSenderId,
+      lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
     );
   }
 
@@ -129,6 +148,10 @@ class Friend {
       'isPinned': isPinned,
       'ephemeralTimer': ephemeralTimer,
       'isDeleted': isDeleted,
+      'isLastMessageEncrypted': isLastMessageEncrypted,
+      'lastMessageEncryptedContent': lastMessageEncryptedContent,
+      'lastSenderId': lastSenderId,
+      'lastMessageStatus': lastMessageStatus?.name,
     };
   }
 
@@ -171,6 +194,16 @@ class Friend {
       return false;
     }
 
+    MessageStatus? toStatus(dynamic value) {
+      if (value == null) return null;
+      if (value is MessageStatus) return value;
+      final statusStr = value.toString().toLowerCase();
+      return MessageStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == statusStr,
+        orElse: () => MessageStatus.sent,
+      );
+    }
+
     if (otherUser != null) {
       return Friend(
         id: toString(otherUser['id']),
@@ -202,6 +235,21 @@ class Friend {
         isPinned: toBool(json['isPinned'] ?? json['is_pinned']),
         ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
         isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
+        isLastMessageEncrypted: toBool(
+          json['isLastMessageEncrypted'] ??
+              json['is_last_message_encrypted'] ??
+              json['is_encrypted'],
+        ),
+        lastMessageEncryptedContent:
+            json['lastMessageEncryptedContent'] ??
+            json['last_message_encrypted_content'] ??
+            json['encrypted_content'],
+        lastSenderId: toString(
+          json['lastSenderId'] ?? json['last_sender_id'] ?? json['sender_id'],
+        ),
+        lastMessageStatus: toStatus(
+          json['lastMessageStatus'] ?? json['last_status'] ?? json['status'],
+        ),
       );
     }
 
@@ -229,6 +277,21 @@ class Friend {
       isPinned: toBool(json['isPinned'] ?? json['is_pinned']),
       ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
       isDeleted: toBool(json['isDeleted'] ?? json['is_deleted']),
+      isLastMessageEncrypted: toBool(
+        json['isLastMessageEncrypted'] ??
+            json['is_last_message_encrypted'] ??
+            json['is_encrypted'],
+      ),
+      lastMessageEncryptedContent:
+          json['lastMessageEncryptedContent'] ??
+          json['last_message_encrypted_content'] ??
+          json['encrypted_content'],
+      lastSenderId: toString(
+        json['lastSenderId'] ?? json['last_sender_id'] ?? json['sender_id'],
+      ),
+      lastMessageStatus: toStatus(
+        json['lastMessageStatus'] ?? json['last_status'] ?? json['status'],
+      ),
     );
   }
 

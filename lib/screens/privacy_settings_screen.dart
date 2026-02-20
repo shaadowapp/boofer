@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/supabase_service.dart';
+import '../models/privacy_settings_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -8,15 +11,103 @@ class PrivacySettingsScreen extends StatefulWidget {
 }
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
-  // Mock settings state
-  String _lastSeen = 'Everyone';
-  String _profilePhoto = 'My Contacts';
-  String _about = 'Everyone';
-  bool _readReceipts = true;
+  final SupabaseService _supabaseService = SupabaseService.instance;
+  UserPrivacySettings? _settings;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final settings = await _supabaseService.getPrivacySettings(user.id);
+      if (mounted) {
+        setState(() {
+          _settings = settings;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateSetting(UserPrivacySettings newSettings) async {
+    setState(() => _settings = newSettings);
+    await _supabaseService.updatePrivacySettings(newSettings);
+  }
+
+  void _showOptionsDialog({
+    required String title,
+    required String currentValue,
+    required List<String> options,
+    required Function(String) onSelected,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ...options.map((option) {
+                return RadioListTile<String>(
+                  title: Text(_formatValue(option)),
+                  value: option,
+                  groupValue: currentValue,
+                  onChanged: (value) {
+                    if (value != null) {
+                      onSelected(value);
+                      Navigator.pop(context);
+                    }
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatValue(String value) {
+    if (value == 'everyone') return 'Everyone';
+    if (value == 'friends') return 'Friends';
+    if (value == 'nobody') return 'Nobody';
+    if (value == 'off') return 'Off';
+    if (value == 'after_seen') return 'After Seen';
+    if (value.endsWith('_hours')) {
+      final hours = value.split('_')[0];
+      return '$hours Hours';
+    }
+    return value;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Privacy')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final s = _settings!;
 
     return Scaffold(
       body: CustomScrollView(
@@ -35,23 +126,40 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 _buildPrivacyItem(
                   context,
                   title: 'Last Seen & Online',
-                  value: _lastSeen,
+                  value: _formatValue(s.lastSeen),
                   icon: Icons.visibility_outlined,
-                  onTap: () {},
+                  onTap: () => _showOptionsDialog(
+                    title: 'Last Seen & Online',
+                    currentValue: s.lastSeen,
+                    options: ['everyone', 'friends', 'nobody'],
+                    onSelected: (val) =>
+                        _updateSetting(s.copyWith(lastSeen: val)),
+                  ),
                 ),
                 _buildPrivacyItem(
                   context,
                   title: 'Profile Photo',
-                  value: _profilePhoto,
+                  value: _formatValue(s.profilePhoto),
                   icon: Icons.account_circle_outlined,
-                  onTap: () {},
+                  onTap: () => _showOptionsDialog(
+                    title: 'Profile Photo',
+                    currentValue: s.profilePhoto,
+                    options: ['everyone', 'friends', 'nobody'],
+                    onSelected: (val) =>
+                        _updateSetting(s.copyWith(profilePhoto: val)),
+                  ),
                 ),
                 _buildPrivacyItem(
                   context,
                   title: 'About',
-                  value: _about,
+                  value: _formatValue(s.about),
                   icon: Icons.info_outline,
-                  onTap: () {},
+                  onTap: () => _showOptionsDialog(
+                    title: 'About',
+                    currentValue: s.about,
+                    options: ['everyone', 'friends', 'nobody'],
+                    onSelected: (val) => _updateSetting(s.copyWith(about: val)),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _buildSwitchItem(
@@ -59,22 +167,80 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   title: 'Read Receipts',
                   subtitle:
                       'If turned off, you won\'t send or receive Read Receipts. Read Receipts are always sent for group chats.',
-                  value: _readReceipts,
+                  value: s.readReceipts,
                   icon: Icons.done_all,
-                  onChanged: (value) => setState(() => _readReceipts = value),
+                  onChanged: (value) =>
+                      _updateSetting(s.copyWith(readReceipts: value)),
                 ),
                 const SizedBox(height: 24),
                 _buildSectionHeader(context, 'Disappearing messages'),
                 _buildPrivacyItem(
                   context,
                   title: 'Default message timer',
-                  value: 'Off',
+                  value: _formatValue(s.defaultMessageTimer),
                   icon: Icons.timer_outlined,
-                  onTap: () {},
+                  onTap: () => _showOptionsDialog(
+                    title: 'Default message timer',
+                    currentValue: s.defaultMessageTimer,
+                    options: [
+                      'after_seen',
+                      '12_hours',
+                      '24_hours',
+                      '48_hours',
+                      'custom',
+                    ],
+                    onSelected: (val) {
+                      if (val == 'custom') {
+                        _showCustomTimerDialog();
+                      } else {
+                        _updateSetting(s.copyWith(defaultMessageTimer: val));
+                      }
+                    },
+                  ),
                 ),
                 const SizedBox(height: 32),
               ]),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCustomTimerDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Custom Timer (Hours)'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Enter hours (1-72)',
+            suffixText: 'hours',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final hours = int.tryParse(controller.text);
+              if (hours != null && hours > 0 && hours <= 72) {
+                _updateSetting(
+                  _settings!.copyWith(defaultMessageTimer: '${hours}_hours'),
+                );
+                Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter 1-72 hours')),
+                );
+              }
+            },
+            child: const Text('Set'),
           ),
         ],
       ),

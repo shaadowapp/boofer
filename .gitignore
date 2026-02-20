@@ -94,3 +94,7 @@ firebase_rules_temp_testing.js
 # build_debug_fast.bat
 # build_release.bat
 # build_release_optimized.bat
+
+# Moltbook credentials
+.moltbook_credentials.json
+moltbook_register.json

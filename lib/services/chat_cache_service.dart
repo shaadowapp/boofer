@@ -7,7 +7,7 @@ import '../models/friend_model.dart';
 import '../services/local_storage_service.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// WhatsApp-style chat cache service for offline-first architecture
+/// Modern chat cache service for offline-first architecture
 /// Implements stale-while-revalidate pattern to minimize bandwidth usage
 class ChatCacheService {
   static ChatCacheService? _instance;

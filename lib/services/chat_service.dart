@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'package:sqflite/sqflite.dart';
 import '../core/database/database_manager.dart';
 import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
@@ -53,9 +55,34 @@ class ChatService {
       // Subscribe to real-time updates from Supabase
       final parts = conversationId.split('_');
       if (parts.length == 3) {
-        _supabaseService.listenToMessages(conversationId, (messages) {
-          _messageCache[conversationId] = messages;
-          _messagesController.add(messages);
+        _supabaseService.listenToMessages(conversationId, (
+          remoteMessages,
+        ) async {
+          // Fetch local messages to find plaintext for sender
+          final localResults = await _database.query(
+            'SELECT id, text FROM messages WHERE conversation_id = ?',
+            [conversationId],
+          );
+          final localMap = {
+            for (var r in localResults) r['id'] as String: r['text'] as String,
+          };
+
+          final mergedMessages = remoteMessages.map((m) {
+            if (m.senderId == userId &&
+                (m.text == '[Encrypted]' || m.text.isEmpty)) {
+              final localText = localMap[m.id];
+              if (localText != null && localText != '[Encrypted]') {
+                return m.copyWith(text: localText);
+              }
+            }
+            return m;
+          }).toList();
+
+          _messageCache[conversationId] = mergedMessages;
+          _messagesController.add(mergedMessages);
+
+          // Background sync to local DB
+          _syncToLocal(mergedMessages);
         });
       }
 
@@ -176,9 +203,32 @@ class ChatService {
         metadata: metadata,
       );
 
+      // 1. Save to local database with PLAINTEXT first (avoids race condition with listener)
+      await _database.insert('messages', {
+        'id': message.id,
+        'text': message.text,
+        'sender_id': message.senderId,
+        'receiver_id': message.receiverId,
+        'conversation_id': message.conversationId,
+        'timestamp': message.timestamp.toIso8601String(),
+        'is_offline': message.isOffline ? 1 : 0,
+        'status': message.status.name,
+        'message_hash': message.messageHash,
+        'updated_at': DateTime.now().toIso8601String(),
+        'created_at': message.timestamp.toIso8601String(),
+        'is_encrypted': message.isEncrypted ? 1 : 0,
+        'encrypted_content': message.encryptedContent != null
+            ? jsonEncode(message.encryptedContent)
+            : null,
+        'encryption_version': message.encryptionVersion,
+        'metadata': message.metadata != null
+            ? jsonEncode(message.metadata)
+            : null,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+
       Message messageToSave = message;
 
-      // Send to Supabase only if receiver is someone else
+      // 2. Send to Supabase only if receiver is someone else
       if (receiverId != null && receiverId != senderId) {
         final sentMessage = await _supabaseService.sendMessage(
           conversationId: conversationId,
@@ -194,10 +244,10 @@ class ChatService {
         }
       }
 
-      // Save to database
+      // 3. Update local database if status/metadata changed after sending
       await _database.insert('messages', {
         'id': messageToSave.id,
-        'text': messageToSave.text,
+        'text': message.text, // ALWAYS keep local plaintext for sender
         'sender_id': messageToSave.senderId,
         'receiver_id': messageToSave.receiverId,
         'conversation_id': messageToSave.conversationId,
@@ -206,10 +256,16 @@ class ChatService {
         'status': messageToSave.status.name,
         'message_hash': messageToSave.messageHash,
         'updated_at': DateTime.now().toIso8601String(),
+        'created_at': messageToSave.timestamp.toIso8601String(),
+        'is_encrypted': messageToSave.isEncrypted ? 1 : 0,
+        'encrypted_content': messageToSave.encryptedContent != null
+            ? jsonEncode(messageToSave.encryptedContent)
+            : null,
+        'encryption_version': messageToSave.encryptionVersion,
         'metadata': messageToSave.metadata != null
             ? jsonEncode(messageToSave.metadata)
             : null,
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       // Update cache
       if (_messageCache.containsKey(conversationId)) {
@@ -224,6 +280,14 @@ class ChatService {
 
       return messageToSave;
     } catch (e, stackTrace) {
+      // CRITICAL: Rethrow security/encryption errors
+      final errorStr = e.toString();
+      if (errorStr.contains('Encryption failed') ||
+          errorStr.contains('SECURITY ERROR') ||
+          errorStr.contains('Recipient has not enabled E2EE')) {
+        rethrow;
+      }
+
       _errorHandler.handleError(
         AppError.database(
           message: 'Failed to send message: $e',
@@ -348,7 +412,8 @@ class ChatService {
           MAX(timestamp) as last_message_time,
           COUNT(*) as message_count,
           (SELECT text FROM messages m2 WHERE m2.conversation_id = m1.conversation_id ORDER BY timestamp DESC LIMIT 1) as last_message,
-          (SELECT sender_id FROM messages m2 WHERE m2.conversation_id = m1.conversation_id ORDER BY timestamp DESC LIMIT 1) as last_sender_id
+          (SELECT sender_id FROM messages m2 WHERE m2.conversation_id = m1.conversation_id ORDER BY timestamp DESC LIMIT 1) as last_sender_id,
+          (SELECT status FROM messages m2 WHERE m2.conversation_id = m1.conversation_id ORDER BY timestamp DESC LIMIT 1) as last_status
         FROM messages m1
         WHERE sender_id = ? OR receiver_id = ?
         GROUP BY conversation_id
@@ -403,6 +468,61 @@ class ChatService {
       );
       return 0;
     }
+  }
+
+  Future<void> _syncToLocal(List<Message> messages) async {
+    for (final m in messages) {
+      // 1. If remote message is encrypted, check if we already have plaintext locally
+      String textToSave = m.text;
+      if (textToSave == '[Encrypted]' || textToSave.isEmpty) {
+        final existing = await _database.query(
+          'SELECT text FROM messages WHERE id = ?',
+          [m.id],
+        );
+        if (existing.isNotEmpty) {
+          final localText = existing.first['text'] as String;
+          if (localText != '[Encrypted]' && localText.isNotEmpty) {
+            textToSave = localText; // Keep local plaintext
+          }
+        }
+      }
+
+      // 2. Upsert into local database
+      await _database.insert('messages', {
+        'id': m.id,
+        'text': textToSave,
+        'sender_id': m.senderId,
+        'receiver_id': m.receiverId,
+        'conversation_id': m.conversationId,
+        'timestamp': m.timestamp.toIso8601String(),
+        'status': m.status.name,
+        'is_offline': 0,
+        'is_encrypted': m.isEncrypted ? 1 : 0,
+        'encrypted_content': m.encryptedContent != null
+            ? jsonEncode(m.encryptedContent)
+            : null,
+        'encryption_version': m.encryptionVersion,
+        'updated_at': DateTime.now().toIso8601String(),
+        'created_at': m.timestamp.toIso8601String(),
+        'metadata': m.metadata != null ? jsonEncode(m.metadata) : null,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
+  /// Get message text from local database by ID
+  Future<String?> getMessageText(String messageId) async {
+    try {
+      final results = await _database.query(
+        'SELECT text FROM messages WHERE id = ?',
+        [messageId],
+      );
+      if (results.isNotEmpty) {
+        return results.first['text'] as String?;
+      }
+    } catch (e) {
+      debugPrint('Error getting message text: $e');
+    }
+    return null;
   }
 
   /// Create or get conversation ID for two users

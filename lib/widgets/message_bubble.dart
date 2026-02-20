@@ -10,6 +10,7 @@ import '../providers/appearance_provider.dart';
 import 'link_warning_bottom_sheet.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart' as app_user;
+import '../screens/user_profile_screen.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -135,7 +136,9 @@ class MessageBubble extends StatelessWidget {
           isOwnMessage: isOwnMessage,
           onReply: () {
             HapticFeedback.lightImpact();
-            onReply?.call(message);
+            if (onReply != null) {
+              onReply!(message);
+            }
           },
           child: Row(
             mainAxisAlignment: isOwnMessage
@@ -428,9 +431,11 @@ class MessageBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(context);
-            onReply?.call(message);
+            if (onReply != null) {
+              onReply!(message);
+            }
           },
           icon: Icon(Icons.reply_rounded, color: iconColor),
           tooltip: 'Reply',
@@ -463,13 +468,16 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  void _copyMessage(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: message.text));
-    // Removed toast message as requested
+  void _copyMessage(BuildContext context) async {
+    if (context.mounted) {
+      Clipboard.setData(ClipboardData(text: message.text));
+    }
   }
 
-  void _shareMessage(BuildContext context) {
-    Share.share(message.text);
+  void _shareMessage(BuildContext context) async {
+    if (context.mounted) {
+      Share.share(message.text);
+    }
   }
 
   void _showMessageInfo(BuildContext context) async {
@@ -569,6 +577,9 @@ class MessageBubble extends StatelessWidget {
         return Colors.red;
       case MessageStatus.pending:
         return Colors.orange;
+      case MessageStatus.decryptionFailed:
+        return Colors
+            .orange; // Assuming orange for decryption failed, similar to pending/error
     }
   }
 
@@ -788,88 +799,66 @@ class MessageBubble extends StatelessWidget {
     double fontSize, // This is now used as base size
     bool isEmojiOnly,
   ) {
-    final text = message.text;
-    final urlRegExp = RegExp(
-      r'((https?:\/\/|www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\)\],\.?!]*)?|(?<![a-zA-Z0-9\-\.])(?:[a-zA-Z0-9\-]+\.)+(?:com|org|net|dev|io|app|gov|edu|me|info|biz|co|us|uk|in|tv|xyz)(?![a-zA-Z0-9\-\.]))',
-      caseSensitive: false,
-    );
-
     if (isEmojiOnly) {
       return Text(
-        text,
+        message.text,
         style: TextStyle(
           fontSize: fontSize, // Passed as 40.0 or similar
-          // No color override needed for emojis usually, but good to be safe
         ),
       );
     }
 
-    if (!text.contains(urlRegExp)) {
-      return Text(
-        text,
-        style: TextStyle(
-          color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
-          fontSize: fontSize,
-          fontFamily: theme.textTheme.bodyMedium?.fontFamily,
-        ),
-      );
-    }
+    return _ExpandableMessageText(
+      text: message.text,
+      isOwnMessage: isOwnMessage,
+      theme: theme,
+      fontSize: fontSize,
+      isEncrypted: message.isEncrypted,
+      onUserHandleTap: (handle) => _handleUserHandleTap(context, handle),
+    );
+  }
 
-    final List<TextSpan> spans = [];
-    int start = 0;
-    for (final match in urlRegExp.allMatches(text)) {
-      if (match.start > start) {
-        spans.add(
-          TextSpan(
-            text: text.substring(start, match.start),
-            style: TextStyle(
-              color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
-              fontSize: fontSize,
+  void _handleUserHandleTap(BuildContext context, String handle) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final user = await SupabaseService.instance.getUserByHandle(handle);
+
+      if (context.mounted) {
+        Navigator.pop(context); // Remove loading
+
+        if (user != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserProfileScreen(userId: user.id),
             ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('User $handle not found'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Remove loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error finding user: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-      final url = match.group(0)!;
-      final fullUrl = url.startsWith('http') ? url : 'https://$url';
-      spans.add(
-        TextSpan(
-          text: url,
-          style: TextStyle(
-            color: isOwnMessage ? Colors.white : theme.colorScheme.primary,
-            fontSize: fontSize,
-            decoration: TextDecoration.underline,
-            fontWeight: FontWeight.w500,
-          ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () {
-              LinkWarningBottomSheet.show(context, fullUrl);
-            },
-        ),
-      );
-      start = match.end;
     }
-    if (start < text.length) {
-      spans.add(
-        TextSpan(
-          text: text.substring(start),
-          style: TextStyle(
-            color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
-            fontSize: fontSize,
-          ),
-        ),
-      );
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          color: isOwnMessage ? Colors.white : theme.colorScheme.onSurface,
-          fontSize: fontSize,
-          fontFamily: theme.textTheme.bodyMedium?.fontFamily,
-        ),
-        children: spans,
-      ),
-    );
   }
 
   Future<void> _handleReaction(String emoji) async {
@@ -968,6 +957,266 @@ class MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ExpandableMessageText extends StatefulWidget {
+  final String text;
+  final bool isOwnMessage;
+  final ThemeData theme;
+  final double fontSize;
+  final bool isEncrypted;
+  final Function(String) onUserHandleTap;
+
+  const _ExpandableMessageText({
+    super.key,
+    required this.text,
+    required this.isOwnMessage,
+    required this.theme,
+    required this.fontSize,
+    this.isEncrypted = false,
+    required this.onUserHandleTap,
+  });
+
+  @override
+  State<_ExpandableMessageText> createState() => _ExpandableMessageTextState();
+}
+
+class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
+  static const int _chunkSize = 700; // Characters to add per chunk
+  late int _visibleLength;
+  List<RegExpMatch> _allMatches = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _updateVisibleLength();
+    _analyzeText();
+  }
+
+  @override
+  void didUpdateWidget(_ExpandableMessageText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text) {
+      _updateVisibleLength();
+      _analyzeText();
+    }
+  }
+
+  void _updateVisibleLength() {
+    _visibleLength = (widget.text.length > _chunkSize)
+        ? _chunkSize
+        : widget.text.length;
+  }
+
+  void _analyzeText() {
+    final urlRegExp = RegExp(
+      r'((https?:\/\/|www\.)[^\s]+)',
+      caseSensitive: false,
+    );
+
+    final handleRegExp = RegExp(
+      r'(?<!\w)@[a-zA-Z0-9_.]+',
+      caseSensitive: false,
+    );
+
+    _allMatches = [];
+    _allMatches.addAll(urlRegExp.allMatches(widget.text));
+    _allMatches.addAll(handleRegExp.allMatches(widget.text));
+    _allMatches.sort((a, b) => a.start.compareTo(b.start));
+  }
+
+  void _expandText() {
+    setState(() {
+      int newLength = _visibleLength + _chunkSize;
+      if (newLength > widget.text.length) {
+        newLength = widget.text.length;
+      }
+      _visibleLength = newLength;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    int endIndex = _visibleLength;
+
+    // Ensure we don't cut in the middle of a URL/Handle
+    for (final match in _allMatches) {
+      if (match.start < endIndex && match.end > endIndex) {
+        endIndex = match.end;
+        break;
+      }
+    }
+
+    if (endIndex > widget.text.length) endIndex = widget.text.length;
+
+    // If only a few characters remain after cut, just show them
+    if (widget.text.length - endIndex < 50) {
+      endIndex = widget.text.length;
+    }
+
+    final isExpandedFull = endIndex >= widget.text.length;
+
+    final List<InlineSpan> spans = [];
+    int currentIndex = 0;
+
+    final visibleMatches = _allMatches.where((m) => m.end <= endIndex).toList();
+
+    for (final match in visibleMatches) {
+      if (match.start < currentIndex) continue;
+
+      if (match.start > currentIndex) {
+        spans.add(
+          TextSpan(
+            text: widget.text.substring(currentIndex, match.start),
+            style: TextStyle(
+              color: widget.isOwnMessage
+                  ? Colors.white
+                  : widget.theme.colorScheme.onSurface,
+              fontSize: widget.fontSize,
+            ),
+          ),
+        );
+      }
+
+      String matchText = widget.text.substring(match.start, match.end);
+
+      if (matchText.startsWith('@')) {
+        spans.add(
+          TextSpan(
+            text: matchText,
+            style: TextStyle(
+              color: widget.isOwnMessage
+                  ? Colors.white
+                  : widget.theme.colorScheme.primary,
+              fontSize: widget.fontSize,
+              fontWeight: FontWeight.bold,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => widget.onUserHandleTap(matchText),
+          ),
+        );
+        currentIndex = match.end;
+      } else {
+        // Trim logic
+        final punctuation = RegExp(r'[.,?!:;"]');
+        int trimCount = 0;
+        while (matchText.isNotEmpty &&
+            punctuation.hasMatch(matchText[matchText.length - 1])) {
+          matchText = matchText.substring(0, matchText.length - 1);
+          trimCount++;
+        }
+
+        if (matchText.isEmpty) {
+          matchText = widget.text.substring(match.start, match.end);
+          trimCount = 0;
+        }
+
+        final fullUrl = matchText.startsWith('http')
+            ? matchText
+            : 'https://$matchText';
+        spans.add(
+          TextSpan(
+            text: matchText,
+            style: TextStyle(
+              color: widget.isOwnMessage
+                  ? Colors.white
+                  : widget.theme.colorScheme.primary,
+              fontSize: widget.fontSize,
+              decoration: TextDecoration.underline,
+              decorationColor: widget.isOwnMessage
+                  ? Colors.white70
+                  : widget.theme.colorScheme.primary.withOpacity(0.5),
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                LinkWarningBottomSheet.show(context, fullUrl);
+              },
+          ),
+        );
+
+        if (trimCount > 0) {
+          spans.add(
+            TextSpan(
+              text: widget.text.substring(match.end - trimCount, match.end),
+              style: TextStyle(
+                color: widget.isOwnMessage
+                    ? Colors.white
+                    : widget.theme.colorScheme.onSurface,
+                fontSize: widget.fontSize,
+              ),
+            ),
+          );
+        }
+
+        currentIndex = match.end;
+      }
+    }
+
+    // Add remaining plain text
+    if (currentIndex < endIndex) {
+      spans.add(
+        TextSpan(
+          text: widget.text.substring(currentIndex, endIndex),
+          style: TextStyle(
+            color: widget.isOwnMessage
+                ? Colors.white
+                : widget.theme.colorScheme.onSurface,
+            fontSize: widget.fontSize,
+          ),
+        ),
+      );
+    }
+
+    // Append "See more" if needed
+    if (!isExpandedFull) {
+      spans.add(
+        TextSpan(
+          text: " ... See more",
+          style: TextStyle(
+            color: widget.isOwnMessage
+                ? Colors.white
+                : widget.theme.colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            fontSize: widget.fontSize,
+          ),
+          recognizer: TapGestureRecognizer()..onTap = _expandText,
+        ),
+      );
+    }
+
+    // Append Lock Icon if isEncrypted
+    if (widget.isEncrypted) {
+      spans.add(
+        WidgetSpan(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 2),
+            child: Icon(
+              Icons.lock_rounded,
+              size: widget.fontSize * 0.8,
+              color: widget.isOwnMessage
+                  ? Colors.white.withOpacity(0.7)
+                  : widget.theme.colorScheme.primary.withOpacity(0.7),
+            ),
+          ),
+          alignment: PlaceholderAlignment.middle,
+        ),
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          color: widget.isOwnMessage
+              ? Colors.white
+              : widget.theme.colorScheme.onSurface,
+          fontSize: widget.fontSize,
+          fontFamily: widget.theme.textTheme.bodyMedium?.fontFamily,
+          height: 1.4,
+        ),
+        children: spans,
       ),
     );
   }
@@ -1378,9 +1627,11 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
               minWidth: 36,
               minHeight: 40,
             ), // Tighter constraints
-            onPressed: () {
-              _close();
-              if (widget.onReply != null) widget.onReply!(widget.message);
+            onPressed: () async {
+              await _close();
+              if (widget.onReply != null) {
+                widget.onReply!(widget.message);
+              }
             },
             icon: Icon(
               Icons.reply_rounded,
@@ -1460,11 +1711,13 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
     await SupabaseService.instance.addMessageReaction(messageId, emoji);
   }
 
-  void _copyMessage(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: widget.message.text));
+  void _copyMessage(BuildContext context) async {
+    if (context.mounted) {
+      Clipboard.setData(ClipboardData(text: widget.message.text));
+    }
   }
 
-  void _shareMessage() {
+  void _shareMessage() async {
     Share.share(widget.message.text);
   }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter/foundation.dart';
 import '../error/error_handler.dart';
 import '../models/app_error.dart';
 
@@ -17,7 +18,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 8;
+  static const int _databaseVersion = 10;
 
   /// Get database instance
   Future<Database> get database async {
@@ -83,7 +84,7 @@ class DatabaseManager {
     // Messages table
     batch.execute('''
       CREATE TABLE messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY,
         text TEXT NOT NULL,
         sender_id TEXT NOT NULL,
         receiver_id TEXT,
@@ -92,8 +93,11 @@ class DatabaseManager {
         is_offline INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'pending',
         message_hash TEXT UNIQUE,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        is_encrypted INTEGER NOT NULL DEFAULT 0,
+        encrypted_content TEXT,
+        encryption_version TEXT,
+        created_at TEXT,
+        updated_at TEXT,
         metadata TEXT,
         FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
       )
@@ -197,6 +201,7 @@ class DatabaseManager {
         is_online INTEGER NOT NULL DEFAULT 0,
         is_archived INTEGER NOT NULL DEFAULT 0,
         is_verified INTEGER NOT NULL DEFAULT 0,
+        is_mutual INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, friend_id)
       )
@@ -228,6 +233,7 @@ class DatabaseManager {
         avatar TEXT,
         is_following INTEGER NOT NULL DEFAULT 0,
         is_verified INTEGER NOT NULL DEFAULT 0,
+        is_mutual INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, profile_id)
       )
@@ -246,6 +252,7 @@ class DatabaseManager {
         virtual_number TEXT,
         status TEXT NOT NULL DEFAULT 'offline',
         is_verified INTEGER NOT NULL DEFAULT 0,
+        is_mutual INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, profile_id)
       )
@@ -295,7 +302,7 @@ class DatabaseManager {
     }
 
     if (oldVersion < 3) {
-      // Add cache tables for WhatsApp-style offline-first architecture
+      // Add cache tables for high-performance offline-first architecture
       await db.execute('''
         CREATE TABLE IF NOT EXISTS cached_friends (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -414,24 +421,101 @@ class DatabaseManager {
           'ALTER TABLE cached_friends ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
         );
       } catch (e) {
-        // Ignore duplicate column error if it already exists
-        if (!e.toString().contains('duplicate column name')) {
-          rethrow;
-        }
+        if (!e.toString().contains('duplicate column name')) rethrow;
       }
 
-      await db.execute(
-        'ALTER TABLE cached_discover_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
-      );
+      try {
+        await db.execute(
+          'ALTER TABLE cached_discover_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
 
-      await db.execute(
-        'ALTER TABLE cached_start_chat_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
-      );
+      try {
+        await db.execute(
+          'ALTER TABLE cached_start_chat_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
     }
 
     if (oldVersion < 8) {
       // Add metadata column to messages table
       await db.execute('ALTER TABLE messages ADD COLUMN metadata TEXT');
+    }
+
+    if (oldVersion < 9) {
+      // Fix missing is_mutual column for version 8 users
+      try {
+        await db.execute(
+          'ALTER TABLE cached_friends ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+
+      try {
+        await db.execute(
+          'ALTER TABLE cached_discover_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+
+      try {
+        await db.execute(
+          'ALTER TABLE cached_start_chat_users ADD COLUMN is_mutual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 10) {
+      // Recreate messages table to fix id column type (INTEGER -> TEXT) and add E2EE columns
+      // We rename existing table to keep backup if needed, but recreate fresh one for sync
+      await db.execute(
+        'ALTER TABLE messages RENAME TO messages_old_v' + oldVersion.toString(),
+      );
+      await db.execute('''
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          text TEXT NOT NULL,
+          sender_id TEXT NOT NULL,
+          receiver_id TEXT,
+          conversation_id TEXT,
+          timestamp TEXT NOT NULL,
+          is_offline INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'pending',
+          message_hash TEXT UNIQUE,
+          is_encrypted INTEGER NOT NULL DEFAULT 0,
+          encrypted_content TEXT,
+          encryption_version TEXT,
+          created_at TEXT,
+          updated_at TEXT,
+          metadata TEXT,
+          FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      ''');
+
+      // Try to migrate existing data where possible using message_hash as fallback
+      // but since IDs are already broken, it's better to let Supabase re-sync
+      // valid messages. We can attempt to copy plaintext for sent messages by hash.
+      try {
+        await db.execute(
+          '''
+          INSERT INTO messages (id, text, sender_id, receiver_id, conversation_id, timestamp, status, message_hash, created_at, updated_at, metadata)
+          SELECT CAST(id AS TEXT), text, sender_id, receiver_id, conversation_id, timestamp, status, message_hash, created_at, updated_at, metadata
+          FROM messages_old_v''' +
+              oldVersion.toString(),
+        );
+      } catch (e) {
+        debugPrint(
+          '⚠️ Data migration for messages failed: $e. Supabase will re-sync.',
+        );
+      }
     }
   }
 

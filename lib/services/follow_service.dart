@@ -229,6 +229,16 @@ class FollowService {
     required String followingId,
   }) async {
     if (followerId == followingId) return false;
+
+    // Validate both IDs are UUIDs
+    if (!StringUtils.isUuid(followerId) || !StringUtils.isUuid(followingId)) {
+      debugPrint(
+        '⚠️ FollowService: Skipping followUser - invalid UUID(s). '
+        'followerId: $followerId, followingId: $followingId',
+      );
+      return false;
+    }
+
     debugPrint(
       'FollowService: following user $followingId with follower $followerId',
     );
@@ -254,6 +264,14 @@ class FollowService {
     required String followerId,
     required String followingId,
   }) async {
+    if (!StringUtils.isUuid(followerId) || !StringUtils.isUuid(followingId)) {
+      debugPrint(
+        '⚠️ FollowService: Skipping unfollowUser - invalid UUID(s). '
+        'followerId: $followerId, followingId: $followingId',
+      );
+      return false;
+    }
+
     try {
       await _supabase
           .from('follows')

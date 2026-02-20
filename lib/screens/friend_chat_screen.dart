@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
+import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -16,10 +18,12 @@ import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
 import '../providers/chat_provider.dart';
-import '../services/supabase_service.dart';
 import '../widgets/user_avatar.dart';
 import '../utils/svg_icons.dart';
 import '../widgets/modern_chat_input.dart';
+import '../services/supabase_service.dart';
+import '../services/virgil_e2ee_service.dart';
+import '../services/virgil_key_service.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -101,36 +105,52 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         widget.recipientId,
       );
 
-      // Check relationship status
-      final relationshipStatus = await _followService.getFollowStatus(
-        currentUserId: currentUser.id,
-        targetUserId: widget.recipientId,
-      );
+      // Check cached relationship status first (to prevent flashing "Follow to Message" on network errors)
+      final chatProvider = context.read<ChatProvider>();
+      final isCachedFriend = chatProvider.isMutualFriend(widget.recipientId);
+
+      // Parallelize initialization calls to reduce delay
+      final results = await Future.wait([
+        _followService
+            .getFollowStatus(
+              currentUserId: currentUser.id,
+              targetUserId: widget.recipientId,
+            )
+            .catchError((e) {
+              debugPrint('Error checking follow status: $e');
+              return 'none';
+            }),
+        (widget.recipientId != currentUser.id)
+            ? SupabaseService.instance
+                  .getUserProfile(widget.recipientId)
+                  .catchError((e) {
+                    debugPrint('Error fetching fresh profile: $e');
+                    return null;
+                  })
+            : Future.value(currentUser),
+        SupabaseService.instance
+            .getConversationTimer(widget.recipientId)
+            .catchError((e) {
+              debugPrint('Error fetching timer: $e');
+              return 'off';
+            }),
+      ]);
+
+      final relationshipStatus = results[0] as String;
+      final freshRecipient = results[1] as User?;
+      final ephemeralTimer = results[2] as String;
+
+      // Fallback to cache if remote check failed (returned 'none') but we know they are a friend
+      String finalStatus = relationshipStatus;
+      if (finalStatus == 'none' && isCachedFriend) {
+        finalStatus = 'mutual';
+      }
 
       final isBoofer = widget.recipientId == AppConstants.booferId;
-      final isMutual = relationshipStatus == 'mutual';
-      final isFollowing = relationshipStatus == 'following';
-
-      // Can chat if it's Boofer OR if there's ANY follow relationship
-      final canChat = isBoofer || relationshipStatus != 'none';
-
+      final isMutual = finalStatus == 'mutual';
+      final isFollowing = finalStatus == 'following';
+      final canChat = isBoofer || finalStatus != 'none';
       const isBlocked = false;
-
-      // Load ACTUAL recipient user profile
-      User? freshRecipient;
-      final isSelf = widget.recipientId == currentUser.id;
-
-      if (!isSelf) {
-        try {
-          freshRecipient = await SupabaseService.instance.getUserProfile(
-            widget.recipientId,
-          );
-        } catch (e) {
-          debugPrint('Error fetching fresh profile: $e');
-        }
-      } else {
-        freshRecipient = currentUser;
-      }
 
       // Create recipient user object with fallback to widget params
       final recipientUser =
@@ -145,26 +165,20 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 widget.recipientName.toLowerCase().replaceAll(' ', '_'),
             fullName: widget.recipientName,
             bio: 'User profile',
-            isDiscoverable: freshRecipient?.isDiscoverable ?? true,
-            createdAt: freshRecipient?.createdAt ?? DateTime.now(),
-            updatedAt: freshRecipient?.updatedAt ?? DateTime.now(),
+            isDiscoverable: true,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
             profilePicture:
-                freshRecipient?.profilePicture ??
                 (widget.recipientAvatar != null &&
-                        widget.recipientAvatar!.startsWith('http')
-                    ? widget.recipientAvatar
-                    : null),
+                    widget.recipientAvatar!.startsWith('http')
+                ? widget.recipientAvatar
+                : null),
             avatar:
-                freshRecipient?.avatar ??
                 (widget.recipientAvatar != null &&
-                        !widget.recipientAvatar!.startsWith('http')
-                    ? widget.recipientAvatar
-                    : null),
+                    !widget.recipientAvatar!.startsWith('http')
+                ? widget.recipientAvatar
+                : null),
           );
-
-      // Load ephemeral timer
-      final ephemeralTimer = await SupabaseService.instance
-          .getConversationTimer(widget.recipientId);
 
       // Start listening for timer changes
       _setupTimerListener(conversationId);
@@ -192,13 +206,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           conversationId,
         );
 
+        // Set up realtime listener BEFORE loading messages to avoid gaps
+        _setupRealtimeListener(conversationId);
+
         // Load existing messages from Supabase
         await _loadMessages(conversationId);
 
         if (!mounted) return;
-
-        // Set up realtime listener
-        _setupRealtimeListener(conversationId);
 
         // Mark messages as read
         _markMessagesAsRead();
@@ -231,24 +245,30 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       debugPrint('📥 Loaded ${response.length} messages from database');
 
-      final messages = (response as List)
+      final rawMessages = (response as List)
           .map((data) => Message.fromJson(data))
           .where((m) {
             final deletedFor = m.metadata?['deleted_for'] as List?;
             return deletedFor == null || !deletedFor.contains(_currentUserId);
           })
-          .toList()
-          .reversed
           .toList();
+
+      // Decrypt messages if they are encrypted
+      final messages = await Future.wait(
+        rawMessages.map((m) => _decryptMessage(m)),
+      );
+
+      // Reverse to chronological order (oldest first) for the list
+      final sortedMessages = messages.reversed.toList();
 
       if (mounted) {
         setState(() {
-          _messages = messages;
+          _messages = sortedMessages;
         });
         _updateChatItems();
         _scrollToBottom();
       }
-      debugPrint('✅ Messages loaded and displayed');
+      debugPrint('✅ Messages loaded, decrypted, and displayed');
     } catch (e) {
       debugPrint('Error loading messages: $e');
     }
@@ -270,15 +290,18 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             column: 'conversation_id',
             value: conversationId,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             debugPrint('🔔 REALTIME MESSAGE EVENT: ${payload.eventType}');
 
             if (payload.eventType == PostgresChangeEvent.insert) {
-              final newMessage = Message.fromJson(payload.newRecord);
+              var newMessage = Message.fromJson(payload.newRecord);
               final deletedFor = newMessage.metadata?['deleted_for'] as List?;
               if (deletedFor != null && deletedFor.contains(_currentUserId)) {
                 return;
               }
+
+              // Decrypt if needed
+              newMessage = await _decryptMessage(newMessage);
 
               if (mounted) {
                 setState(() {
@@ -290,6 +313,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     _messages[existingIndex] = newMessage;
                   } else {
                     _messages.add(newMessage);
+                    // Sort by timestamp just in case of slight order issues
+                    _messages.sort(
+                      (a, b) => a.timestamp.compareTo(b.timestamp),
+                    );
                   }
                   _updateChatItems();
                 });
@@ -299,15 +326,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 if (newMessage.senderId == widget.recipientId) {
                   _markMessagesAsRead();
                 }
-
-                // If message is from us, it means the server confirmed it
-                // We already handled this by updating existingIndex, but we can log it
               }
             } else if (payload.eventType == PostgresChangeEvent.update) {
               final data = payload.newRecord;
-              final updatedMessage = Message.fromJson(data);
+              var updatedMessage = Message.fromJson(data);
               final deletedFor =
                   updatedMessage.metadata?['deleted_for'] as List?;
+
+              // Decrypt if needed
+              updatedMessage = await _decryptMessage(updatedMessage);
 
               if (mounted) {
                 if (deletedFor != null && deletedFor.contains(_currentUserId)) {
@@ -324,8 +351,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   );
                   if (index != -1) {
                     _messages[index] = updatedMessage;
-                    _updateChatItems();
+                  } else {
+                    // Add it if it's missing (helps with race conditions)
+                    _messages.add(updatedMessage);
+                    // Sort to maintain order
+                    _messages.sort(
+                      (a, b) => a.timestamp.compareTo(b.timestamp),
+                    );
                   }
+                  _updateChatItems();
                 });
               }
             } else if (payload.eventType == PostgresChangeEvent.delete) {
@@ -470,6 +504,62 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       }
     } catch (e) {
       debugPrint('Error marking messages as read: $e');
+    }
+  }
+
+  Future<Message> _decryptMessage(Message message) async {
+    // 1. If not encrypted, return as is
+    if (!message.isEncrypted || message.encryptedContent == null) {
+      return message;
+    }
+
+    // 2. If we are the SENDER, we can't decrypt the DB ciphertext (it's for the recipient).
+    // So we check our LOCAL database for the original plaintext that we saved before sending.
+    if (message.senderId == _currentUserId) {
+      try {
+        final localResults = await DatabaseManager.instance.query(
+          'SELECT text FROM messages WHERE id = ?',
+          [message.id],
+        );
+        if (localResults.isNotEmpty) {
+          final localText = localResults.first['text'] as String;
+          if (localText != '[Encrypted]' && localText.isNotEmpty) {
+            return message.copyWith(text: localText);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching local plaintext for sender: $e');
+      }
+      return message; // Fallback to whatever we have
+    }
+
+    // 3. If we are the RECIPIENT, proceed with normal decryption
+    if (message.receiverId != _currentUserId) {
+      return message;
+    }
+
+    try {
+      if (!VirgilE2EEService.instance.isInitialized) {
+        await SupabaseService.instance.initializeE2EE(_currentUserId!);
+      }
+
+      final senderKeys = await VirgilKeyService().getRecipientKeys(
+        message.senderId,
+      );
+      if (senderKeys == null) {
+        debugPrint('⚠️ Virgil keys not found for sender ${message.senderId}');
+        return message.copyWith(status: MessageStatus.decryptionFailed);
+      }
+
+      final decrypted = await VirgilE2EEService.instance.decryptThenVerify(
+        message.encryptedContent!,
+        senderKeys['signaturePublicKey'],
+      );
+
+      return message.copyWith(text: decrypted);
+    } catch (e) {
+      debugPrint('⚠️ Message decryption failed: $e');
+      return message.copyWith(status: MessageStatus.decryptionFailed);
     }
   }
 
@@ -644,6 +734,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                             ),
                           ),
                           const SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             '•',
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -778,6 +869,17 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       return _buildEmptyState();
     }
 
+    // Find the latest message sent by the current user to show status for
+    String? latestMeMessageId;
+    try {
+      final latestMeMessage = _messages.lastWhere(
+        (m) => m.senderId == _currentUserId,
+      );
+      latestMeMessageId = latestMeMessage.id;
+    } catch (_) {
+      // No messages sent by current user
+    }
+
     return ListView.builder(
       controller: _scrollController,
       reverse: true,
@@ -790,20 +892,110 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         final item = _chatItems[index];
 
         if (item is Message) {
-          return MessageBubble(
-            message: item,
-            currentUserId: _currentUserId!,
-            senderName: item.senderId == _currentUserId
-                ? null
-                : widget.recipientName,
-            onTap: () => _handleMessageTap(item),
-            onReply: _handleReply,
+          final isMe = item.senderId == _currentUserId;
+          final isLatestMe = item.id == latestMeMessageId;
+          final showStatus =
+              isMe &&
+              (isLatestMe ||
+                  item.status == MessageStatus.failed ||
+                  item.status == MessageStatus.decryptionFailed ||
+                  item.status == MessageStatus.pending);
+
+          return Column(
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              MessageBubble(
+                message: item,
+                currentUserId: _currentUserId!,
+                senderName: isMe ? null : widget.recipientName,
+                onTap: () => _handleMessageTap(item),
+                onReply: _handleReply,
+              ),
+              if (showStatus) _buildMessageStatus(item),
+            ],
           );
         } else if (item is DateTime) {
           return _buildDateHeader(item);
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+
+  Widget _buildMessageStatus(Message message) {
+    String statusText;
+    IconData? statusIcon;
+    Color statusColor = Colors.grey;
+
+    switch (message.status) {
+      case MessageStatus.pending:
+        statusText = 'Sending...';
+        statusIcon = Icons.access_time;
+        break;
+      case MessageStatus.sent:
+        statusText = 'Sent';
+        statusIcon = Icons.check;
+        break;
+      case MessageStatus.delivered:
+        statusText = 'Delivered';
+        statusIcon = Icons.done_all;
+        break;
+      case MessageStatus.read:
+        statusText = 'Seen';
+        statusIcon = Icons.done_all;
+        statusColor = Colors.blue;
+        break;
+      case MessageStatus.failed:
+        statusText = 'Try again';
+        statusIcon = Icons.error_outline;
+        statusColor = Colors.red;
+        break;
+      case MessageStatus.decryptionFailed:
+        statusText = 'Decryption Failed';
+        statusIcon = Icons.lock_reset;
+        statusColor = Colors.orange;
+        break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 12, bottom: 4),
+      child: GestureDetector(
+        onTap:
+            message.status == MessageStatus.failed ||
+                message.status == MessageStatus.decryptionFailed
+            ? () {
+                // Resend logic if available, or just re-add to queue
+                _handleSendMessage(message.text);
+              }
+            : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (message.status == MessageStatus.failed ||
+                message.status == MessageStatus.decryptionFailed)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(statusIcon, size: 12, color: statusColor),
+              ),
+            Text(
+              statusText,
+              style: TextStyle(
+                fontSize: 10,
+                color: statusColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (message.status != MessageStatus.failed &&
+                message.status != MessageStatus.decryptionFailed)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(statusIcon, size: 12, color: statusColor),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -874,6 +1066,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     debugPrint('   Conversation: $_conversationId');
     debugPrint('   Message: $text');
 
+    Message? optimisticMessage;
     try {
       // Determine initial status based on presence
       final chatProvider = context.read<ChatProvider>();
@@ -891,13 +1084,14 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             : MessageStatus.delivered;
       }
 
-      // Optimistic Update: Add message immediately
-      final optimisticMessage = Message.create(
+      // Optimistic Update: Add message immediately with pending status
+      debugPrint('📝 STEP 1: User sent message: "${text.trim()}"');
+      final message = Message.create(
         text: text.trim(),
         senderId: _currentUserId!,
         receiverId: widget.recipientId,
         conversationId: _conversationId!,
-        status: initialStatus,
+        status: MessageStatus.pending, // Show "Sending..." initially
         metadata: _replyToMessage != null
             ? {
                 'reply_to': {
@@ -910,14 +1104,43 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               }
             : null,
       );
+      optimisticMessage = message;
 
       if (mounted) {
         setState(() {
-          _messages.add(optimisticMessage);
+          _messages.add(message);
           _replyToMessage = null; // Clear reply
           _updateChatItems();
         });
         _scrollToBottom();
+      }
+
+      // CRITICAL: Save plaintext to local SQLite DB BEFORE sending to Supabase.
+      // When Supabase realtime fires, _decryptMessage looks up the sender's
+      // plaintext from local DB. Without this, it finds nothing and shows [Encrypted].
+      try {
+        await DatabaseManager.instance.insert('messages', {
+          'id': message.id,
+          'text': message.text, // Original plaintext
+          'sender_id': message.senderId,
+          'receiver_id': message.receiverId,
+          'conversation_id': message.conversationId,
+          'timestamp': message.timestamp.toIso8601String(),
+          'is_offline': 0,
+          'status': message.status.name,
+          'message_hash': message.messageHash,
+          'is_encrypted': 0,
+          'encrypted_content': null,
+          'encryption_version': null,
+          'created_at': message.timestamp.toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'metadata': message.metadata != null
+              ? jsonEncode(message.metadata)
+              : null,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        debugPrint('💾 Plaintext saved to local DB for sender recovery');
+      } catch (e) {
+        debugPrint('⚠️ Failed to save plaintext locally: $e');
       }
 
       final result = await SupabaseService.instance.sendMessage(
@@ -925,19 +1148,18 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         senderId: _currentUserId!,
         receiverId: widget.recipientId,
         text: text.trim(),
-        messageObject: optimisticMessage,
+        messageObject: message.copyWith(status: initialStatus),
       );
 
       if (result != null) {
         debugPrint('✅ Message sent successfully from UI');
-        // Update the message in the list with the confirmed one (e.g. correct ID/Timestamp/Status)
+        // Update the message in the list with the confirmed one
+        // BUT keep our plaintext if the server returned "[Encrypted]"
         if (mounted) {
           setState(() {
-            final index = _messages.indexWhere(
-              (m) => m.id == optimisticMessage.id,
-            );
+            final index = _messages.indexWhere((m) => m.id == message.id);
             if (index != -1) {
-              _messages[index] = result;
+              _messages[index] = result.copyWith(text: message.text);
             }
           });
         }
@@ -946,24 +1168,36 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         // Mark as failed in UI
         if (mounted) {
           setState(() {
-            final index = _messages.indexWhere(
-              (m) => m.id == optimisticMessage.id,
-            );
+            final index = _messages.indexWhere((m) => m.id == message.id);
             if (index != -1) {
-              _messages[index] = optimisticMessage.copyWith(
-                status: MessageStatus.failed,
-              );
+              _messages[index] = message.copyWith(status: MessageStatus.failed);
             }
           });
         }
       }
     } catch (e) {
       debugPrint('❌ Error in UI message handler: $e');
+
+      // Mark as failed in UI so user sees red prompt "Try again"
       if (mounted) {
+        setState(() {
+          if (optimisticMessage != null) {
+            final index = _messages.indexWhere(
+              (m) => m.id == optimisticMessage!.id,
+            );
+            if (index != -1) {
+              _messages[index] = optimisticMessage.copyWith(
+                status: MessageStatus.failed,
+              );
+            }
+          }
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send message: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -1185,6 +1419,26 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
             ListTile(
               leading: Icon(
+                Icons.history,
+                color: _ephemeralTimer == '12_hours'
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(
+                '12 hours (Default)',
+                style: TextStyle(
+                  fontWeight: _ephemeralTimer == '12_hours'
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              trailing: _ephemeralTimer == '12_hours'
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => _updateEphemeralTimer('12_hours'),
+            ),
+            ListTile(
+              leading: Icon(
                 Icons.schedule,
                 color: _ephemeralTimer == '24_hours'
                     ? Theme.of(context).colorScheme.primary
@@ -1202,26 +1456,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   ? const Icon(Icons.check, size: 20)
                   : null,
               onTap: () => _updateEphemeralTimer('24_hours'),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.history,
-                color: _ephemeralTimer == '12_hours'
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-              title: Text(
-                '12 hours',
-                style: TextStyle(
-                  fontWeight: _ephemeralTimer == '12_hours'
-                      ? FontWeight.bold
-                      : null,
-                ),
-              ),
-              trailing: _ephemeralTimer == '12_hours'
-                  ? const Icon(Icons.check, size: 20)
-                  : null,
-              onTap: () => _updateEphemeralTimer('12_hours'),
             ),
             ListTile(
               leading: Icon(
@@ -1245,27 +1479,86 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
             ListTile(
               leading: Icon(
-                Icons.history,
-                color: _ephemeralTimer == '72_hours'
+                Icons.edit_calendar_outlined,
+                color:
+                    (![
+                      'after_seen',
+                      '12_hours',
+                      '24_hours',
+                      '48_hours',
+                    ].contains(_ephemeralTimer))
                     ? Theme.of(context).colorScheme.primary
                     : null,
               ),
               title: Text(
-                '72 hours',
+                'Custom (Max 72h)',
                 style: TextStyle(
-                  fontWeight: _ephemeralTimer == '72_hours'
+                  fontWeight:
+                      (![
+                        'after_seen',
+                        '12_hours',
+                        '24_hours',
+                        '48_hours',
+                      ].contains(_ephemeralTimer))
                       ? FontWeight.bold
                       : null,
                 ),
               ),
-              trailing: _ephemeralTimer == '72_hours'
-                  ? const Icon(Icons.check, size: 20)
+              subtitle:
+                  (![
+                    'after_seen',
+                    '12_hours',
+                    '24_hours',
+                    '48_hours',
+                  ].contains(_ephemeralTimer))
+                  ? Text(_ephemeralTimer.replaceAll('_', ' '))
                   : null,
-              onTap: () => _updateEphemeralTimer('72_hours'),
+              onTap: () {
+                Navigator.pop(context);
+                _showCustomTimerDialog();
+              },
             ),
             const SizedBox(height: 20),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showCustomTimerDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Custom Timer (Hours)'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Enter hours (1-72)',
+            suffixText: 'hours',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final hours = int.tryParse(controller.text);
+              if (hours != null && hours > 0 && hours <= 72) {
+                _updateEphemeralTimer('${hours}_hours');
+                Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter 1-72 hours')),
+                );
+              }
+            },
+            child: const Text('Set'),
+          ),
+        ],
       ),
     );
   }

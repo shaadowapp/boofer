@@ -20,6 +20,10 @@ class User {
   final String? location;
   final int? age;
   final String? virtualNumber; // Virtual number for user identification
+  final String? gender; // 'male', 'female', 'non_binary', 'other', etc.
+  final String? lookingFor; // 'male', 'female', 'everyone', etc.
+  final List<String> interests; // e.g. ['Music', 'Movies']
+  final List<String> hobbies; // e.g. ['Gaming', 'Cooking']
   final int followerCount;
   final int followingCount;
   final int friendsCount;
@@ -44,6 +48,10 @@ class User {
     this.location,
     this.age,
     this.virtualNumber,
+    this.gender,
+    this.lookingFor,
+    this.interests = const [],
+    this.hobbies = const [],
     this.followerCount = 0,
     this.followingCount = 0,
     this.friendsCount = 0,
@@ -133,6 +141,10 @@ class User {
     String? location,
     int? age,
     String? virtualNumber,
+    String? gender,
+    String? lookingFor,
+    List<String>? interests,
+    List<String>? hobbies,
     int? followerCount,
     int? followingCount,
     int? friendsCount,
@@ -157,6 +169,10 @@ class User {
       location: location ?? this.location,
       age: age ?? this.age,
       virtualNumber: virtualNumber ?? this.virtualNumber,
+      gender: gender ?? this.gender,
+      lookingFor: lookingFor ?? this.lookingFor,
+      interests: interests ?? this.interests,
+      hobbies: hobbies ?? this.hobbies,
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount ?? this.followingCount,
       friendsCount: friendsCount ?? this.friendsCount,
@@ -186,6 +202,10 @@ class User {
       'location': location,
       'age': age,
       'virtualNumber': virtualNumber,
+      'gender': gender,
+      'lookingFor': lookingFor,
+      'interests': interests,
+      'hobbies': hobbies,
       'followerCount': followerCount,
       'followingCount': followingCount,
       'friendsCount': friendsCount,
@@ -216,6 +236,10 @@ class User {
       'location': location,
       'age': age,
       'virtual_number': virtualNumber,
+      'gender': gender,
+      'looking_for': lookingFor,
+      'interests': interests,
+      'hobbies': hobbies,
       // Removed count columns as they don't exist in the profiles table
       // 'follower_count': followerCount,
       // 'following_count': followingCount,
@@ -283,6 +307,18 @@ class User {
       location: toString(json['location']),
       age: toInt(json['age']),
       virtualNumber: toString(json['virtualNumber'] ?? json['virtual_number']),
+      gender: json['gender'] as String?,
+      lookingFor: (json['lookingFor'] ?? json['looking_for']) as String?,
+      interests:
+          (json['interests'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      hobbies:
+          (json['hobbies'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       followerCount: toInt(json['followerCount'] ?? json['follower_count']),
       followingCount: toInt(json['followingCount'] ?? json['following_count']),
       friendsCount: toInt(json['friendsCount'] ?? json['friends_count']),

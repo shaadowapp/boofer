@@ -1,8 +1,11 @@
+import 'dart:math' show pi;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_state_provider.dart';
+import '../services/multi_account_storage_service.dart';
+import 'signup_steps_screen.dart';
+import 'auth/login_screen.dart';
 
-/// Privacy-focused onboarding screen with one-click anonymous signup
+/// Attractive landing page that shows when no active session exists.
+/// Handles the Sign Up → multi-step wizard OR Login → account picker flow.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -10,293 +13,344 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  bool _isCreatingProfile = false;
-  String _statusMessage = '';
-  int _selectedAge = 18; // Default age
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
+  late final PageController _pageController;
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
 
-  Future<void> _createAnonymousProfile() async {
-    setState(() {
-      _isCreatingProfile = true;
-      _statusMessage = 'Creating virtual identity...';
-    });
+  int _currentPage = 0;
+  bool _hasSavedAccounts = false;
+  bool _loading = true;
 
-    try {
-      final authProvider = context.read<AuthStateProvider>();
-      await authProvider.createAnonymousUser(age: _selectedAge);
+  // Slide content
+  static const _slides = [
+    _SlideData(
+      emoji: '🔥',
+      title: 'Meet your\nnext spark',
+      subtitle:
+          'Anonymous. Exciting. Real connections — without giving away who you are.',
+      color: Color(0xFFFF6B6B),
+    ),
+    _SlideData(
+      emoji: '🎭',
+      title: 'Be whoever\nyou want',
+      subtitle:
+          'Create your persona, choose your vibe. No names. No numbers. Just you.',
+      color: Color(0xFF845EF7),
+    ),
+    _SlideData(
+      emoji: '💬',
+      title: 'Chat. Flirt.\nConnect.',
+      subtitle:
+          'End-to-end encrypted. Your conversations stay between you and your match.',
+      color: Color(0xFF20C997),
+    ),
+    _SlideData(
+      emoji: '🌍',
+      title: 'Your world,\nyour circle',
+      subtitle:
+          'Discover people near you or across the globe. Build your private social world.',
+      color: Color(0xFFFF922B),
+    ),
+  ];
 
-      if (authProvider.isAuthenticated) {
-        setState(() {
-          _statusMessage = 'Profile created successfully!';
-        });
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _checkSavedAccounts();
+  }
 
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/legal-acceptance');
-        }
-      } else {
-        setState(() {
-          _statusMessage =
-              authProvider.errorMessage ??
-              'Failed to create profile. Please check your internet connection and try again.';
-          _isCreatingProfile = false;
-        });
-
-        // Show error dialog
-        if (mounted) {
-          _showErrorDialog(
-            'Signup Failed',
-            authProvider.errorMessage ?? 'Unable to create your profile.',
-          );
-        }
-      }
-    } catch (e) {
-      final errorMessage = e.toString().replaceAll('Exception: ', '');
+  Future<void> _checkSavedAccounts() async {
+    final accounts = await MultiAccountStorageService.getSavedAccounts();
+    if (mounted) {
       setState(() {
-        _statusMessage = errorMessage;
-        _isCreatingProfile = false;
+        _hasSavedAccounts = accounts.isNotEmpty;
+        _loading = false;
       });
-
-      // Show error dialog
-      if (mounted) {
-        _showErrorDialog('Signup Failed', errorMessage);
-      }
+      _animController.forward();
     }
   }
 
-  void _showErrorDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _goToSignup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SignupStepsScreen()),
+    );
+  }
+
+  void _goToLogin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0F0F1A),
+        body: Center(child: CircularProgressIndicator(color: Colors.white30)),
+      );
+    }
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF60A5FA)],
-          ),
-        ),
-        child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
+      backgroundColor: const Color(0xFF0F0F1A),
+      body: Stack(
+        children: [
+          // Animated background blobs
+          const _BackgroundBlobs(),
+
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: Column(
+                children: [
+                  // Top logo row
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.chat_bubble_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Boofer',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Feature slides
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (i) => setState(() => _currentPage = i),
+                      itemCount: _slides.length,
+                      itemBuilder: (_, i) => _SlideWidget(slide: _slides[i]),
+                    ),
+                  ),
+
+                  // Page indicator dots
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(
-                        height: 20,
-                      ), // Top spacing substitute for Spacer
-                      // App Icon
-                      const Icon(
-                        Icons.chat_bubble_rounded,
-                        size: 80,
-                        color: Colors.white,
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // App Name
-                      const Text(
-                        'Boofer Guest',
-                        style: TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 1,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Tagline
-                      const Text(
-                        'Privacy-first messaging',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Privacy Features (more compact)
-                      _buildFeatureItem(
-                        icon: Icons.shield_outlined,
-                        title: 'No Email Required',
-                        description: 'Your privacy is our priority',
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildFeatureItem(
-                        icon: Icons.phone_android_outlined,
-                        title: 'Virtual Phone Number',
-                        description: 'Auto-generated for your safety',
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildFeatureItem(
-                        icon: Icons.person_outline,
-                        title: 'Anonymous Identity',
-                        description: 'Random username and profile',
-                      ),
-
-                      const Spacer(), // Flexible space
-                      // Age Selection Section
-                      Container(
-                        padding: const EdgeInsets.all(16),
+                    children: List.generate(
+                      _slides.length,
+                      (i) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: _currentPage == i ? 20 : 6,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Select Your Age',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    if (_selectedAge > 18) {
-                                      setState(() => _selectedAge--);
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.remove_circle_outline,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '$_selectedAge',
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1E3A8A),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    if (_selectedAge < 99) {
-                                      setState(() => _selectedAge++);
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.add_circle_outline,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          color: _currentPage == i
+                              ? _slides[_currentPage].color
+                              : Colors.white24,
+                          borderRadius: BorderRadius.circular(3),
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
 
-                      const SizedBox(height: 24),
-
-                      // Status Message
-                      if (_statusMessage.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: Text(
-                            _statusMessage,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
+                  // CTAs
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        // Primary button: Create Account
+                        _GradientButton(
+                          onTap: _goToSignup,
+                          label: 'Create Account',
+                          icon: Icons.auto_awesome_rounded,
+                          gradient: LinearGradient(
+                            colors: [
+                              _slides[_currentPage].color,
+                              _slides[_currentPage].color.withOpacity(0.7),
+                            ],
                           ),
                         ),
+                        const SizedBox(height: 12),
 
-                      // Create Profile Button
-                      ElevatedButton(
-                        onPressed: _isCreatingProfile
-                            ? null
-                            : _createAnonymousProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF1E3A8A),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // Login button
+                        if (_hasSavedAccounts) ...[
+                          _OutlineButton(
+                            onTap: _goToLogin,
+                            label: 'Switch Account',
+                            icon: Icons.phone_android_rounded,
                           ),
-                          elevation: 4,
-                        ),
-                        child: _isCreatingProfile
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF1E3A8A),
-                                  ),
-                                ),
-                              )
-                            : const Text(
-                                'Create Anonymous Profile',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                        ] else ...[
+                          _OutlineButton(
+                            onTap: _goToLogin,
+                            label: 'I already have an account',
+                            icon: Icons.login_rounded,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Footer note
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'By continuing you agree to our Terms & Privacy Policy',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.3),
+                        fontSize: 11,
                       ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-                      const SizedBox(height: 16),
+// ─── Data class for slides ────────────────────────────────────────────────────
 
-                      // Privacy Note
-                      const Text(
-                        'No personal information required.\nYour data stays private.',
-                        style: TextStyle(fontSize: 12, color: Colors.white60),
-                        textAlign: TextAlign.center,
-                      ),
+class _SlideData {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _SlideData({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+}
 
-                      const SizedBox(height: 24),
-                    ],
+// ─── Individual slide widget ──────────────────────────────────────────────────
+
+class _SlideWidget extends StatefulWidget {
+  final _SlideData slide;
+  const _SlideWidget({required this.slide});
+
+  @override
+  State<_SlideWidget> createState() => _SlideWidgetState();
+}
+
+class _SlideWidgetState extends State<_SlideWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slideAnim;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: SlideTransition(
+        position: _slideAnim,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Glow emoji
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.slide.color.withOpacity(0.15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.slide.color.withOpacity(0.3),
+                      blurRadius: 40,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    widget.slide.emoji,
+                    style: const TextStyle(fontSize: 52),
                   ),
                 ),
+              ),
+              const SizedBox(height: 36),
+              Text(
+                widget.slide.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                widget.slide.subtitle,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.55),
+                  fontSize: 15,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -304,44 +358,205 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
+}
 
-  Widget _buildFeatureItem({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ],
+// ─── Animated gradient background ────────────────────────────────────────────
+
+class _BackgroundBlobs extends StatefulWidget {
+  const _BackgroundBlobs();
+
+  @override
+  State<_BackgroundBlobs> createState() => _BackgroundBlobsState();
+}
+
+class _BackgroundBlobsState extends State<_BackgroundBlobs>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value * 2 * pi;
+        return CustomPaint(painter: _BlobPainter(t), size: Size.infinite);
+      },
+    );
+  }
+}
+
+class _BlobPainter extends CustomPainter {
+  final double t;
+  _BlobPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..blendMode = BlendMode.screen;
+
+    // blob 1 - purple top-left
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFF845EF7).withOpacity(0.35),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(
+              size.width * 0.15 + 40 * (1 + _sin(t * 0.7)),
+              size.height * 0.15 + 30 * _sin(t * 0.5),
             ),
+            radius: 220,
           ),
-        ],
+        );
+    canvas.drawCircle(
+      Offset(
+        size.width * 0.15 + 40 * (1 + _sin(t * 0.7)),
+        size.height * 0.15 + 30 * _sin(t * 0.5),
+      ),
+      220,
+      paint,
+    );
+
+    // blob 2 - pink bottom-right
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFFFF6B6B).withOpacity(0.28),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(
+              size.width * 0.85 + 30 * _sin(t * 0.6),
+              size.height * 0.75 + 40 * _sin(t * 0.8),
+            ),
+            radius: 200,
+          ),
+        );
+    canvas.drawCircle(
+      Offset(
+        size.width * 0.85 + 30 * _sin(t * 0.6),
+        size.height * 0.75 + 40 * _sin(t * 0.8),
+      ),
+      200,
+      paint,
+    );
+  }
+
+  double _sin(double v) => (v % (2 * pi)) < pi
+      ? ((v % (2 * pi)) / pi) * 2 - 1
+      : 1 - (((v % (2 * pi)) - pi) / pi) * 2;
+
+  @override
+  bool shouldRepaint(_BlobPainter old) => old.t != t;
+}
+
+// ─── Reusable buttons ─────────────────────────────────────────────────────────
+
+class _GradientButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String label;
+  final IconData icon;
+  final Gradient gradient;
+
+  const _GradientButton({
+    required this.onTap,
+    required this.label,
+    required this.icon,
+    required this.gradient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String label;
+  final IconData icon;
+
+  const _OutlineButton({
+    required this.onTap,
+    required this.label,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withOpacity(0.05),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white70, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

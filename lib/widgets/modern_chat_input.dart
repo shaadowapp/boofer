@@ -34,6 +34,7 @@ class _ModernChatInputState extends State<ModernChatInput>
   void initState() {
     super.initState();
     _textController.addListener(_handleTextChanged);
+    _focusNode.addListener(() => setState(() {})); // Rebuild on focus change
     _emojiController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -111,178 +112,176 @@ class _ModernChatInputState extends State<ModernChatInput>
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          margin: const EdgeInsets.fromLTRB(
-            16,
-            8,
-            16,
-            16,
-          ), // Docked to bottom, standard padding
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(32),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
-            border: Border.all(color: Colors.transparent, width: 0),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // 1. Emoji Button
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Emoji Button
-                    IconButton(
-                      icon: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, anim) =>
-                            ScaleTransition(scale: anim, child: child),
-                        child: Icon(
-                          _showEmojiPicker
-                              ? Icons.keyboard
-                              : Icons.emoji_emotions_outlined,
-                          key: ValueKey(_showEmojiPicker),
-                          color: _showEmojiPicker
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                      onPressed: _toggleEmojiPicker,
+                padding: const EdgeInsets.only(bottom: 2),
+                child: IconButton(
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      _showEmojiPicker
+                          ? Icons.keyboard
+                          : Icons.emoji_emotions_outlined,
+                      key: ValueKey(_showEmojiPicker),
+                      size: 26,
+                      color: _showEmojiPicker
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withOpacity(0.6),
                     ),
-
-                    // Input Field
-                    Expanded(
-                      child: Container(
-                        constraints: const BoxConstraints(maxHeight: 120),
-                        child: TextField(
-                          controller: _textController,
-                          focusNode: _focusNode,
-                          autofocus: widget.autofocus,
-                          textCapitalization: TextCapitalization.sentences,
-                          keyboardType: TextInputType.multiline,
-                          maxLines: null,
-                          style: theme.textTheme.bodyLarge,
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            hintStyle: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.4,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            errorBorder: InputBorder.none,
-                            disabledBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 14,
-                            ),
-                          ),
-                          onTap: () {
-                            if (_showEmojiPicker) {
-                              setState(() {
-                                _showEmojiPicker = false;
-                                _emojiController.reverse();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-
-                    // Send Button
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(bottom: 4, right: 4),
-                      decoration: BoxDecoration(
-                        color: _isComposing
-                            ? theme.colorScheme.primary
-                            : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.arrow_upward_rounded,
-                          size: 28,
-                          color: _isComposing
-                              ? theme.colorScheme.onPrimary
-                              : theme.colorScheme.onSurface.withOpacity(0.3),
-                        ),
-                        onPressed: _isComposing ? _handleSend : null,
-                      ),
-                    ),
-                  ],
+                  ),
+                  onPressed: _toggleEmojiPicker,
                 ),
               ),
 
-              // Emoji Picker Area
-              SizeTransition(
-                sizeFactor: _emojiAnimation,
-                axisAlignment: -1.0,
-                child: Container(
-                  height: 250,
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: theme.colorScheme.outline.withOpacity(0.1),
-                      ),
+              // 2. Input Field (Transparent, no border)
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  autofocus: widget.autofocus,
+                  textCapitalization: TextCapitalization.sentences,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 6,
+                  minLines: 1,
+                  style: theme.textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Type a message...',
+                    hintStyle: TextStyle(
+                      color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    ),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 12,
                     ),
                   ),
-                  child: EmojiPicker(
-                    onEmojiSelected: (category, emoji) {
-                      HapticFeedback.lightImpact();
-                      _onEmojiSelected(emoji.emoji);
-                    },
-                    config: Config(
-                      height: 256,
-                      checkPlatformCompatibility: true,
-                      emojiViewConfig: EmojiViewConfig(
-                        emojiSizeMax: 28,
-                        columns: 7,
-                        verticalSpacing: 0,
-                        horizontalSpacing: 0,
-                        gridPadding: EdgeInsets.zero,
-                        recentsLimit: 28,
-                        replaceEmojiOnLimitExceed: false,
-                        noRecents: const Text(
-                          'No Recents',
-                          style: TextStyle(fontSize: 20, color: Colors.black26),
-                          textAlign: TextAlign.center,
+                  onTap: () {
+                    if (_showEmojiPicker) {
+                      setState(() {
+                        _showEmojiPicker = false;
+                        _emojiController.reverse();
+                      });
+                    }
+                  },
+                ),
+              ),
+
+              // 3. Modern Send Button
+              AnimatedScale(
+                scale: _isComposing ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutBack,
+                child: AnimatedOpacity(
+                  opacity: _isComposing ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 4, right: 4),
+                    child: InkWell(
+                      onTap: _isComposing ? _handleSend : null,
+                      borderRadius: BorderRadius.circular(32),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
                         ),
-                        backgroundColor: theme.colorScheme.surface,
-                        buttonMode: ButtonMode.MATERIAL,
+                        child: Icon(
+                          Icons.send_rounded,
+                          size: 20,
+                          color: theme.colorScheme.onPrimary,
+                        ),
                       ),
-                      skinToneConfig: SkinToneConfig(
-                        dialogBackgroundColor: theme.colorScheme.surface,
-                        indicatorColor: theme.colorScheme.onSurface,
-                        enabled: true,
-                      ),
-                      categoryViewConfig: CategoryViewConfig(
-                        initCategory: Category.SMILEYS,
-                        backgroundColor: theme.colorScheme.surface,
-                        indicatorColor: theme.colorScheme.primary,
-                        iconColor: theme.colorScheme.onSurface.withOpacity(0.5),
-                        iconColorSelected: theme.colorScheme.primary,
-                        backspaceColor: theme.colorScheme.primary,
-                        tabIndicatorAnimDuration: kTabScrollDuration,
-                        categoryIcons: const CategoryIcons(),
-                      ),
-                      bottomActionBarConfig: const BottomActionBarConfig(
-                        enabled: false,
-                      ),
-                      searchViewConfig: const SearchViewConfig(),
                     ),
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+
+        // Safety warning hidden when keyboard, emoji library, or focus is active
+        if (MediaQuery.viewInsetsOf(context).bottom <= 0 &&
+            !_showEmojiPicker &&
+            !_focusNode.hasFocus)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, top: 0),
+            child: Text(
+              'Be careful of fake profiles and fraud. Stay safe.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                fontSize: 10,
+              ),
+            ),
+          ),
+
+        // 3. Emoji Picker Area - Placed at the very bottom
+        SizeTransition(
+          sizeFactor: _emojiAnimation,
+          axisAlignment: -1.0,
+          child: Container(
+            height: 320, // Increased height for better library view
+            color: theme.colorScheme.surface,
+            child: EmojiPicker(
+              onEmojiSelected: (category, emoji) {
+                HapticFeedback.lightImpact();
+                _onEmojiSelected(emoji.emoji);
+              },
+              config: Config(
+                height: 320,
+                checkPlatformCompatibility: false, // Performance improvement
+                emojiViewConfig: EmojiViewConfig(
+                  emojiSizeMax: 28,
+                  columns: 8, // Wider grid for library feel
+                  verticalSpacing: 4,
+                  horizontalSpacing: 4,
+                  gridPadding: const EdgeInsets.all(8),
+                  recentsLimit: 28,
+                  backgroundColor: theme.colorScheme.surface,
+                  buttonMode: ButtonMode.MATERIAL,
+                  loadingIndicator: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                skinToneConfig: SkinToneConfig(
+                  dialogBackgroundColor: theme.colorScheme.surface,
+                  indicatorColor: theme.colorScheme.onSurface,
+                  enabled: true,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  backgroundColor: theme.colorScheme.surface,
+                  indicatorColor: theme.colorScheme.primary,
+                  iconColor: theme.colorScheme.onSurface.withOpacity(0.5),
+                  iconColorSelected: theme.colorScheme.primary,
+                  backspaceColor: theme.colorScheme.primary,
+                  categoryIcons: const CategoryIcons(),
+                ),
+                bottomActionBarConfig: const BottomActionBarConfig(
+                  enabled: false,
+                ),
+              ),
+            ),
           ),
         ),
       ],

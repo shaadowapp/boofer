@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,11 +9,14 @@ import '../services/follow_service.dart';
 import '../services/chat_service.dart';
 import '../services/user_service.dart';
 import '../models/message_model.dart';
+import '../services/unified_storage_service.dart';
+import '../services/virgil_e2ee_service.dart';
+import '../services/virgil_key_service.dart';
 import '../models/friend_model.dart';
 import '../models/user_model.dart';
 import '../services/supabase_service.dart';
-import '../services/chat_cache_service.dart';
 import '../core/constants.dart';
+import '../services/chat_cache_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
@@ -215,7 +219,7 @@ class ChatProvider with ChangeNotifier {
   bool _isLoadingFromNetwork = false;
   bool _isAppOnline = true; // Assume online initially
 
-  // Load real friends from Firestore with WhatsApp-style caching
+  // Load real friends from Firestore with optimized caching
   Future<void> _loadRealFriends({bool forceRefresh = false}) async {
     try {
       final currentUser = await UserService.getCurrentUser();
@@ -253,6 +257,15 @@ class ChatProvider with ChangeNotifier {
       // STEP 1: Load from cache immediately (stale-while-revalidate)
       final cachedFriends = await cacheService.getCachedFriends(currentUser.id);
       if (cachedFriends.isNotEmpty) {
+        // Filter out invalid IDs from cache
+        cachedFriends.removeWhere((friend) {
+          if (friend.id == AppConstants.booferId) return false;
+          final uuidRegex = RegExp(
+            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          );
+          return !uuidRegex.hasMatch(friend.id);
+        });
+
         _friends = cachedFriends;
         _friendsLoaded = true;
         notifyListeners();
@@ -263,8 +276,11 @@ class ChatProvider with ChangeNotifier {
       if (forceRefresh) {
         final isThrottled = await cacheService.isFriendsRefreshThrottled();
         if (isThrottled) {
-          debugPrint('⏳ Friends refresh throttled. Using cache.');
-          _friendsLoaded = true;
+          debugPrint('⏳ Friends refresh throttled. Using existing state.');
+          // Only set loaded to true if we actually have data or already were in a loaded state
+          if (_friends.isNotEmpty) {
+            _friendsLoaded = true;
+          }
           notifyListeners();
           return;
         }
@@ -359,6 +375,8 @@ class ChatProvider with ChangeNotifier {
         }
       }
 
+      // No decryption needed, messages are plaintext
+
       _friends = combinedFriends;
 
       // Sort: Most recent message first
@@ -390,17 +408,29 @@ class ChatProvider with ChangeNotifier {
       // Re-sort after adding special contacts to ensure time order is respected
       _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
+      // Filtering invalid IDs before saving to cache
+      _friends.removeWhere((friend) {
+        if (friend.id == AppConstants.booferId) return false;
+        // Basic UUID check (8-4-4-4-12 hex chars)
+        final uuidRegex = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        );
+        return !uuidRegex.hasMatch(friend.id);
+      });
+
       // STEP 5: Update cache
       await cacheService.cacheFriends(currentUser.id, _friends);
       print('💾 Cached ${_friends.length} friends locally');
 
-      _friendsLoaded = true;
       _isLoadingFromNetwork = false;
+      _friendsLoaded = true;
       notifyListeners();
     } catch (e) {
       print('❌ Error loading friends: $e');
-      _friendsLoaded = true;
       _isLoadingFromNetwork = false;
+      // Only set to true if we at least have some friends (even from cache)
+      // otherwise keep it false to allow re-fetches
+      _friendsLoaded = _friends.isNotEmpty;
       notifyListeners();
     }
   }
@@ -518,6 +548,23 @@ class ChatProvider with ChangeNotifier {
     if (friendIndex != -1) {
       _friends[friendIndex] = _friends[friendIndex].copyWith(unreadCount: 0);
       notifyListeners();
+
+      try {
+        final currentUser = await UserService.getCurrentUser();
+        if (currentUser != null) {
+          final conversationId = _chatService.getConversationId(
+            currentUser.id,
+            chatId,
+          );
+          await SupabaseService.instance.markConversationAsRead(
+            conversationId,
+            chatId, // Assuming chatId is the friend's user ID (sender of messages)
+          );
+        }
+      } catch (e) {
+        print('❌ Error syncing read status: $e');
+      }
+
       return true;
     }
     return false;
@@ -614,6 +661,17 @@ class ChatProvider with ChangeNotifier {
       ),
     );
     return friend.isOnline;
+  }
+
+  /// Check if a user is a mutual friend
+  bool isMutualFriend(String userId) {
+    if (userId == booferId) return true;
+    try {
+      final friend = _friends.firstWhere((f) => f.id == userId);
+      return friend.isMutual;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _setupPresence(String userId) {
@@ -739,10 +797,10 @@ class ChatProvider with ChangeNotifier {
         .subscribe();
   }
 
-  void _handleRealtimeMessageEvent(
+  Future<void> _handleRealtimeMessageEvent(
     Map<String, dynamic> payload,
     String currentUserId,
-  ) {
+  ) async {
     final eventType = payload['eventType'] as String;
     final record = payload['record'] as Map<String, dynamic>?;
     if (record == null) return;
@@ -791,10 +849,68 @@ class ChatProvider with ChangeNotifier {
           newUnread++;
         }
 
+        final isEncrypted = record['is_encrypted'] ?? false;
+        final encryptedContent = record['encrypted_content'];
+        String displayMessage = messageText;
+
+        // ONLY decrypt if we are the recipient
+        if (isEncrypted &&
+            encryptedContent != null &&
+            receiverId == currentUserId) {
+          try {
+            final senderKeys = await VirgilKeyService().getRecipientKeys(
+              friendId,
+            );
+            if (senderKeys != null) {
+              final contentMap = encryptedContent is String
+                  ? jsonDecode(encryptedContent) as Map<String, dynamic>
+                  : Map<String, dynamic>.from(encryptedContent);
+
+              if (!VirgilE2EEService.instance.isInitialized) {
+                await SupabaseService.instance.initializeE2EE(currentUserId);
+              }
+
+              displayMessage = await VirgilE2EEService.instance
+                  .decryptThenVerify(
+                    contentMap,
+                    senderKeys['signaturePublicKey'],
+                  );
+            }
+          } catch (e) {
+            debugPrint(
+              '⚠️ Real-time lobby decryption failed for recipient: $e',
+            );
+            displayMessage = '[Encrypted]';
+          }
+        } else if (isEncrypted && senderId == currentUserId) {
+          // If we are the sender, recovered plaintext from local DB
+          final localText = await _chatService.getMessageText(
+            record['id'] as String,
+          );
+          if (localText != null &&
+              localText != '[Encrypted]' &&
+              localText.isNotEmpty) {
+            displayMessage = localText;
+          } else {
+            displayMessage = messageText;
+          }
+        }
+
         final updatedFriend = friend.copyWith(
-          lastMessage: messageText,
+          lastMessage: displayMessage,
           lastMessageTime: timestamp,
           unreadCount: newUnread,
+          isLastMessageEncrypted: isEncrypted,
+          lastMessageEncryptedContent: encryptedContent is String
+              ? jsonDecode(encryptedContent)
+              : (encryptedContent != null
+                    ? Map<String, dynamic>.from(encryptedContent)
+                    : null),
+          lastSenderId: senderId,
+          lastMessageStatus: MessageStatus.values.firstWhere(
+            (e) => e.name == (record['status'] ?? 'sent'),
+            orElse: () => MessageStatus.sent,
+          ),
         );
 
         _friends.removeAt(index);
@@ -813,12 +929,19 @@ class ChatProvider with ChangeNotifier {
 
       final index = _friends.indexWhere((f) => f.id == friendId);
       if (index != -1) {
+        // Update status for the lobby if this was the last message
+        final status = MessageStatus.values.firstWhere(
+          (e) => e.name == statusStr,
+          orElse: () => MessageStatus.sent,
+        );
+
+        if (_friends[index].lastMessageStatus != status) {
+          _friends[index] = _friends[index].copyWith(lastMessageStatus: status);
+          notifyListeners();
+        }
+
         // If status changed to 'read' AND it was a message sent TO the current user
         if (statusStr == 'read' && receiverId == currentUserId) {
-          // We need to verify if this message was previously counted as unread.
-          // Since we don't track per-message unread status in the Friend model easily without a list,
-          // we can decrement the count if it's > 0.
-          // A more robust way would be to fetch the fresh count, but decrementing is faster for UI.
           if (_friends[index].unreadCount > 0) {
             _friends[index] = _friends[index].copyWith(
               unreadCount: _friends[index].unreadCount - 1,

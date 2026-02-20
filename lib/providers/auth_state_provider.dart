@@ -8,6 +8,7 @@ import '../services/virtual_number_service.dart';
 import '../services/location_service.dart';
 import '../utils/random_data_generator.dart';
 import '../services/follow_service.dart';
+import '../services/multi_account_storage_service.dart';
 
 enum AuthenticationState {
   initial,
@@ -71,14 +72,20 @@ class AuthStateProvider with ChangeNotifier {
     }
   }
 
-  Future<void> createAnonymousUser({int? age}) async {
+  Future<void> createAnonymousUser({
+    int? age,
+    String? gender,
+    String? lookingFor,
+    List<String>? interests,
+    List<String>? hobbies,
+  }) async {
     _setState(AuthenticationState.loading);
     _clearError();
 
     User? newUser;
 
     try {
-      // 0. Pre-generate Random Data (as demo values as requested)
+      // 0. Pre-generate Random Data
       final fullName = RandomDataGenerator.generateFullName();
       final handle = RandomDataGenerator.generateHandle(fullName);
       final bio = RandomDataGenerator.generateBio();
@@ -93,7 +100,6 @@ class AuthStateProvider with ChangeNotifier {
       }
 
       // 1. Try Supabase Auth with Metadata
-      // This ensures the database trigger can pick these up immediately
       final authUser = await _authService.signInAnonymously(
         data: {
           'full_name': fullName,
@@ -101,14 +107,16 @@ class AuthStateProvider with ChangeNotifier {
           'bio': bio,
           'virtual_number': demoVirtualNumber,
           'age': age,
+          'gender': gender,
+          'looking_for': lookingFor,
+          'interests': interests,
+          'hobbies': hobbies,
           'location': location,
         },
       );
 
       if (authUser != null) {
-        // Authenticated with Supabase
-
-        // Generate/Assign Virtual Number (Real assignment if available)
+        // Generate/Assign Virtual Number
         String? virtualNumber;
         try {
           virtualNumber = await VirtualNumberService()
@@ -117,7 +125,6 @@ class AuthStateProvider with ChangeNotifier {
           debugPrint('⚠️ VirtualNumberService failed: $e');
         }
 
-        // Fallback to pre-generated demo number if service fails
         virtualNumber ??= demoVirtualNumber;
 
         newUser = User(
@@ -130,18 +137,19 @@ class AuthStateProvider with ChangeNotifier {
           status: UserStatus.online,
           virtualNumber: virtualNumber,
           age: age,
+          gender: gender,
+          lookingFor: lookingFor,
+          interests: interests ?? [],
+          hobbies: hobbies ?? [],
           location: location,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
 
-        // Try to update/create profile on server to be sure
+        // Try to update/create profile on server
         try {
-          // Generate a random avatar for the new user
           final randomAvatar = RandomDataGenerator.generateAvatar();
-
           newUser = newUser.copyWith(avatar: randomAvatar);
-
           await _supabaseService.createUserProfile(newUser);
         } catch (e) {
           debugPrint('⚠️ Failed to create Supabase profile: $e');
@@ -152,6 +160,15 @@ class AuthStateProvider with ChangeNotifier {
           await UserService.setCurrentUser(newUser);
           _currentUserId = newUser.id;
           _setState(AuthenticationState.authenticated);
+
+          // Save to multi-account storage
+          await MultiAccountStorageService.upsertAccount(
+            id: newUser.id,
+            handle: newUser.handle,
+            fullName: newUser.fullName,
+            avatar: newUser.avatar,
+          );
+          await MultiAccountStorageService.setLastActiveAccountId(newUser.id);
 
           // Ensure following Boofer Official
           FollowService.instance.ensureFollowingBoofer(newUser.id);

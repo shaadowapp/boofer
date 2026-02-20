@@ -3,7 +3,7 @@ import 'dart:convert';
 
 enum MessageType { text, image, video, audio, file }
 
-enum MessageStatus { pending, sent, delivered, read, failed }
+enum MessageStatus { pending, sent, delivered, read, failed, decryptionFailed }
 
 class Message {
   final String id;
@@ -20,6 +20,11 @@ class Message {
   final Map<String, dynamic>? metadata;
   final DateTime? expiresAt;
 
+  // E2EE fields
+  final bool isEncrypted;
+  final Map<String, dynamic>? encryptedContent;
+  final String? encryptionVersion;
+
   const Message({
     required this.id,
     required this.text,
@@ -34,6 +39,9 @@ class Message {
     this.mediaUrl,
     this.metadata,
     this.expiresAt,
+    this.isEncrypted = false,
+    this.encryptedContent,
+    this.encryptionVersion = '1.0',
   });
 
   /// Create a new message
@@ -87,6 +95,9 @@ class Message {
     String? mediaUrl,
     Map<String, dynamic>? metadata,
     DateTime? expiresAt,
+    bool? isEncrypted,
+    Map<String, dynamic>? encryptedContent,
+    String? encryptionVersion,
   }) {
     return Message(
       id: id ?? this.id,
@@ -102,6 +113,9 @@ class Message {
       mediaUrl: mediaUrl ?? this.mediaUrl,
       metadata: metadata ?? this.metadata,
       expiresAt: expiresAt ?? this.expiresAt,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
+      encryptedContent: encryptedContent ?? this.encryptedContent,
+      encryptionVersion: encryptionVersion ?? this.encryptionVersion,
     );
   }
 
@@ -121,6 +135,9 @@ class Message {
       'mediaUrl': mediaUrl,
       'metadata': metadata,
       'expires_at': expiresAt?.toIso8601String(),
+      'isEncrypted': isEncrypted,
+      'encryptedContent': encryptedContent,
+      'encryptionVersion': encryptionVersion,
     };
   }
 
@@ -177,6 +194,23 @@ class Message {
       expiresAt: json['expires_at'] != null
           ? DateTime.parse(json['expires_at'])
           : null,
+      isEncrypted: toBool(json['is_encrypted'] ?? json['isEncrypted'] ?? false),
+      encryptedContent:
+          json['encrypted_content'] != null || json['encryptedContent'] != null
+          ? ((json['encrypted_content'] ?? json['encryptedContent']) is String
+                ? jsonDecode(
+                        json['encrypted_content'] ?? json['encryptedContent'],
+                      )
+                      as Map<String, dynamic>
+                : Map<String, dynamic>.from(
+                    json['encrypted_content'] ?? json['encryptedContent'],
+                  ))
+          : null,
+      encryptionVersion:
+          json['encryption_version'] != null ||
+              json['encryptionVersion'] != null
+          ? toString(json['encryption_version'] ?? json['encryptionVersion'])
+          : '1.0',
     );
   }
 

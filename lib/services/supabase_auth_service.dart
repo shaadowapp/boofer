@@ -15,6 +15,7 @@ class SupabaseAuthService {
       final sb.AuthResponse res = await _supabase.auth.signInAnonymously(
         data: data,
       );
+
       return res.user;
     } catch (e) {
       debugPrint('❌ Error signing in anonymously via Supabase: $e');

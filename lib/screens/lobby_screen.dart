@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/friend_model.dart';
+import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
@@ -22,11 +23,22 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   String? _userNumber;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     _loadUserNumber();
+    _loadCurrentUserId();
+  }
+
+  Future<void> _loadCurrentUserId() async {
+    final user = await UserService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUserId = user?.id;
+      });
+    }
   }
 
   Future<void> _loadUserNumber() async {
@@ -212,6 +224,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
         index == 0) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
+
+    // ... calculate friendIndex based on whether archive button is at top
 
     // Show archive button at the bottom if configured
     if (archivedChats.isNotEmpty &&
@@ -471,6 +485,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       Expanded(
                         child: Row(
                           children: [
+                            if (friend.lastSenderId == _currentUserId &&
+                                friend.lastMessage.isNotEmpty) ...[
+                              _buildStatusIcon(friend.lastMessageStatus),
+                              const SizedBox(width: 4),
+                            ],
                             Flexible(
                               child: Text(
                                 friend.lastMessage.isNotEmpty
@@ -500,7 +519,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ],
                         ),
                       ),
-                      if (friend.unreadCount > 0)
+                      if (friend.unreadCount > 0 &&
+                          friend.lastSenderId != _currentUserId)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
                           padding: const EdgeInsets.all(6),
@@ -534,6 +554,43 @@ class _LobbyScreenState extends State<LobbyScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildStatusIcon(MessageStatus? status) {
+    if (status == null) return const SizedBox.shrink();
+
+    switch (status) {
+      case MessageStatus.pending:
+        return Icon(
+          Icons.access_time,
+          size: 14,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+        );
+      case MessageStatus.sent:
+        return Icon(
+          Icons.check,
+          size: 14,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+        );
+      case MessageStatus.delivered:
+        return Icon(
+          Icons.done_all,
+          size: 14,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+        );
+      case MessageStatus.read:
+        return const Icon(Icons.done_all, size: 14, color: Colors.blue);
+      case MessageStatus.failed:
+        return const Icon(Icons.error_outline, size: 14, color: Colors.red);
+      case MessageStatus.decryptionFailed:
+        return const Icon(
+          Icons.warning_amber_rounded,
+          size: 14,
+          color: Colors.orange,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   void _showChatOptionsBottomSheet(
