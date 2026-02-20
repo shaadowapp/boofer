@@ -39,8 +39,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // Animations
   late final AnimationController _entranceCtrl;
   late final Animation<double> _fadeAnim;
-  late final AnimationController _pulseCtrl;
-  late final Animation<double> _pulseAnim;
 
   // Auto-advance slides
   late final Stream<int> _autoAdvance;
@@ -89,15 +87,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOut);
 
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(
-      begin: 0.92,
-      end: 1.04,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-
     _autoAdvance = Stream.periodic(const Duration(seconds: 3), (i) => i);
 
     _init();
@@ -132,7 +121,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void dispose() {
     _pageController.dispose();
     _entranceCtrl.dispose();
-    _pulseCtrl.dispose();
     super.dispose();
   }
 
@@ -305,7 +293,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         // Swipe to get started
         _SwipeBar(
           accentColor: _slides[_currentSlide].color,
-          pulseAnim: _pulseAnim,
           label: 'Swipe to get started',
           onActivated: _goToSignup,
         ),
@@ -445,7 +432,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               : _SwipeBar(
                   key: ValueKey(_selectedIndex),
                   accentColor: const Color(0xFF845EF7),
-                  pulseAnim: _pulseAnim,
                   label:
                       'Swipe to continue as ${(selected['fullName'] as String?)?.split(' ').first ?? 'you'}',
                   onActivated: () => _loginAs(selected),
@@ -789,14 +775,12 @@ class _SlideWidgetState extends State<_SlideWidget>
 
 class _SwipeBar extends StatefulWidget {
   final Color accentColor;
-  final Animation<double> pulseAnim;
   final String label;
   final VoidCallback onActivated;
 
   const _SwipeBar({
     super.key,
     required this.accentColor,
-    required this.pulseAnim,
     required this.label,
     required this.onActivated,
   });
@@ -869,107 +853,100 @@ class _SwipeBarState extends State<_SwipeBar>
       child: LayoutBuilder(
         builder: (_, box) {
           _trackWidth = box.maxWidth;
-          return ScaleTransition(
-            scale: _activated
-                ? const AlwaysStoppedAnimation(1.0)
-                : widget.pulseAnim,
-            child: GestureDetector(
-              onHorizontalDragUpdate: _onDragUpdate,
-              onHorizontalDragEnd: _onDragEnd,
-              child: SizedBox(
-                height: _trackH,
-                child: Stack(
-                  children: [
-                    // Track background
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(_trackH / 2),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.09),
-                          ),
+          return GestureDetector(
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            child: SizedBox(
+              height: _trackH,
+              child: Stack(
+                children: [
+                  // Track background
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(_trackH / 2),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.09),
                         ),
                       ),
                     ),
+                  ),
 
-                    // Progress trail
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: (_knobLeft + _knobSize / 2).clamp(
-                          0.0,
-                          _trackWidth,
+                  // Progress trail
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: (_knobLeft + _knobSize / 2).clamp(
+                        0.0,
+                        _trackWidth,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            widget.accentColor.withValues(alpha: 0.55),
+                            widget.accentColor.withValues(alpha: 0.0),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              widget.accentColor.withValues(alpha: 0.55),
-                              widget.accentColor.withValues(alpha: 0.0),
+                        borderRadius: BorderRadius.circular(_trackH / 2),
+                      ),
+                    ),
+                  ),
+
+                  // Label
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: _knobSize + _pad * 2 + 8,
+                        right: 16,
+                      ),
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 150),
+                        opacity: (1.0 - _progress * 2.2).clamp(0.0, 1.0),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.label,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.54),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white.withValues(alpha: 0.30),
+                                size: 16,
+                              ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(_trackH / 2),
                         ),
                       ),
                     ),
+                  ),
 
-                    // Label
-                    Positioned.fill(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: _knobSize + _pad * 2 + 8,
-                          right: 16,
-                        ),
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 150),
-                          opacity: (1.0 - _progress * 2.2).clamp(0.0, 1.0),
-                          child: Center(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    widget.label,
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.54,
-                                      ),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.3,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: Colors.white.withValues(alpha: 0.30),
-                                  size: 16,
-                                ),
-                              ],
-                            ),
+                  // Knob
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 10),
+                    left: _knobLeft,
+                    top: _pad,
+                    child: _activated
+                        ? _CheckKnob(color: widget.accentColor)
+                        : _DragKnob(
+                            color: widget.accentColor,
+                            progress: _progress,
                           ),
-                        ),
-                      ),
-                    ),
-
-                    // Knob
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 10),
-                      left: _knobLeft,
-                      top: _pad,
-                      child: _activated
-                          ? _CheckKnob(color: widget.accentColor)
-                          : _DragKnob(
-                              color: widget.accentColor,
-                              progress: _progress,
-                            ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
