@@ -858,8 +858,10 @@ class _SwipeBarState extends State<_SwipeBar>
             onHorizontalDragEnd: _onDragEnd,
             child: SizedBox(
               height: _trackH,
-              child: Stack(
-                children: [
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_trackH / 2),
+                child: Stack(
+                  children: [
                   // Track background
                   Positioned.fill(
                     child: Container(
@@ -946,7 +948,8 @@ class _SwipeBarState extends State<_SwipeBar>
                             progress: _progress,
                           ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
