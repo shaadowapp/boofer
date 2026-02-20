@@ -95,6 +95,9 @@ class SupabaseService {
     String? bio,
     String? avatar,
     String? profilePicture,
+    List<String>? interests,
+    List<String>? hobbies,
+    int? age,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -105,6 +108,9 @@ class SupabaseService {
       if (bio != null) updates['bio'] = bio;
       if (avatar != null) updates['avatar'] = avatar;
       if (profilePicture != null) updates['profile_picture'] = profilePicture;
+      if (interests != null) updates['interests'] = interests;
+      if (hobbies != null) updates['hobbies'] = hobbies;
+      if (age != null) updates['age'] = age;
 
       final response = await _supabase
           .from('profiles')

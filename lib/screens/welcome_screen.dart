@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_state_provider.dart';
+import '../services/local_storage_service.dart';
+import '../services/user_service.dart';
 import 'main_screen.dart';
 
-/// Animated welcome screen shown once after a successful signup.
-/// Automatically advances to MainScreen after the animation plays.
+/// Animated welcome screen shown as a 'gate' after data collection.
+/// Users see their draft profile (Aadhaar style) and can edit it
+/// or confirm to finally insert data into the database.
 class WelcomeScreen extends StatefulWidget {
-  final String? displayName;
-  const WelcomeScreen({super.key, this.displayName});
+  final Map<String, dynamic> draftData;
+  const WelcomeScreen({super.key, required this.draftData});
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -13,58 +19,31 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
+  late Map<String, dynamic> _localData;
   late final AnimationController _ctrl;
-  late final Animation<double> _scaleAnim;
   late final Animation<double> _fadeAnim;
-  late final Animation<Offset> _slideAnim;
+  late final Animation<Offset> _cardSlideAnim;
+
+  bool _isSaving = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
+    _localData = Map<String, dynamic>.from(widget.draftData);
+
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000),
     );
 
-    _scaleAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.0, 0.6, curve: Curves.elasticOut),
-      ),
-    );
-
-    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-      ),
-    );
-
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _ctrl,
-            curve: const Interval(0.3, 0.9, curve: Curves.easeOut),
-          ),
-        );
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _cardSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutQuart));
 
     _ctrl.forward();
-
-    // Auto-navigate after animation + pause
-    Future.delayed(const Duration(milliseconds: 3000), () {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const MainScreen(),
-            transitionsBuilder: (_, anim, __, child) =>
-                FadeTransition(opacity: anim, child: child),
-            transitionDuration: const Duration(milliseconds: 600),
-          ),
-          (route) => false,
-        );
-      }
-    });
   }
 
   @override
@@ -73,163 +52,290 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  String _getWelcomeEmoji() {
-    final emojis = ['🎉', '🚀', '✨', '🔥', '💫', '🌟'];
-    return emojis[DateTime.now().second % emojis.length];
+  Future<void> _handleConfirm() async {
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+
+    try {
+      final authProvider = context.read<AuthStateProvider>();
+      await authProvider.createAnonymousUser(
+        fullName: _localData['fullName'],
+        handle: _localData['handle'],
+        bio: _localData['bio'],
+        avatar: _localData['avatar'],
+        age: _localData['age'],
+        gender: _localData['gender'],
+        lookingFor: _localData['lookingFor'],
+        interests: _localData['interests'],
+        hobbies: _localData['hobbies'],
+      );
+
+      if (!mounted) return;
+
+      if (authProvider.isAuthenticated) {
+        // Accept terms
+        final user = await UserService.getCurrentUser();
+        if (user != null) {
+          await LocalStorageService.setTermsAccepted(user.id, true);
+        }
+
+        // Final transition to app
+        Navigator.pushAndRemoveUntil(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const MainScreen(),
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 800),
+          ),
+          (route) => false,
+        );
+      } else {
+        setState(() {
+          _error = authProvider.errorMessage ?? 'Signup failed';
+          _isSaving = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isSaving = false;
+      });
+    }
   }
 
-  String _getWelcomeMessage(String name) {
-    final msgs = [
-      'Your world just got\na whole lot bigger.',
-      'A new identity,\nendless possibilities.',
-      'Your adventure\nstarts now.',
-      'Zero limits.\nJust you and your vibe.',
-    ];
-    return msgs[DateTime.now().second % msgs.length];
+  void _showEditSheet() {
+    final nameCtrl = TextEditingController(text: _localData['fullName']);
+    final handleCtrl = TextEditingController(text: _localData['handle']);
+    final bioCtrl = TextEditingController(text: _localData['bio']);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+          top: 32,
+          left: 24,
+          right: 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Customize your identity',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildEditField('Full Name', nameCtrl, Icons.person_outline),
+            const SizedBox(height: 16),
+            _buildEditField('Handle', handleCtrl, Icons.alternate_email),
+            const SizedBox(height: 16),
+            _buildEditField('Bio', bioCtrl, Icons.info_outline, maxLines: 2),
+            const SizedBox(height: 32),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _localData['fullName'] = nameCtrl.text;
+                  _localData['handle'] = handleCtrl.text;
+                  _localData['bio'] = bioCtrl.text;
+                });
+                Navigator.pop(ctx);
+              },
+              child: Container(
+                height: 56,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF845EF7), Color(0xFF5C7CFA)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditField(
+    String label,
+    TextEditingController ctrl,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          maxLines: maxLines,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: Colors.white30, size: 20),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = widget.displayName ?? 'Hey you';
-    final emoji = _getWelcomeEmoji();
-    final msg = _getWelcomeMessage(name);
-
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F1A),
       body: Stack(
         children: [
-          // Animated background
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _ctrl,
-              builder: (_, __) {
-                return CustomPaint(painter: _WelcomeBgPainter(_ctrl.value));
-              },
+          // Background accents
+          Positioned(
+            top: -100,
+            right: -100,
+            child: _GlowCircle(
+              color: const Color(0xFF845EF7).withOpacity(0.15),
             ),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -50,
+            child: _GlowCircle(color: const Color(0xFFFF6B6B).withOpacity(0.1)),
           ),
 
           SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Big emoji + scale animation
-                    ScaleTransition(
-                      scale: _scaleAnim,
-                      child: FadeTransition(
-                        opacity: _fadeAnim,
-                        child: Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF845EF7).withOpacity(0.5),
-                                blurRadius: 40,
-                                spreadRadius: 10,
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              emoji,
-                              style: const TextStyle(fontSize: 56),
-                            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 24),
+                  FadeTransition(
+                    opacity: _fadeAnim,
+                    child: Column(
+                      children: [
+                        const Text(
+                          '🎉 Identity Secured!',
+                          style: TextStyle(
+                            color: Color(0xFF845EF7),
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
                           ),
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    // Name greeting
-                    SlideTransition(
-                      position: _slideAnim,
-                      child: FadeTransition(
-                        opacity: _fadeAnim,
-                        child: Column(
-                          children: [
-                            Text(
-                              'Welcome,',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                                fontSize: 20,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 38,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              msg,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.45),
-                                fontSize: 16,
-                                height: 1.6,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Your Digital Boofer Card',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'This is how others will see you in the world.',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
 
-                    const SizedBox(height: 60),
+                  const Spacer(),
 
-                    // Progress dots
-                    FadeTransition(
+                  // THE PROFILE CARD (Aadhaar Style Inspired)
+                  SlideTransition(
+                    position: _cardSlideAnim,
+                    child: FadeTransition(
                       opacity: _fadeAnim,
-                      child: AnimatedBuilder(
-                        animation: _ctrl,
-                        builder: (_, __) {
-                          final progress = _ctrl.value;
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(3, (i) {
-                              final dotProgress = ((progress * 3) - i).clamp(
-                                0.0,
-                                1.0,
-                              );
-                              return AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                width: 8 + dotProgress * 16,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: Color.lerp(
-                                    Colors.white24,
-                                    const Color(0xFF845EF7),
-                                    dotProgress,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              );
-                            }),
+                      child: _ProfileCard(
+                        avatar: _localData['avatar'],
+                        fullName: _localData['fullName'],
+                        handle: _localData['handle'],
+                        bio: _localData['bio'],
+                        virtualNumber: _localData['virtualNumber'],
+                        onCopyNumber: () {
+                          Clipboard.setData(
+                            ClipboardData(text: _localData['virtualNumber']),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Virtual Number copied!'),
+                              duration: Duration(seconds: 1),
+                              backgroundColor: Color(0xFF845EF7),
+                            ),
                           );
                         },
                       ),
                     ),
+                  ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
-                ),
+
+                  const Spacer(),
+
+                  // Action Buttons
+                  FadeTransition(
+                    opacity: _fadeAnim,
+                    child: Column(
+                      children: [
+                        _GateButton(
+                          onTap: _isSaving ? null : _handleConfirm,
+                          label: 'Get into Boofer world',
+                          isLoading: _isSaving,
+                          isPrimary: true,
+                        ),
+                        const SizedBox(height: 16),
+                        _GateButton(
+                          onTap: _isSaving ? null : _showEditSheet,
+                          label: 'Edit My Profile',
+                          isPrimary: false,
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -239,53 +345,296 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 }
 
-class _WelcomeBgPainter extends CustomPainter {
-  final double t;
-  _WelcomeBgPainter(this.t);
+class _ProfileCard extends StatelessWidget {
+  final String avatar;
+  final String fullName;
+  final String handle;
+  final String bio;
+  final String virtualNumber;
+  final VoidCallback onCopyNumber;
+
+  const _ProfileCard({
+    required this.avatar,
+    required this.fullName,
+    required this.handle,
+    required this.bio,
+    required this.virtualNumber,
+    required this.onCopyNumber,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..blendMode = BlendMode.screen;
-
-    // Center glow
-    paint.shader =
-        RadialGradient(
-          colors: [
-            const Color(0xFF845EF7).withOpacity(0.3 * t),
-            Colors.transparent,
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(size.width / 2, size.height * 0.4),
-            radius: 300 * t,
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E30),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
           ),
-        );
-    canvas.drawCircle(
-      Offset(size.width / 2, size.height * 0.4),
-      300 * t,
-      paint,
-    );
-
-    // Bottom accent
-    paint.shader =
-        RadialGradient(
-          colors: [
-            const Color(0xFFFF6B6B).withOpacity(0.2 * t),
-            Colors.transparent,
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(size.width * 0.7, size.height * 0.85),
-            radius: 180 * t,
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header Accent
+          Container(
+            height: 12,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
           ),
-        );
-    canvas.drawCircle(
-      Offset(size.width * 0.7, size.height * 0.85),
-      180 * t,
-      paint,
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar Box
+                    Container(
+                      width: 90,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          avatar,
+                          style: const TextStyle(fontSize: 48),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    // Identity Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'BOOFER IDENTITY',
+                            style: TextStyle(
+                              color: Color(0xFF845EF7),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            fullName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '@$handle',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            bio,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Divider
+                Container(height: 1, color: Colors.white.withOpacity(0.05)),
+                const SizedBox(height: 20),
+                // Virtual Number Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'VIRTUAL NUMBER',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.3),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatNumber(virtualNumber),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      onPressed: onCopyNumber,
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF845EF7).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.copy_rounded,
+                          color: Color(0xFF845EF7),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Footer watermark
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.02),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.verified_user,
+                  color: Colors.white10,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'GOVERNMENT OF BOOFER',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.1),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
+  String _formatNumber(String num) {
+    if (num.length < 10) return num;
+    return '${num.substring(0, 3)} ${num.substring(3, 6)} ${num.substring(6)}';
+  }
+}
+
+class _GateButton extends StatelessWidget {
+  final VoidCallback? onTap;
+  final String label;
+  final bool isLoading;
+  final bool isPrimary;
+
+  const _GateButton({
+    required this.onTap,
+    required this.label,
+    this.isLoading = false,
+    required this.isPrimary,
+  });
+
   @override
-  bool shouldRepaint(_WelcomeBgPainter old) => old.t != t;
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 60,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isPrimary ? null : Colors.transparent,
+          gradient: isPrimary && onTap != null
+              ? const LinearGradient(
+                  colors: [Color(0xFF845EF7), Color(0xFF5C7CFA)],
+                )
+              : null,
+          borderRadius: BorderRadius.circular(18),
+          border: isPrimary ? null : Border.all(color: Colors.white10),
+          boxShadow: isPrimary && onTap != null
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF845EF7).withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(
+                  label,
+                  style: TextStyle(
+                    color: isPrimary ? Colors.white : Colors.white70,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlowCircle extends StatelessWidget {
+  final Color color;
+  const _GlowCircle({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      height: 300,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: color, blurRadius: 100, spreadRadius: 20)],
+      ),
+    );
+  }
 }

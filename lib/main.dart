@@ -165,9 +165,13 @@ class BooferApp extends StatelessWidget {
               '/onboarding': (context) => const OnboardingScreen(),
               '/main': (context) => const MainScreen(),
               '/welcome': (context) {
-                final name =
-                    ModalRoute.of(context)?.settings.arguments as String?;
-                return WelcomeScreen(displayName: name);
+                final data =
+                    ModalRoute.of(context)?.settings.arguments
+                        as Map<String, dynamic>?;
+                if (data != null) {
+                  return WelcomeScreen(draftData: data);
+                }
+                return const OnboardingScreen();
               },
               '/notification-settings': (context) =>
                   const NotificationSettingsScreen(),

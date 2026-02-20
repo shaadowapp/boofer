@@ -6,7 +6,7 @@ enum AppThemeMode { light, dark, system }
 
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
-  AppThemeMode _themeMode = AppThemeMode.light;
+  AppThemeMode _themeMode = AppThemeMode.dark;
   bool _isSystemDarkMode = false;
   Color _accentColor = AppColors.loveRose;
   double _fontSizeScale = 1.0; // Font size multiplier (16.0 / 16.0 = 1.0)
@@ -64,7 +64,8 @@ class ThemeProvider extends ChangeNotifier {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final themeIndex = prefs.getInt(_themeKey) ?? 0; // Default to light
+    final themeIndex =
+        prefs.getInt(_themeKey) ?? 1; // Default to dark (index 1)
     _themeMode = AppThemeMode.values[themeIndex];
     notifyListeners();
   }

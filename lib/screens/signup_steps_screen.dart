@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_state_provider.dart';
+import 'package:flutter/services.dart';
 import 'welcome_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'privacy_policy_screen.dart';
-import '../services/local_storage_service.dart';
-import '../services/user_service.dart';
+import '../utils/random_data_generator.dart';
+import '../core/constants.dart';
 
 /// Multi-step onboarding wizard: Age/Gender → Interests → Hobbies → Looking For → Terms.
 /// All profile steps (except Terms) are skippable.
@@ -84,50 +83,34 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   }
 
   Future<void> _finishAndCreate() async {
-    // Triggered from Terms screen after user taps Agree
-    setState(() => _isCreating = true);
-    try {
-      final authProvider = context.read<AuthStateProvider>();
-      await authProvider.createAnonymousUser(
-        age: _age,
-        gender: _gender,
-        lookingFor: _lookingFor,
-        interests: _interests.toList(),
-        hobbies: _hobbies.toList(),
-      );
+    // Generate draft profile data for the Welcome Screen 'gate'
+    final fullName = RandomDataGenerator.generateFullName();
+    final handle = RandomDataGenerator.generateHandle(fullName);
+    final bio = RandomDataGenerator.generateBio();
+    final virtualNumber = RandomDataGenerator.generateVirtualNumber();
+    final avatar = RandomDataGenerator.generateAvatar();
 
-      if (!mounted) return;
-
-      if (authProvider.isAuthenticated) {
-        // Accept terms
-        final user = await UserService.getCurrentUser();
-        if (user != null) {
-          await LocalStorageService.setTermsAccepted(user.id, true);
-        }
-        // Navigate to welcome
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WelcomeScreen(displayName: user?.fullName),
-          ),
-          (route) => false,
-        );
-      } else {
-        setState(() {
-          _errorMsg =
-              authProvider.errorMessage ??
-              'Something went wrong. Please check your connection and try again.';
-          _isCreating = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMsg = e.toString().replaceAll('Exception: ', '');
-          _isCreating = false;
-        });
-      }
-    }
+    // Navigate to welcome screen as a gate
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WelcomeScreen(
+          draftData: {
+            'fullName': fullName,
+            'handle': handle,
+            'bio': bio,
+            'virtualNumber': virtualNumber,
+            'avatar': avatar,
+            'age': _age,
+            'gender': _gender,
+            'interests': _interests.toList(),
+            'hobbies': _hobbies.toList(),
+            'lookingFor': _lookingFor,
+          },
+        ),
+      ),
+      (route) => false,
+    );
   }
 
   @override
@@ -136,22 +119,30 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
       backgroundColor: const Color(0xFF0F0F1A),
       body: Stack(
         children: [
-          // Progress gradient header
-          Container(
-            height: 4,
-            child: LinearProgressIndicator(
-              value: (_step + 1) / _totalSteps,
-              backgroundColor: Colors.white12,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Color(0xFF845EF7),
-              ),
-            ),
-          ),
-
           SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 4),
+                // Progress indicator with breathing room
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      height: 3,
+                      child: LinearProgressIndicator(
+                        value: (_step + 1) / _totalSteps,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF845EF7),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // const SizedBox(height: 4), // Replaced by padding above
                 // Back button + Step indicator
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -348,28 +339,39 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
           ),
           child: Column(
             children: [
-              Text(
-                '$_age',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 52,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: const Color(0xFF845EF7),
-                  inactiveTrackColor: Colors.white12,
-                  thumbColor: const Color(0xFF845EF7),
-                  overlayColor: const Color(0xFF845EF7).withOpacity(0.2),
-                  trackHeight: 4,
-                ),
-                child: Slider(
-                  value: _age.toDouble(),
-                  min: 18,
-                  max: 65,
-                  divisions: 47,
-                  onChanged: (v) => setState(() => _age = v.round()),
+              Container(
+                height: 150,
+                child: ListWheelScrollView.useDelegate(
+                  itemExtent: 50,
+                  perspective: 0.005,
+                  diameterRatio: 1.2,
+                  physics: const FixedExtentScrollPhysics(),
+                  controller: FixedExtentScrollController(
+                    initialItem: _age - 18,
+                  ),
+                  onSelectedItemChanged: (index) {
+                    setState(() => _age = index + 18);
+                    HapticFeedback.selectionClick();
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    builder: (context, index) {
+                      final age = index + 18;
+                      if (age > 100) return null;
+                      return Center(
+                        child: Text(
+                          '$age',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: _age == age
+                                ? const Color(0xFF845EF7)
+                                : Colors.white38,
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: 83, // 18 to 100
+                  ),
                 ),
               ),
               Row(
@@ -383,7 +385,14 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                     ),
                   ),
                   Text(
-                    '65+',
+                    '18',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    '100',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.3),
                       fontSize: 12,
@@ -454,60 +463,24 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   // ── Step 2: Interests ─────────────────────────────────────────────────────
 
   Widget _buildInterestsStep() {
-    final items = [
-      ('Music 🎵', 'Music'),
-      ('Movies 🎬', 'Movies'),
-      ('Travel ✈️', 'Travel'),
-      ('Sports ⚽', 'Sports'),
-      ('Gaming 🎮', 'Gaming'),
-      ('Food 🍕', 'Food'),
-      ('Art 🎨', 'Art'),
-      ('Books 📚', 'Books'),
-      ('Fitness 💪', 'Fitness'),
-      ('Tech 💻', 'Tech'),
-      ('Fashion 👗', 'Fashion'),
-      ('Memes 😂', 'Memes'),
-      ('Anime 🌸', 'Anime'),
-      ('Nature 🌿', 'Nature'),
-      ('Photography 📷', 'Photography'),
-      ('Astrology 🔮', 'Astrology'),
-      ('Comedy 😄', 'Comedy'),
-      ('Podcasts 🎙️', 'Podcasts'),
-    ];
     return _buildChipSelector(
       title: 'Your interests',
       subtitle: 'Pick what you love — we\'ll help you meet matching souls.',
-      items: items,
+      items: AppConstants.interestOptions,
       selected: _interests,
+      maxSelect: 5,
     );
   }
 
   // ── Step 3: Hobbies ───────────────────────────────────────────────────────
 
   Widget _buildHobbiesStep() {
-    final items = [
-      ('Cooking 🍳', 'Cooking'),
-      ('Dancing 💃', 'Dancing'),
-      ('Drawing 🖌️', 'Drawing'),
-      ('Hiking 🏔️', 'Hiking'),
-      ('Yoga 🧘', 'Yoga'),
-      ('Cycling 🚴', 'Cycling'),
-      ('Reading 📖', 'Reading'),
-      ('Singing 🎤', 'Singing'),
-      ('DIY 🔨', 'DIY'),
-      ('Meditation 🕯️', 'Meditation'),
-      ('Vlogging 📹', 'Vlogging'),
-      ('Writing ✍️', 'Writing'),
-      ('Board Games 🎲', 'Board Games'),
-      ('Surfing 🏄', 'Surfing'),
-      ('Gardening 🌱', 'Gardening'),
-      ('Skating ⛷️', 'Skating'),
-    ];
     return _buildChipSelector(
       title: 'Your hobbies',
       subtitle: 'What do you do for fun? Let your matches know!',
-      items: items,
+      items: AppConstants.hobbyOptions,
       selected: _hobbies,
+      maxSelect: 5,
     );
   }
 
@@ -516,6 +489,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
     required String subtitle,
     required List<(String, String)> items,
     required Set<String> selected,
+    required int maxSelect,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,7 +515,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Optional — tap to select (or skip)',
+          'Pick up to $maxSelect — tap to select (or skip)',
           style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
         ),
         const SizedBox(height: 24),
@@ -554,8 +528,11 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
               onTap: () => setState(() {
                 if (isSelected) {
                   selected.remove(item.$2);
-                } else {
+                } else if (selected.length < maxSelect) {
                   selected.add(item.$2);
+                } else {
+                  // Optional: Show a subtle feedback if limit reached
+                  HapticFeedback.vibrate();
                 }
               }),
               child: AnimatedContainer(
@@ -712,34 +689,47 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         ),
         const SizedBox(height: 28),
 
-        _GuidelineCard(
-          icon: Icons.person_off_outlined,
-          iconColor: const Color(0xFF845EF7),
-          title: 'Your identity, protected',
-          desc:
-              'Your real identity is never exposed. You control what you share.',
-        ),
-        _GuidelineCard(
-          icon: Icons.lock_outline_rounded,
-          iconColor: const Color(0xFF20C997),
-          title: 'End-to-end encrypted',
-          desc: 'All conversations are encrypted. Not even we can read them.',
-        ),
-        _GuidelineCard(
-          icon: Icons.volunteer_activism_outlined,
-          iconColor: const Color(0xFFFF922B),
-          title: 'Respect everyone',
-          desc: 'You are responsible for your interactions. Be kind.',
-        ),
-        _GuidelineCard(
-          icon: Icons.block_outlined,
-          iconColor: const Color(0xFFFF6B6B),
-          title: 'Zero tolerance',
-          desc:
-              'Harassment, illegal content, and hate speech result in permanent ban.',
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Column(
+            children: [
+              _GuidelineCard(
+                icon: Icons.person_off_outlined,
+                iconColor: const Color(0xFF845EF7),
+                title: 'Your identity, protected',
+                desc:
+                    'Your real identity is never exposed. You control what you share.',
+              ),
+              _GuidelineCard(
+                icon: Icons.lock_outline_rounded,
+                iconColor: const Color(0xFF20C997),
+                title: 'End-to-end encrypted',
+                desc:
+                    'All conversations are encrypted. Not even we can read them.',
+              ),
+              _GuidelineCard(
+                icon: Icons.volunteer_activism_outlined,
+                iconColor: const Color(0xFFFF922B),
+                title: 'Respect everyone',
+                desc: 'You are responsible for your interactions. Be kind.',
+              ),
+              _GuidelineCard(
+                icon: Icons.block_outlined,
+                iconColor: const Color(0xFFFF6B6B),
+                title: 'Zero tolerance',
+                desc:
+                    'Harassment, illegal content, and hate speech result in permanent ban.',
+              ),
+            ],
+          ),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
         // Legal links
         Row(

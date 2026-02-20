@@ -73,6 +73,10 @@ class AuthStateProvider with ChangeNotifier {
   }
 
   Future<void> createAnonymousUser({
+    String? fullName,
+    String? handle,
+    String? bio,
+    String? avatar,
     int? age,
     String? gender,
     String? lookingFor,
@@ -85,10 +89,11 @@ class AuthStateProvider with ChangeNotifier {
     User? newUser;
 
     try {
-      // 0. Pre-generate Random Data
-      final fullName = RandomDataGenerator.generateFullName();
-      final handle = RandomDataGenerator.generateHandle(fullName);
-      final bio = RandomDataGenerator.generateBio();
+      // 0. Pre-generate or Use provided Random Data
+      final finalFullName = fullName ?? RandomDataGenerator.generateFullName();
+      final finalHandle =
+          handle ?? RandomDataGenerator.generateHandle(finalFullName);
+      final finalBio = bio ?? RandomDataGenerator.generateBio();
       final demoVirtualNumber = RandomDataGenerator.generateVirtualNumber();
 
       // 0.1 Fetch Location from IP (no permission required)
@@ -102,9 +107,9 @@ class AuthStateProvider with ChangeNotifier {
       // 1. Try Supabase Auth with Metadata
       final authUser = await _authService.signInAnonymously(
         data: {
-          'full_name': fullName,
-          'handle': handle,
-          'bio': bio,
+          'full_name': finalFullName,
+          'handle': finalHandle,
+          'bio': finalBio,
           'virtual_number': demoVirtualNumber,
           'age': age,
           'gender': gender,
@@ -115,73 +120,66 @@ class AuthStateProvider with ChangeNotifier {
         },
       );
 
-      if (authUser != null) {
-        // Generate/Assign Virtual Number
-        String? virtualNumber;
-        try {
-          virtualNumber = await VirtualNumberService()
-              .generateAndAssignVirtualNumber(authUser.id);
-        } catch (e) {
-          debugPrint('⚠️ VirtualNumberService failed: $e');
-        }
-
-        virtualNumber ??= demoVirtualNumber;
-
-        newUser = User(
-          id: authUser.id,
-          email: '${authUser.id}@anonymous.boofer.local',
-          fullName: fullName,
-          handle: handle,
-          bio: bio,
-          isDiscoverable: true,
-          status: UserStatus.online,
-          virtualNumber: virtualNumber,
-          age: age,
-          gender: gender,
-          lookingFor: lookingFor,
-          interests: interests ?? [],
-          hobbies: hobbies ?? [],
-          location: location,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        // Try to update/create profile on server
-        try {
-          final randomAvatar = RandomDataGenerator.generateAvatar();
-          newUser = newUser.copyWith(avatar: randomAvatar);
-          await _supabaseService.createUserProfile(newUser);
-        } catch (e) {
-          debugPrint('⚠️ Failed to create Supabase profile: $e');
-        }
-
-        // 3. Save and Finish
-        if (newUser != null) {
-          await UserService.setCurrentUser(newUser);
-          _currentUserId = newUser.id;
-          _setState(AuthenticationState.authenticated);
-
-          // Save to multi-account storage
-          await MultiAccountStorageService.upsertAccount(
-            id: newUser.id,
-            handle: newUser.handle,
-            fullName: newUser.fullName,
-            avatar: newUser.avatar,
-          );
-          await MultiAccountStorageService.setLastActiveAccountId(newUser.id);
-
-          // Ensure following Boofer Official
-          FollowService.instance.ensureFollowingBoofer(newUser.id);
-        } else {
-          throw Exception('Failed to create user profile');
-        }
-      } else {
+      if (authUser == null) {
         throw Exception('Failed to sign in anonymously via Supabase');
       }
+
+      // Generate/Assign Virtual Number
+      String? virtualNumber;
+      try {
+        virtualNumber = await VirtualNumberService()
+            .generateAndAssignVirtualNumber(authUser.id);
+      } catch (e) {
+        debugPrint('⚠️ VirtualNumberService failed: $e');
+      }
+      virtualNumber ??= demoVirtualNumber;
+
+      newUser = User(
+        id: authUser.id,
+        email: '${authUser.id}@anonymous.boofer.local',
+        fullName: finalFullName,
+        handle: finalHandle,
+        bio: finalBio,
+        isDiscoverable: true,
+        status: UserStatus.online,
+        virtualNumber: virtualNumber,
+        age: age,
+        gender: gender,
+        lookingFor: lookingFor,
+        interests: interests ?? [],
+        hobbies: hobbies ?? [],
+        avatar: avatar ?? RandomDataGenerator.generateAvatar(),
+        location: location,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Try to create profile on Supabase
+      try {
+        await _supabaseService.createUserProfile(newUser);
+      } catch (e) {
+        debugPrint('⚠️ Failed to create Supabase profile: $e');
+      }
+
+      // 3. Save and Finish
+      await UserService.setCurrentUser(newUser);
+      _currentUserId = newUser.id;
+      _setState(AuthenticationState.authenticated);
+
+      // Save to multi-account storage
+      await MultiAccountStorageService.upsertAccount(
+        id: newUser.id,
+        handle: newUser.handle,
+        fullName: newUser.fullName,
+        avatar: newUser.avatar,
+      );
+      await MultiAccountStorageService.setLastActiveAccountId(newUser.id);
+
+      // Ensure following Boofer Official
+      FollowService.instance.ensureFollowingBoofer(newUser.id);
     } catch (e) {
       debugPrint('❌ Anonymous auth failed: $e');
       _setError(e.toString().replaceAll('Exception: ', ''));
-      // DO NOT fall back to local user - strict access restriction
     }
   }
 

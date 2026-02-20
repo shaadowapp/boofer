@@ -1,13 +1,18 @@
+import 'dart:async' show Timer;
 import 'dart:math' show pi, sin;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/multi_account_storage_service.dart';
 import '../services/local_storage_service.dart';
 import '../providers/auth_state_provider.dart';
 import 'signup_steps_screen.dart';
 import 'main_screen.dart';
 import 'legal_acceptance_screen.dart';
+import 'terms_of_service_screen.dart';
+import 'privacy_policy_screen.dart';
 
 /// Smart auth gateway — shown only when:
 ///   • 0 saved accounts  → signup flow (slides + swipe-to-start)
@@ -35,13 +40,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // Slides page controller
   late final PageController _pageController;
   int _currentSlide = 0;
+  int _virtualPage = 1000;
 
   // Animations
   late final AnimationController _entranceCtrl;
   late final Animation<double> _fadeAnim;
 
   // Auto-advance slides
-  late final Stream<int> _autoAdvance;
+  Timer? _timer;
+  bool _isInteracting = false;
 
   // ── Slide definitions ──
   static const _slides = [
@@ -73,21 +80,28 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           'Discover people near you or across the globe. Build your private social world.',
       color: Color(0xFFFF922B),
     ),
+    _SlideData(
+      emoji: '⚡',
+      title: 'Fast name,\nFaster chats',
+      subtitle:
+          'It\'s called Boofer, but your connections won\'t be "buffery". Everything is built for speed and instant discovery.',
+      color: Color(0xFFFCC419),
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
 
-    _pageController = PageController();
+    _pageController = PageController(
+      initialPage: 1000,
+    ); // High base for infinite scroll
 
     _entranceCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _fadeAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOut);
-
-    _autoAdvance = Stream.periodic(const Duration(seconds: 3), (i) => i);
 
     _init();
   }
@@ -104,21 +118,33 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _entranceCtrl.forward();
 
     if (accounts.isEmpty) {
-      // Start auto-advancing slides
-      _autoAdvance.listen((_) {
-        if (!mounted || _accounts.isNotEmpty) return;
-        final next = (_currentSlide + 1) % _slides.length;
-        _pageController.animateToPage(
-          next,
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOut,
-        );
-      });
+      _startTimer();
     }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 6), (t) {
+      if (!mounted ||
+          _accounts.isNotEmpty ||
+          _isInteracting ||
+          !_pageController.hasClients) {
+        return;
+      }
+
+      // Increment virtual page and animate to it
+      _virtualPage++;
+      _pageController.animateToPage(
+        _virtualPage,
+        duration: const Duration(milliseconds: 1200), // Balanced smooth scroll
+        curve: Curves.easeInOutQuart,
+      );
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _pageController.dispose();
     _entranceCtrl.dispose();
     super.dispose();
@@ -247,20 +273,23 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F1A),
-      body: Stack(
-        children: [
-          const _AuroraBackground(),
-          SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: _accounts.isEmpty
-                  ? _buildSignupView()
-                  : _buildAccountPickerView(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0F0F1A),
+        body: Stack(
+          children: [
+            const RepaintBoundary(child: _AuroraBackground()),
+            SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: _accounts.isEmpty
+                    ? _buildSignupView()
+                    : _buildAccountPickerView(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -278,35 +307,62 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
         // Slides
         Expanded(
-          child: PageView.builder(
-            controller: _pageController,
-            onPageChanged: (i) => setState(() => _currentSlide = i),
-            itemCount: _slides.length,
-            itemBuilder: (_, i) => _SlideWidget(slide: _slides[i]),
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (_) {
+              setState(() => _isInteracting = true);
+              if (_pageController.hasClients) {
+                // STOP the auto-animation immediately on touch
+                _pageController.jumpTo(_pageController.offset);
+              }
+            },
+            onPointerUp: (_) {
+              // Wait 5 seconds after interaction ends before resuming
+              Future.delayed(const Duration(seconds: 5), () {
+                if (mounted) setState(() => _isInteracting = false);
+              });
+            },
+            child: PageView.builder(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (i) {
+                // Sync the virtual page tracker with real manual swipes
+                _virtualPage = i;
+                final realIndex = i % _slides.length;
+                if (_currentSlide != realIndex) {
+                  setState(() => _currentSlide = realIndex);
+                }
+              },
+              // Infinite scrolling enabled
+              itemBuilder: (_, i) => _SlideWidget(
+                key: ValueKey('slide_${i % _slides.length}'),
+                slide: _slides[i % _slides.length],
+              ),
+            ),
           ),
         ),
 
-        // Dots
-        _SliderDots(count: _slides.length, current: _currentSlide),
-        const SizedBox(height: 36),
-
-        // Swipe to get started
-        _SwipeBar(
-          accentColor: _slides[_currentSlide].color,
-          label: 'Swipe to get started',
-          onActivated: _goToSignup,
-        ),
-
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: Text(
-            'By continuing you agree to our Terms & Privacy Policy',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.22),
-              fontSize: 11,
-            ),
-            textAlign: TextAlign.center,
+
+        // Isolated footer for high-performance scrolling
+        RepaintBoundary(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SliderDots(count: _slides.length, current: _currentSlide),
+              const SizedBox(height: 32),
+              _SwipeBar(
+                key: const ValueKey('signup_swipe'),
+                accentColor: const Color(0xFF845EF7),
+                label: 'swipe me to get started',
+                onActivated: _goToSignup,
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20, left: 24, right: 24),
+                child: _LegalFooter(),
+              ),
+            ],
           ),
         ),
       ],
@@ -463,34 +519,84 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 class _BooferLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+    return SvgPicture.asset(
+      'assets/images/logo/boofer-logo.svg',
+      height: 28,
+      // Show white version on dark background
+      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+    );
+  }
+}
+
+// ─── Legal footer (tappable terms + privacy) ─────────────────────────────────
+
+class _LegalFooter extends StatefulWidget {
+  @override
+  State<_LegalFooter> createState() => _LegalFooterState();
+}
+
+class _LegalFooterState extends State<_LegalFooter> {
+  late final TapGestureRecognizer _termsRec;
+  late final TapGestureRecognizer _privacyRec;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsRec = TapGestureRecognizer()
+      ..onTap = () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+      );
+
+    _privacyRec = TapGestureRecognizer()
+      ..onTap = () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+      );
+  }
+
+  @override
+  void dispose() {
+    _termsRec.dispose();
+    _privacyRec.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.28),
+          fontSize: 11,
+          height: 1.5,
+        ),
+        children: [
+          const TextSpan(text: 'By continuing you agree to our '),
+          TextSpan(
+            text: 'Terms of Service',
+            recognizer: _termsRec,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.65),
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white.withValues(alpha: 0.35),
+              fontWeight: FontWeight.w500,
             ),
-            borderRadius: BorderRadius.circular(9),
           ),
-          child: const Icon(
-            Icons.chat_bubble_rounded,
-            color: Colors.white,
-            size: 18,
+          const TextSpan(text: ' & '),
+          TextSpan(
+            text: 'Privacy Policy',
+            recognizer: _privacyRec,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.65),
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white.withValues(alpha: 0.35),
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'Boofer',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 19,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -676,7 +782,7 @@ class _SlideData {
 
 class _SlideWidget extends StatefulWidget {
   final _SlideData slide;
-  const _SlideWidget({required this.slide});
+  const _SlideWidget({super.key, required this.slide});
 
   @override
   State<_SlideWidget> createState() => _SlideWidgetState();
@@ -862,92 +968,94 @@ class _SwipeBarState extends State<_SwipeBar>
                 borderRadius: BorderRadius.circular(_trackH / 2),
                 child: Stack(
                   children: [
-                  // Track background
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(_trackH / 2),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.09),
+                    // Track background
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(_trackH / 2),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.09),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  // Progress trail
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: (_knobLeft + _knobSize / 2).clamp(
-                        0.0,
-                        _trackWidth,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            widget.accentColor.withValues(alpha: 0.55),
-                            widget.accentColor.withValues(alpha: 0.0),
-                          ],
+                    // Progress trail
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: (_knobLeft + _knobSize / 2).clamp(
+                          0.0,
+                          _trackWidth,
                         ),
-                        borderRadius: BorderRadius.circular(_trackH / 2),
-                      ),
-                    ),
-                  ),
-
-                  // Label
-                  Positioned.fill(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: _knobSize + _pad * 2 + 8,
-                        right: 16,
-                      ),
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 150),
-                        opacity: (1.0 - _progress * 2.2).clamp(0.0, 1.0),
-                        child: Center(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  widget.label,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.54),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white.withValues(alpha: 0.30),
-                                size: 16,
-                              ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              widget.accentColor.withValues(alpha: 0.55),
+                              widget.accentColor.withValues(alpha: 0.0),
                             ],
                           ),
+                          borderRadius: BorderRadius.circular(_trackH / 2),
                         ),
                       ),
                     ),
-                  ),
 
-                  // Knob
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 10),
-                    left: _knobLeft,
-                    top: _pad,
-                    child: _activated
-                        ? _CheckKnob(color: widget.accentColor)
-                        : _DragKnob(
-                            color: widget.accentColor,
-                            progress: _progress,
+                    // Label
+                    Positioned.fill(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: _knobSize + _pad * 2 + 8,
+                          right: 16,
+                        ),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: (1.0 - _progress * 2.2).clamp(0.0, 1.0),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    widget.label,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.54,
+                                      ),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white.withValues(alpha: 0.30),
+                                  size: 16,
+                                ),
+                              ],
+                            ),
                           ),
-                  ),
+                        ),
+                      ),
+                    ),
+
+                    // Knob
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 10),
+                      left: _knobLeft,
+                      top: _pad,
+                      child: _activated
+                          ? _CheckKnob(color: widget.accentColor)
+                          : _DragKnob(
+                              color: widget.accentColor,
+                              progress: _progress,
+                            ),
+                    ),
                   ],
                 ),
               ),
@@ -1075,20 +1183,31 @@ class _AuroraBackground extends StatefulWidget {
 }
 
 class _AuroraBackgroundState extends State<_AuroraBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 9),
+      duration: const Duration(seconds: 12), // Slower is more efficient
     )..repeat();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _ctrl.repeat();
+    } else {
+      _ctrl.stop(); // Zero CPU usage when app is backgrounded
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl.dispose();
     super.dispose();
   }
@@ -1116,6 +1235,14 @@ class _AuroraPainter extends CustomPainter {
     final paint = Paint()..blendMode = BlendMode.screen;
 
     void drawBlob(Color c, double cx, double cy, double r, double alpha) {
+      // Cull blobs that are completely off-screen to save GPU
+      if (cx + r < 0 ||
+          cx - r > size.width ||
+          cy + r < 0 ||
+          cy - r > size.height) {
+        return;
+      }
+
       paint.shader = RadialGradient(
         colors: [
           c.withValues(alpha: alpha),
