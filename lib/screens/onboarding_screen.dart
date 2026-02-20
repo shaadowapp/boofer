@@ -1,11 +1,19 @@
-import 'dart:math' show pi;
+import 'dart:math' show pi, sin;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../services/multi_account_storage_service.dart';
+import '../services/local_storage_service.dart';
+import '../providers/auth_state_provider.dart';
 import 'signup_steps_screen.dart';
-import 'auth/login_screen.dart';
+import 'main_screen.dart';
+import 'legal_acceptance_screen.dart';
 
-/// Attractive landing page that shows when no active session exists.
-/// Handles the Sign Up → multi-step wizard OR Login → account picker flow.
+/// Smart auth gateway — shown only when:
+///   • 0 saved accounts  → signup flow (slides + swipe-to-start)
+///   • 2+ saved accounts → account picker (cards + swipe to login selected)
+///
+/// Single account is handled in main.dart (direct /main route).
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -14,16 +22,30 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen>
-    with SingleTickerProviderStateMixin {
-  late final PageController _pageController;
-  late final AnimationController _animController;
-  late final Animation<double> _fadeAnim;
-
-  int _currentPage = 0;
-  bool _hasSavedAccounts = false;
+    with TickerProviderStateMixin {
+  // ── State ──
+  List<Map<String, dynamic>> _accounts = [];
   bool _loading = true;
 
-  // Slide content
+  // For multi-account picker
+  int _selectedIndex = 0;
+  bool _isLoggingIn = false;
+  String? _loginError;
+
+  // Slides page controller
+  late final PageController _pageController;
+  int _currentSlide = 0;
+
+  // Animations
+  late final AnimationController _entranceCtrl;
+  late final Animation<double> _fadeAnim;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _pulseAnim;
+
+  // Auto-advance slides
+  late final Stream<int> _autoAdvance;
+
+  // ── Slide definitions ──
   static const _slides = [
     _SlideData(
       emoji: '🔥',
@@ -58,53 +80,178 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   void initState() {
     super.initState();
+
     _pageController = PageController();
-    _animController = AnimationController(
+
+    _entranceCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _checkSavedAccounts();
+    _fadeAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOut);
+
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(
+      begin: 0.92,
+      end: 1.04,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+
+    _autoAdvance = Stream.periodic(const Duration(seconds: 3), (i) => i);
+
+    _init();
   }
 
-  Future<void> _checkSavedAccounts() async {
+  Future<void> _init() async {
     final accounts = await MultiAccountStorageService.getSavedAccounts();
-    if (mounted) {
-      setState(() {
-        _hasSavedAccounts = accounts.isNotEmpty;
-        _loading = false;
+    if (!mounted) return;
+
+    setState(() {
+      _accounts = accounts;
+      _loading = false;
+    });
+
+    _entranceCtrl.forward();
+
+    if (accounts.isEmpty) {
+      // Start auto-advancing slides
+      _autoAdvance.listen((_) {
+        if (!mounted || _accounts.isNotEmpty) return;
+        final next = (_currentSlide + 1) % _slides.length;
+        _pageController.animateToPage(
+          next,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+        );
       });
-      _animController.forward();
     }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
-    _animController.dispose();
+    _entranceCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
+  // ── Navigation actions ─────────────────────────────────────────────────────
+
   void _goToSignup() {
+    HapticFeedback.mediumImpact();
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SignupStepsScreen()),
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const SignupStepsScreen(),
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 420),
+      ),
     );
   }
 
-  void _goToLogin() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+  Future<void> _loginAs(Map<String, dynamic> account) async {
+    if (_isLoggingIn) return;
+    setState(() {
+      _isLoggingIn = true;
+      _loginError = null;
+    });
+
+    try {
+      final auth = context.read<AuthStateProvider>();
+      await auth.checkAuthState();
+
+      if (!mounted) return;
+
+      if (auth.isAuthenticated) {
+        final hasTerms = await LocalStorageService.hasAcceptedTerms(
+          account['id'] as String,
+        );
+        await MultiAccountStorageService.setLastActiveAccountId(
+          account['id'] as String,
+        );
+
+        if (!mounted) return;
+
+        if (hasTerms) {
+          _showWelcomeToast(account['fullName'] as String? ?? 'Welcome back!');
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+            (_) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const LegalAcceptanceScreen()),
+            (_) => false,
+          );
+        }
+      } else {
+        setState(() {
+          _loginError =
+              'Session expired. Please create a new account from Settings.';
+          _isLoggingIn = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loginError = 'Login failed. Please try again.';
+          _isLoggingIn = false;
+        });
+      }
+    }
+  }
+
+  void _showWelcomeToast(String name) {
+    final msgs = [
+      'Hey $name! 👋 Welcome back!',
+      'Good to see you, $name! 🔥',
+      '$name is back! Let\'s go 🚀',
+      'Welcome back, $name 💫',
+    ];
+    final msg = msgs[DateTime.now().second % msgs.length];
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Text('✨', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                msg,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF845EF7),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
         backgroundColor: Color(0xFF0F0F1A),
-        body: Center(child: CircularProgressIndicator(color: Colors.white30)),
+        body: Center(child: CircularProgressIndicator(color: Colors.white24)),
       );
     }
 
@@ -112,140 +259,410 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       backgroundColor: const Color(0xFF0F0F1A),
       body: Stack(
         children: [
-          // Animated background blobs
-          const _BackgroundBlobs(),
-
+          const _AuroraBackground(),
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: Column(
-                children: [
-                  // Top logo row
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.chat_bubble_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Boofer',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Feature slides
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (i) => setState(() => _currentPage = i),
-                      itemCount: _slides.length,
-                      itemBuilder: (_, i) => _SlideWidget(slide: _slides[i]),
-                    ),
-                  ),
-
-                  // Page indicator dots
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      _slides.length,
-                      (i) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: _currentPage == i ? 20 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: _currentPage == i
-                              ? _slides[_currentPage].color
-                              : Colors.white24,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // CTAs
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        // Primary button: Create Account
-                        _GradientButton(
-                          onTap: _goToSignup,
-                          label: 'Create Account',
-                          icon: Icons.auto_awesome_rounded,
-                          gradient: LinearGradient(
-                            colors: [
-                              _slides[_currentPage].color,
-                              _slides[_currentPage].color.withOpacity(0.7),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Login button
-                        if (_hasSavedAccounts) ...[
-                          _OutlineButton(
-                            onTap: _goToLogin,
-                            label: 'Switch Account',
-                            icon: Icons.phone_android_rounded,
-                          ),
-                        ] else ...[
-                          _OutlineButton(
-                            onTap: _goToLogin,
-                            label: 'I already have an account',
-                            icon: Icons.login_rounded,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Footer note
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      'By continuing you agree to our Terms & Privacy Policy',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 11,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
+              child: _accounts.isEmpty
+                  ? _buildSignupView()
+                  : _buildAccountPickerView(),
             ),
           ),
         ],
       ),
     );
   }
+
+  // ── View A: No accounts → Signup ──────────────────────────────────────────
+
+  Widget _buildSignupView() {
+    return Column(
+      children: [
+        // Logo
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          child: Row(children: [_BooferLogo()]),
+        ),
+
+        // Slides
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (i) => setState(() => _currentSlide = i),
+            itemCount: _slides.length,
+            itemBuilder: (_, i) => _SlideWidget(slide: _slides[i]),
+          ),
+        ),
+
+        // Dots
+        _SliderDots(count: _slides.length, current: _currentSlide),
+        const SizedBox(height: 36),
+
+        // Swipe to get started
+        _SwipeBar(
+          accentColor: _slides[_currentSlide].color,
+          pulseAnim: _pulseAnim,
+          label: 'Swipe to get started',
+          onActivated: _goToSignup,
+        ),
+
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Text(
+            'By continuing you agree to our Terms & Privacy Policy',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.22),
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── View B: Multiple accounts → Picker ───────────────────────────────────
+
+  Widget _buildAccountPickerView() {
+    final selected = _accounts[_selectedIndex];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: Row(children: [_BooferLogo()]),
+        ),
+
+        const SizedBox(height: 32),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Welcome\nback 💫',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 38,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Choose your account to continue',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 28),
+
+        // Account cards list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _accounts.length,
+            itemBuilder: (_, i) {
+              final acc = _accounts[i];
+              final isSelected = i == _selectedIndex;
+              return _AccountCard(
+                account: acc,
+                isSelected: isSelected,
+                onTap: () => setState(() => _selectedIndex = i),
+              );
+            },
+          ),
+        ),
+
+        // Error
+        if (_loginError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.red,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _loginError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // Swipe to login as selected
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _isLoggingIn
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(color: Color(0xFF845EF7)),
+                        SizedBox(height: 12),
+                        Text(
+                          'Logging you in...',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _SwipeBar(
+                  key: ValueKey(_selectedIndex),
+                  accentColor: const Color(0xFF845EF7),
+                  pulseAnim: _pulseAnim,
+                  label:
+                      'Swipe to continue as ${(selected['fullName'] as String?)?.split(' ').first ?? 'you'}',
+                  onActivated: () => _loginAs(selected),
+                ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Footer
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Center(
+            child: Text(
+              'Add more accounts via Settings',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.2),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-// ─── Data class for slides ────────────────────────────────────────────────────
+// ─── Shared logo widget ───────────────────────────────────────────────────────
+
+class _BooferLogo extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+            ),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: const Icon(
+            Icons.chat_bubble_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          'Boofer',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Account card ─────────────────────────────────────────────────────────────
+
+class _AccountCard extends StatelessWidget {
+  final Map<String, dynamic> account;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _AccountCard({
+    required this.account,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fullName = (account['fullName'] as String?) ?? 'Boofer User';
+    final handle = (account['handle'] as String?) ?? '';
+    final avatar = account['avatar'] as String?;
+    final initial = fullName.isNotEmpty
+        ? fullName.substring(0, 1).toUpperCase()
+        : '?';
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFF845EF7), Color(0xFF6A4BD4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : Colors.white.withValues(alpha: 0.09),
+            width: isSelected ? 0 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF845EF7).withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            // Avatar circle
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : const Color(0xFF845EF7).withValues(alpha: 0.25),
+              ),
+              child: Center(
+                child: Text(
+                  avatar ?? initial,
+                  style: TextStyle(
+                    fontSize: avatar != null ? 22 : 18,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Name + handle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fullName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '@$handle',
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: isSelected ? 0.7 : 0.38,
+                      ),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Selected check
+            AnimatedScale(
+              scale: isSelected ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Slide dots ───────────────────────────────────────────────────────────────
+
+class _SliderDots extends StatelessWidget {
+  final int count;
+  final int current;
+  const _SliderDots({required this.count, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        count,
+        (i) => AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: current == i ? 22 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: current == i ? Colors.white70 : Colors.white20,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Slide data & widget ──────────────────────────────────────────────────────
 
 class _SlideData {
   final String emoji;
@@ -260,8 +677,6 @@ class _SlideData {
   });
 }
 
-// ─── Individual slide widget ──────────────────────────────────────────────────
-
 class _SlideWidget extends StatefulWidget {
   final _SlideData slide;
   const _SlideWidget({required this.slide});
@@ -273,21 +688,21 @@ class _SlideWidget extends StatefulWidget {
 class _SlideWidgetState extends State<_SlideWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<Offset> _slideAnim;
-  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 520),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
   }
 
@@ -300,33 +715,32 @@ class _SlideWidgetState extends State<_SlideWidget>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: _fadeAnim,
+      opacity: _fade,
       child: SlideTransition(
-        position: _slideAnim,
+        position: _slide,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 36),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Glow emoji
               Container(
-                width: 120,
-                height: 120,
+                width: 110,
+                height: 110,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.slide.color.withOpacity(0.15),
+                  color: widget.slide.color.withValues(alpha: 0.12),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.slide.color.withOpacity(0.3),
-                      blurRadius: 40,
-                      spreadRadius: 10,
+                      color: widget.slide.color.withValues(alpha: 0.28),
+                      blurRadius: 50,
+                      spreadRadius: 8,
                     ),
                   ],
                 ),
                 child: Center(
                   child: Text(
                     widget.slide.emoji,
-                    style: const TextStyle(fontSize: 52),
+                    style: const TextStyle(fontSize: 48),
                   ),
                 ),
               ),
@@ -346,9 +760,9 @@ class _SlideWidgetState extends State<_SlideWidget>
               Text(
                 widget.slide.subtitle,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.55),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 15,
-                  height: 1.6,
+                  height: 1.65,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -360,16 +774,257 @@ class _SlideWidgetState extends State<_SlideWidget>
   }
 }
 
-// ─── Animated gradient background ────────────────────────────────────────────
+// ─── Swipe bar (shared between signup & login) ─────────────────────────────────
 
-class _BackgroundBlobs extends StatefulWidget {
-  const _BackgroundBlobs();
+class _SwipeBar extends StatefulWidget {
+  final Color accentColor;
+  final Animation<double> pulseAnim;
+  final String label;
+  final VoidCallback onActivated;
+
+  const _SwipeBar({
+    super.key,
+    required this.accentColor,
+    required this.pulseAnim,
+    required this.label,
+    required this.onActivated,
+  });
 
   @override
-  State<_BackgroundBlobs> createState() => _BackgroundBlobsState();
+  State<_SwipeBar> createState() => _SwipeBarState();
 }
 
-class _BackgroundBlobsState extends State<_BackgroundBlobs>
+class _SwipeBarState extends State<_SwipeBar>
+    with SingleTickerProviderStateMixin {
+  double _progress = 0.0;
+  double _trackWidth = 0;
+  bool _activated = false;
+
+  static const double _knobSize = 56.0;
+  static const double _trackH = 64.0;
+  static const double _pad = 4.0;
+
+  late final AnimationController _snapCtrl;
+  late Animation<double> _snapAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  void dispose() {
+    _snapCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _maxTravel => _trackWidth - _knobSize - _pad * 2;
+  double get _knobLeft => _pad + _progress * _maxTravel;
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_activated || _trackWidth == 0) return;
+    setState(() {
+      _progress = (_progress + d.delta.dx / _maxTravel).clamp(0.0, 1.0);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    if (_activated) return;
+    if (_progress >= 0.86) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _progress = 1.0;
+        _activated = true;
+      });
+      Future.delayed(const Duration(milliseconds: 300), widget.onActivated);
+    } else {
+      _snapAnim = Tween<double>(begin: _progress, end: 0.0).animate(
+        CurvedAnimation(parent: _snapCtrl, curve: Curves.elasticOut),
+      )..addListener(() => setState(() => _progress = _snapAnim.value));
+      _snapCtrl
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: LayoutBuilder(
+        builder: (_, box) {
+          _trackWidth = box.maxWidth;
+          return ScaleTransition(
+            scale: _activated
+                ? const AlwaysStoppedAnimation(1.0)
+                : widget.pulseAnim,
+            child: GestureDetector(
+              onHorizontalDragUpdate: _onDragUpdate,
+              onHorizontalDragEnd: _onDragEnd,
+              child: SizedBox(
+                height: _trackH,
+                child: Stack(
+                  children: [
+                    // Track background
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(_trackH / 2),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.09),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Progress trail
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: (_knobLeft + _knobSize / 2).clamp(
+                          0.0,
+                          _trackWidth,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              widget.accentColor.withValues(alpha: 0.55),
+                              widget.accentColor.withValues(alpha: 0.0),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(_trackH / 2),
+                        ),
+                      ),
+                    ),
+
+                    // Label
+                    Positioned.fill(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: _knobSize + _pad * 2 + 8,
+                          right: 16,
+                        ),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: (1.0 - _progress * 2.2).clamp(0.0, 1.0),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    widget.label,
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white30,
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Knob
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 10),
+                      left: _knobLeft,
+                      top: _pad,
+                      child: _activated
+                          ? _CheckKnob(color: widget.accentColor)
+                          : _DragKnob(
+                              color: widget.accentColor,
+                              progress: _progress,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─── Knob variants ────────────────────────────────────────────────────────────
+
+class _DragKnob extends StatelessWidget {
+  final Color color;
+  final double progress;
+
+  const _DragKnob({required this.color, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _SwipeBarState._knobSize,
+      height: _SwipeBarState._knobSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [color, color.withValues(alpha: 0.7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.45 + progress * 0.2),
+            blurRadius: 14 + progress * 10,
+            spreadRadius: progress * 3,
+          ),
+        ],
+      ),
+      child: Center(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: progress > 0.5
+              ? const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 24,
+                  key: ValueKey('fwd'),
+                )
+              : const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white,
+                  size: 28,
+                  key: ValueKey('crt'),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckKnob extends StatefulWidget {
+  final Color color;
+  const _CheckKnob({required this.color});
+
+  @override
+  State<_CheckKnob> createState() => _CheckKnobState();
+}
+
+class _CheckKnobState extends State<_CheckKnob>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -378,7 +1033,64 @@ class _BackgroundBlobsState extends State<_BackgroundBlobs>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(milliseconds: 350),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: Tween<double>(
+        begin: 0.4,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut)),
+      child: Container(
+        width: _SwipeBarState._knobSize,
+        height: _SwipeBarState._knobSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF20C997),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF20C997).withValues(alpha: 0.55),
+              blurRadius: 24,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(Icons.check_rounded, color: Colors.white, size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Aurora animated background ───────────────────────────────────────────────
+
+class _AuroraBackground extends StatefulWidget {
+  const _AuroraBackground();
+
+  @override
+  State<_AuroraBackground> createState() => _AuroraBackgroundState();
+}
+
+class _AuroraBackgroundState extends State<_AuroraBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 9),
     )..repeat();
   }
 
@@ -392,172 +1104,57 @@ class _BackgroundBlobsState extends State<_BackgroundBlobs>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) {
-        final t = _ctrl.value * 2 * pi;
-        return CustomPaint(painter: _BlobPainter(t), size: Size.infinite);
-      },
+      builder: (_, __) => CustomPaint(
+        painter: _AuroraPainter(_ctrl.value),
+        size: MediaQuery.of(context).size,
+      ),
     );
   }
 }
 
-class _BlobPainter extends CustomPainter {
+class _AuroraPainter extends CustomPainter {
   final double t;
-  _BlobPainter(this.t);
+  _AuroraPainter(this.t);
+
+  static double _s(double v) => sin(v * 2 * pi);
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..blendMode = BlendMode.screen;
 
-    // blob 1 - purple top-left
-    paint.shader =
-        RadialGradient(
-          colors: [
-            const Color(0xFF845EF7).withOpacity(0.35),
-            Colors.transparent,
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(
-              size.width * 0.15 + 40 * (1 + _sin(t * 0.7)),
-              size.height * 0.15 + 30 * _sin(t * 0.5),
-            ),
-            radius: 220,
-          ),
-        );
-    canvas.drawCircle(
-      Offset(
-        size.width * 0.15 + 40 * (1 + _sin(t * 0.7)),
-        size.height * 0.15 + 30 * _sin(t * 0.5),
-      ),
-      220,
-      paint,
-    );
+    void drawBlob(Color c, double cx, double cy, double r, double alpha) {
+      paint.shader = RadialGradient(
+        colors: [
+          c.withValues(alpha: alpha),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+      canvas.drawCircle(Offset(cx, cy), r, paint);
+    }
 
-    // blob 2 - pink bottom-right
-    paint.shader =
-        RadialGradient(
-          colors: [
-            const Color(0xFFFF6B6B).withOpacity(0.28),
-            Colors.transparent,
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(
-              size.width * 0.85 + 30 * _sin(t * 0.6),
-              size.height * 0.75 + 40 * _sin(t * 0.8),
-            ),
-            radius: 200,
-          ),
-        );
-    canvas.drawCircle(
-      Offset(
-        size.width * 0.85 + 30 * _sin(t * 0.6),
-        size.height * 0.75 + 40 * _sin(t * 0.8),
-      ),
-      200,
-      paint,
+    drawBlob(
+      const Color(0xFF845EF7),
+      size.width * 0.18 + 50 * _s(t * 0.6),
+      size.height * 0.2 + 40 * _s(t * 0.4),
+      230,
+      0.30,
+    );
+    drawBlob(
+      const Color(0xFFFF6B6B),
+      size.width * 0.82 + 40 * _s(t * 0.55 + 0.3),
+      size.height * 0.72 + 50 * _s(t * 0.7 + 0.2),
+      210,
+      0.22,
+    );
+    drawBlob(
+      const Color(0xFF20C997),
+      size.width * 0.5 + 30 * _s(t * 0.8 + 0.5),
+      size.height * 0.5 + 30 * _s(t * 0.5 + 0.8),
+      180,
+      0.13,
     );
   }
 
-  double _sin(double v) => (v % (2 * pi)) < pi
-      ? ((v % (2 * pi)) / pi) * 2 - 1
-      : 1 - (((v % (2 * pi)) - pi) / pi) * 2;
-
   @override
-  bool shouldRepaint(_BlobPainter old) => old.t != t;
-}
-
-// ─── Reusable buttons ─────────────────────────────────────────────────────────
-
-class _GradientButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final String label;
-  final IconData icon;
-  final Gradient gradient;
-
-  const _GradientButton({
-    required this.onTap,
-    required this.label,
-    required this.icon,
-    required this.gradient,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OutlineButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final String label;
-  final IconData icon;
-
-  const _OutlineButton({
-    required this.onTap,
-    required this.label,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.white24),
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white.withOpacity(0.05),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white70, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  bool shouldRepaint(_AuroraPainter old) => old.t != t;
 }

@@ -52,48 +52,60 @@ void main() async {
 
   // ── Determine initial route ──────────────────────────────────────
   // Priority:
-  //   1. If there is a valid Supabase session + stored user → /main
-  //   2. If stored user but no terms → /legal-acceptance
-  //   3. If multiple saved accounts with NO active session → /onboarding
-  //      (login flow will auto-select if exactly 1 saved account found)
-  //   4. Otherwise → /onboarding
+  //   • 0 saved accounts           → /onboarding  (signup flow)
+  //   • 1 saved account  + terms   → /main         (auto-login, no UI)
+  //   • 1 saved account  no terms  → /legal-acceptance
+  //   • 2+ saved accounts          → /onboarding  (account picker shown there)
+  //   • Legacy current_user key    → migrate then apply same rules above
   String initialRoute = '/onboarding';
 
   try {
+    // Step 1 — migrate any legacy single-account key to multi-account storage
     final userJson = await LocalStorageService.getString('current_user');
     if (userJson != null) {
-      final Map<String, dynamic> user = jsonDecode(userJson);
-      if (user.containsKey('id')) {
-        final userId = user['id'] as String;
-        final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
-          userId,
-        );
-
-        if (hasAcceptedTerms) {
-          initialRoute = '/main';
-        } else {
-          initialRoute = '/legal-acceptance';
+      try {
+        final Map<String, dynamic> user = jsonDecode(userJson);
+        final userId = user['id'] as String? ?? '';
+        if (userId.isNotEmpty) {
+          final existing = await MultiAccountStorageService.getSavedAccounts();
+          if (!existing.any((a) => a['id'] == userId)) {
+            await MultiAccountStorageService.upsertAccount(
+              id: userId,
+              handle: user['handle'] as String? ?? '',
+              fullName: user['fullName'] as String? ?? '',
+              avatar: user['avatar'] as String?,
+            );
+          }
+          await MultiAccountStorageService.setLastActiveAccountId(userId);
         }
+      } catch (_) {}
+    }
 
-        // Update the last active account in multi-account storage
-        final savedAccounts =
-            await MultiAccountStorageService.getSavedAccounts();
-        final alreadySaved = savedAccounts.any((a) => a['id'] == userId);
-        if (!alreadySaved) {
-          // Migrate old single-account to multi-account storage
-          await MultiAccountStorageService.upsertAccount(
-            id: userId,
-            handle: user['handle'] as String? ?? '',
-            fullName: user['fullName'] as String? ?? '',
-            avatar: user['avatar'] as String?,
-          );
-        }
-        await MultiAccountStorageService.setLastActiveAccountId(userId);
+    // Step 2 — decide route based on saved accounts count
+    final savedAccounts = await MultiAccountStorageService.getSavedAccounts();
+
+    if (savedAccounts.isEmpty) {
+      // Also try a live Supabase session as last resort
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null && !session.isExpired) {
+        initialRoute = '/main';
+      } else {
+        initialRoute = '/onboarding'; // brand-new install
       }
+    } else if (savedAccounts.length == 1) {
+      // Single account — auto-login immediately, skip onboarding
+      final userId = savedAccounts.first['id'] as String;
+      final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
+        userId,
+      );
+      initialRoute = hasAcceptedTerms ? '/main' : '/legal-acceptance';
+    } else {
+      // 2+ accounts — show the picker inside OnboardingScreen
+      initialRoute = '/onboarding';
     }
   } catch (e) {
     debugPrint('Error checking initial auth state: $e');
-    // Fallback to onboarding on error
+    initialRoute = '/onboarding'; // safe fallback
   }
 
   runApp(BooferApp(initialRoute: initialRoute));
