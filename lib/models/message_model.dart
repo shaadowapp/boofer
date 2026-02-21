@@ -22,7 +22,9 @@ class Message {
 
   // E2EE fields
   final bool isEncrypted;
-  final Map<String, dynamic>? encryptedContent;
+  final Map<String, dynamic>? encryptedContent; // encrypted for recipient
+  final Map<String, dynamic>?
+  encryptedContentSender; // encrypted for sender (self-view)
   final String? encryptionVersion;
 
   const Message({
@@ -41,6 +43,7 @@ class Message {
     this.expiresAt,
     this.isEncrypted = false,
     this.encryptedContent,
+    this.encryptedContentSender,
     this.encryptionVersion = '1.0',
   });
 
@@ -97,6 +100,7 @@ class Message {
     DateTime? expiresAt,
     bool? isEncrypted,
     Map<String, dynamic>? encryptedContent,
+    Map<String, dynamic>? encryptedContentSender,
     String? encryptionVersion,
   }) {
     return Message(
@@ -115,6 +119,8 @@ class Message {
       expiresAt: expiresAt ?? this.expiresAt,
       isEncrypted: isEncrypted ?? this.isEncrypted,
       encryptedContent: encryptedContent ?? this.encryptedContent,
+      encryptedContentSender:
+          encryptedContentSender ?? this.encryptedContentSender,
       encryptionVersion: encryptionVersion ?? this.encryptionVersion,
     );
   }
@@ -137,6 +143,7 @@ class Message {
       'expires_at': expiresAt?.toIso8601String(),
       'isEncrypted': isEncrypted,
       'encryptedContent': encryptedContent,
+      'encryptedContentSender': encryptedContentSender,
       'encryptionVersion': encryptionVersion,
     };
   }
@@ -205,6 +212,12 @@ class Message {
                 : Map<String, dynamic>.from(
                     json['encrypted_content'] ?? json['encryptedContent'],
                   ))
+          : null,
+      encryptedContentSender: json['encrypted_content_sender'] != null
+          ? (json['encrypted_content_sender'] is String
+                ? jsonDecode(json['encrypted_content_sender'])
+                      as Map<String, dynamic>
+                : Map<String, dynamic>.from(json['encrypted_content_sender']))
           : null,
       encryptionVersion:
           json['encryption_version'] != null ||

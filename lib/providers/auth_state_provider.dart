@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/supabase_auth_service.dart';
 import '../services/supabase_service.dart';
-import '../services/local_storage_service.dart';
 import '../services/user_service.dart';
 import '../services/virtual_number_service.dart';
 import '../services/location_service.dart';
@@ -159,6 +158,9 @@ class AuthStateProvider with ChangeNotifier {
 
       // Try to create profile on Supabase
       try {
+        debugPrint(
+          '🚀 [AUTH] Creating Supabase profile for ${newUser.id} (Guardian: ${newUser.guardianId})',
+        );
         await _supabaseService.createUserProfile(newUser);
       } catch (e) {
         debugPrint('⚠️ Failed to create Supabase profile: $e');
@@ -203,8 +205,9 @@ class AuthStateProvider with ChangeNotifier {
         // Continue to local cleanup even if remote fails
       }
 
-      // STRICTLY clear EVERYTHING from local storage as requested
-      await LocalStorageService.clearAll();
+      // Clear only the current session and last active ID, NOT the entire local storage
+      // so other profiles remain available in the chooser.
+      await MultiAccountStorageService.setLastActiveAccountId('');
 
       _currentUserId = null;
       _setState(AuthenticationState.unauthenticated);

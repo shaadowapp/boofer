@@ -1299,25 +1299,6 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
       );
     }
 
-    // Append Lock Icon if isEncrypted
-    if (widget.isEncrypted) {
-      spans.add(
-        WidgetSpan(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 2),
-            child: Icon(
-              Icons.lock_rounded,
-              size: widget.fontSize * 0.8,
-              color: widget.isOwnMessage
-                  ? Colors.white.withOpacity(0.7)
-                  : widget.theme.colorScheme.primary.withOpacity(0.7),
-            ),
-          ),
-          alignment: PlaceholderAlignment.middle,
-        ),
-      );
-    }
-
     return RichText(
       text: TextSpan(
         style: TextStyle(

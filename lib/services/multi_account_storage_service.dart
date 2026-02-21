@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'supabase_service.dart';
 
 /// Manages storage of multiple user profiles on a single device.
 /// Each saved account is stored with its Supabase user ID as the key.
@@ -92,6 +93,24 @@ class MultiAccountStorageService {
       await prefs.setString(_savedAccountsKey, jsonEncode(accounts));
       await _secureStorage.delete(key: 'boofer_session_$id');
     } catch (_) {}
+  }
+
+  /// Delete account completely from both Supabase and Local Storage.
+  static Future<void> deleteAccountCompletely(String id) async {
+    try {
+      // 1. Delete from Supabase first
+      final SupabaseService? supabase = SupabaseService.instance;
+      if (supabase != null) {
+        await supabase.deleteOtherUserAccount(id);
+      }
+
+      // 2. Remove from Local Storage
+      await removeAccount(id);
+    } catch (e) {
+      // If DB delete fails, we might still want to remove it locally
+      // if it's a "lost" account, but for safety, we rethrow here.
+      rethrow;
+    }
   }
 
   /// Get the last-active account ID.

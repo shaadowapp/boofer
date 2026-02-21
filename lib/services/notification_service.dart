@@ -63,6 +63,12 @@ class NotificationChannels {
       description: 'Notifications for message reactions',
       importance: Importance.low,
     ),
+    AndroidNotificationChannel(
+      general,
+      'General',
+      description: 'General system notifications',
+      importance: Importance.defaultImportance,
+    ),
   ];
 }
 
@@ -248,8 +254,7 @@ class NotificationService {
     );
 
     await _notificationsPlugin.show(
-      id: DateTime.now()
-          .millisecond, // Unique ID per notification to avoid overwriting
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
       title: title,
       body: body,
       notificationDetails: details,
@@ -280,6 +285,20 @@ class NotificationService {
           ? NotificationChannels.groupMessages
           : NotificationChannels.messages,
       payload: conversationId,
+    );
+  }
+
+  /// Optimized for general system alerts
+  Future<void> showSystemNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    await showNotification(
+      title: title,
+      body: body,
+      channelId: NotificationChannels.general,
+      payload: payload,
     );
   }
 

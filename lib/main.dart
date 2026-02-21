@@ -34,6 +34,7 @@ import 'screens/appearance_settings_screen.dart';
 import 'screens/customization_settings_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/profile_chooser_screen.dart';
 import 'l10n/app_localizations.dart';
 
 Future<Map<String, dynamic>> _initializeApp() async {
@@ -120,8 +121,11 @@ Future<Map<String, dynamic>> _initializeApp() async {
         debugPrint('⚠️ [INIT] Session recovery failed: $e');
         initialRoute = '/onboarding';
       }
-    } else if (savedAccounts.isNotEmpty) {
-      // No last active, but accounts exist - pick the first one (primary)
+    } else if (savedAccounts.length > 1) {
+      // Multiple accounts - show chooser
+      initialRoute = '/profile-chooser';
+    } else if (savedAccounts.length == 1) {
+      // Exactly 1 account - pick it
       final userId = savedAccounts.first['id'] as String;
       final sessionJson = await MultiAccountStorageService.getSession(userId);
       if (sessionJson != null) {
@@ -245,6 +249,8 @@ class _BooferAppState extends State<BooferApp> {
                 switch (route) {
                   case '/main':
                     return const MainScreen();
+                  case '/profile-chooser':
+                    return const ProfileChooserScreen();
                   case '/legal-acceptance':
                     return const LegalAcceptanceScreen();
                   default:
@@ -299,6 +305,7 @@ class _BooferAppState extends State<BooferApp> {
               '/customization-settings': (context) =>
                   const CustomizationSettingsScreen(),
               '/legal-acceptance': (context) => const LegalAcceptanceScreen(),
+              '/profile-chooser': (context) => const ProfileChooserScreen(),
             },
             debugShowCheckedModeBanner: false,
           );

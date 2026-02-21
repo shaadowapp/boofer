@@ -56,34 +56,37 @@ class ChatService {
       // Subscribe to real-time updates from Supabase
       final parts = conversationId.split('_');
       if (parts.length == 3) {
-        _supabaseService.listenToMessages(conversationId, (
-          remoteMessages,
-        ) async {
-          // Fetch local messages to find plaintext for sender
-          final localResults = await _database.query(
-            'SELECT id, text FROM messages WHERE conversation_id = ?',
-            [conversationId],
+        _supabaseService.listenToMessages(conversationId, (updateList) async {
+          if (updateList.isEmpty) return;
+          final updatedMsg = updateList.first;
+
+          final existingMessages = _messageCache[conversationId] ?? [];
+          final index = existingMessages.indexWhere(
+            (m) => m.id == updatedMsg.id,
           );
-          final localMap = {
-            for (var r in localResults) r['id'] as String: r['text'] as String,
-          };
 
-          final mergedMessages = remoteMessages.map((m) {
-            if (m.senderId == userId &&
-                (m.text == '[Encrypted]' || m.text.isEmpty)) {
-              final localText = localMap[m.id];
-              if (localText != null && localText != '[Encrypted]') {
-                return m.copyWith(text: localText);
-              }
-            }
-            return m;
-          }).toList();
+          List<Message> newMessagesList;
+          if (index != -1) {
+            // Update existing message (e.g. status changed to read)
+            final oldMsg = existingMessages[index];
+            newMessagesList = List.from(existingMessages);
+            newMessagesList[index] = updatedMsg.copyWith(
+              text:
+                  (updatedMsg.text == '[Encrypted]' || updatedMsg.text.isEmpty)
+                  ? oldMsg.text
+                  : updatedMsg.text,
+            );
+          } else {
+            // New message
+            newMessagesList = List.from(existingMessages)..add(updatedMsg);
+            newMessagesList.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          }
 
-          _messageCache[conversationId] = mergedMessages;
-          _messagesController.add(mergedMessages);
+          _messageCache[conversationId] = newMessagesList;
+          _messagesController.add(newMessagesList);
 
-          // Background sync to local DB
-          _syncToLocal(mergedMessages);
+          // Incremental sync
+          _syncToLocal([updatedMsg]);
         });
       }
 

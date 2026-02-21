@@ -10,8 +10,7 @@ import '../services/chat_service.dart';
 import '../services/user_service.dart';
 import '../models/message_model.dart';
 import '../services/unified_storage_service.dart';
-import '../services/virgil_e2ee_service.dart';
-import '../services/virgil_key_service.dart';
+
 import '../models/friend_model.dart';
 import '../models/user_model.dart';
 import '../services/supabase_service.dart';
@@ -41,6 +40,7 @@ class ChatProvider with ChangeNotifier {
   StreamSubscription<List<Message>>? _messagesSubscription;
   StreamSubscription<Message>? _newMessageSubscription;
   RealtimeChannel? _globalMessagesSubscription;
+  RealtimeChannel? _followSubscription;
   RealtimeChannel? _presenceChannel;
   RealtimeChannel? _profilesSubscription;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
@@ -238,6 +238,12 @@ class ChatProvider with ChangeNotifier {
             .listenToAllUserMessages(currentUser.id, (payload) {
               _handleRealtimeMessageEvent(payload, currentUser.id);
             });
+      }
+      if (_followSubscription == null) {
+        _followSubscription = SupabaseService.instance.listenToUserFollows(
+          currentUser.id,
+          (data) => _handleFollowEvent(data),
+        );
       }
       if (_profilesSubscription == null) _setupProfilesListener();
       if (_presenceChannel == null) _setupPresence(currentUser.id);
@@ -756,56 +762,19 @@ class ChatProvider with ChangeNotifier {
       if (index != -1) {
         var friend = _friends[index];
         int newUnread = friend.unreadCount;
-        if (receiverId == currentUserId) {
+
+        // ONLY increment unread if we aren't already looking at this chat
+        // and the message isn't already marked as read.
+        if (receiverId == currentUserId &&
+            record['status'] != 'read' &&
+            _currentConversationId != record['conversation_id']) {
           newUnread++;
         }
 
         final isEncrypted = record['is_encrypted'] ?? false;
         final encryptedContent = record['encrypted_content'];
-        String displayMessage = messageText;
-
-        // ONLY decrypt if we are the recipient
-        if (isEncrypted &&
-            encryptedContent != null &&
-            receiverId == currentUserId) {
-          try {
-            final senderKeys = await VirgilKeyService().getRecipientKeys(
-              friendId,
-            );
-            if (senderKeys != null) {
-              final contentMap = encryptedContent is String
-                  ? jsonDecode(encryptedContent) as Map<String, dynamic>
-                  : Map<String, dynamic>.from(encryptedContent);
-
-              if (!VirgilE2EEService.instance.isInitialized) {
-                await SupabaseService.instance.initializeE2EE(currentUserId);
-              }
-
-              displayMessage = await VirgilE2EEService.instance
-                  .decryptThenVerify(
-                    contentMap,
-                    senderKeys['signaturePublicKey'],
-                  );
-            }
-          } catch (e) {
-            debugPrint(
-              '⚠️ Real-time lobby decryption failed for recipient: $e',
-            );
-            displayMessage = '[Encrypted]';
-          }
-        } else if (isEncrypted && senderId == currentUserId) {
-          // If we are the sender, recovered plaintext from local DB
-          final localText = await _chatService.getMessageText(
-            record['id'] as String,
-          );
-          if (localText != null &&
-              localText != '[Encrypted]' &&
-              localText.isNotEmpty) {
-            displayMessage = localText;
-          } else {
-            displayMessage = messageText;
-          }
-        }
+        String displayMessage =
+            messageText; // Decryption now happens in SupabaseService
 
         final updatedFriend = friend.copyWith(
           lastMessage: displayMessage,
@@ -829,16 +798,21 @@ class ChatProvider with ChangeNotifier {
         notifyListeners();
 
         // 🎯 Trigger System Notification
-        if (receiverId == currentUserId &&
-            _currentConversationId != updatedFriend.id) {
+        final sortedIds = [currentUserId, friendId]..sort();
+        final convId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
+        final isSelfMessage =
+            senderId == currentUserId && receiverId == currentUserId;
+        final isViewingThisConversation = _currentConversationId == convId;
+
+        if ((receiverId == currentUserId || isSelfMessage) &&
+            !isViewingThisConversation) {
           NotificationService.instance.showMessageNotification(
-            senderName: updatedFriend.name,
+            senderName: isSelfMessage ? 'Note to yourself' : updatedFriend.name,
             message: updatedFriend.lastMessage,
-            conversationId: updatedFriend.id,
+            conversationId: convId,
           );
         }
       } else {
-        // Person who messaged us isn't in our friends list? Refresh to pick them up
         refreshFriends();
       }
     }
@@ -857,9 +831,10 @@ class ChatProvider with ChangeNotifier {
           orElse: () => MessageStatus.sent,
         );
 
+        bool changed = false;
         if (_friends[index].lastMessageStatus != status) {
           _friends[index] = _friends[index].copyWith(lastMessageStatus: status);
-          notifyListeners();
+          changed = true;
         }
 
         // If status changed to 'read' AND it was a message sent TO the current user
@@ -868,10 +843,36 @@ class ChatProvider with ChangeNotifier {
             _friends[index] = _friends[index].copyWith(
               unreadCount: _friends[index].unreadCount - 1,
             );
+            changed = true;
           }
         }
-        notifyListeners();
+
+        if (changed) {
+          notifyListeners();
+        }
       }
+    }
+  }
+
+  void _handleFollowEvent(Map<String, dynamic> data) async {
+    try {
+      final followerId = data['follower_id'];
+      if (followerId == null) return;
+
+      final followerProfile = await SupabaseService.instance.getUserProfile(
+        followerId,
+      );
+      if (followerProfile != null) {
+        NotificationService.instance.showSystemNotification(
+          title: 'New Follower',
+          body:
+              '${followerProfile.fullName} (@${followerProfile.handle}) is now following you!',
+        );
+        // Refresh friends to show them in lobby if it's mutual now
+        refreshFriends();
+      }
+    } catch (e) {
+      debugPrint('Error handling follow event: $e');
     }
   }
 
@@ -899,6 +900,9 @@ class ChatProvider with ChangeNotifier {
 
     if (_globalMessagesSubscription != null) {
       SupabaseService.instance.removeChannel(_globalMessagesSubscription!);
+    }
+    if (_followSubscription != null) {
+      SupabaseService.instance.removeChannel(_followSubscription!);
     }
     if (_presenceChannel != null) {
       Supabase.instance.client.removeChannel(_presenceChannel!);

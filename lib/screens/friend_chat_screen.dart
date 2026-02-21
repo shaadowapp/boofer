@@ -21,6 +21,7 @@ import '../providers/chat_provider.dart';
 import '../widgets/user_avatar.dart';
 import '../utils/svg_icons.dart';
 import '../widgets/modern_chat_input.dart';
+import '../services/moderation_service.dart';
 import '../services/supabase_service.dart';
 import '../services/virgil_e2ee_service.dart';
 import '../services/virgil_key_service.dart';
@@ -69,6 +70,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   Message? _replyToMessage;
   RealtimeChannel? _realtimeChannel;
   RealtimeChannel? _timerSubscription;
+  Map<String, dynamic>? _myKeys;
+  Map<String, dynamic>? _recipientKeys;
 
   @override
   void initState() {
@@ -136,11 +139,17 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               debugPrint('Error fetching timer: $e');
               return 'off';
             }),
+        VirgilKeyService().getRecipientKeys(currentUser.id),
+        VirgilKeyService().getRecipientKeys(widget.recipientId),
+        _loadMessages(conversationId),
       ]);
 
       final relationshipStatus = results[0] as String;
       final freshRecipient = results[1] as User?;
       final ephemeralTimer = results[2] as String;
+      _myKeys = results[3] as Map<String, dynamic>?;
+      _recipientKeys = results[4] as Map<String, dynamic>?;
+      // results[5] is the void result from _loadMessages
 
       // Fallback to cache if remote check failed (returned 'none') but we know they are a friend
       String finalStatus = relationshipStatus;
@@ -195,7 +204,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           _isFollowing = isFollowing || isMutual;
           _recipientUser = recipientUser;
           _ephemeralTimer = ephemeralTimer;
-          _loading = false;
         });
 
         // Initial cleanup
@@ -210,9 +218,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
         // Set up realtime listener BEFORE loading messages to avoid gaps
         _setupRealtimeListener(conversationId);
-
-        // Load existing messages from Supabase
-        await _loadMessages(conversationId);
 
         if (!mounted) return;
 
@@ -243,7 +248,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           .select()
           .eq('conversation_id', conversationId)
           .order('timestamp', ascending: false)
-          .limit(50);
+          .limit(30);
 
       debugPrint('📥 Loaded ${response.length} messages from database');
 
@@ -266,8 +271,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (mounted) {
         setState(() {
           _messages = sortedMessages;
+          _updateChatItems();
+          _loading = false;
         });
-        _updateChatItems();
         _scrollToBottom();
       }
       debugPrint('✅ Messages loaded, decrypted, and displayed');
@@ -302,33 +308,44 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 return;
               }
 
-              // Decrypt if needed
-              newMessage = await _decryptMessage(newMessage);
-
               if (mounted) {
-                setState(() {
-                  // Check if message is already in list (for optimistic updates)
-                  final existingIndex = _messages.indexWhere(
-                    (m) => m.id == newMessage.id,
-                  );
-                  if (existingIndex != -1) {
-                    _messages[existingIndex] = newMessage;
-                  } else {
-                    _messages.add(newMessage);
-                    // Sort by timestamp just in case of slight order issues
-                    _messages.sort(
-                      (a, b) => a.timestamp.compareTo(b.timestamp),
-                    );
-                  }
-                  _updateChatItems();
-                });
-                _scrollToBottom();
+                // Check if this message is already in the list (optimistic update from sender)
+                final existingIndex = _messages.indexWhere(
+                  (m) => m.id == newMessage.id,
+                );
 
-                // If message is from recipient, mark it as read immediately since chat is open
-                if (newMessage.senderId == widget.recipientId) {
-                  _markMessagesAsRead();
+                if (existingIndex != -1) {
+                  // We already have this message (we sent it optimistically).
+                  // Preserve the plaintext we already have — the server record
+                  // only contains the encrypted ciphertext, so decrypting it
+                  // here would show [Encrypted] on the sender side.
+                  final existingPlaintext = _messages[existingIndex].text;
+                  setState(() {
+                    _messages[existingIndex] = newMessage.copyWith(
+                      text: existingPlaintext,
+                    );
+                    _updateChatItems();
+                  });
+                } else {
+                  // Genuinely new message from the other person — decrypt normally
+                  newMessage = await _decryptMessage(newMessage);
+                  if (mounted) {
+                    setState(() {
+                      _messages.add(newMessage);
+                      _messages.sort(
+                        (a, b) => a.timestamp.compareTo(b.timestamp),
+                      );
+                      _updateChatItems();
+                    });
+                    _scrollToBottom();
+
+                    // Mark as read since chat is open
+                    if (newMessage.senderId == widget.recipientId) {
+                      _markMessagesAsRead();
+                    }
+                  }
                 }
-              }
+              } // end if (mounted)
             } else if (payload.eventType == PostgresChangeEvent.update) {
               final data = payload.newRecord;
               var updatedMessage = Message.fromJson(data);
@@ -515,9 +532,27 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       return message;
     }
 
-    // 2. If we are the SENDER, we can't decrypt the DB ciphertext (it's for the recipient).
-    // So we check our LOCAL database for the original plaintext that we saved before sending.
+    // 2. If we are the SENDER, decrypt using our own encrypted copy.
     if (message.senderId == _currentUserId) {
+      if (message.encryptedContentSender != null) {
+        try {
+          final ourKeys =
+              _myKeys ??
+              await VirgilKeyService().getRecipientKeys(_currentUserId!);
+          if (ourKeys != null) {
+            final decrypted = await VirgilE2EEService.instance
+                .decryptThenVerify(
+                  message.encryptedContentSender!,
+                  ourKeys['signaturePublicKey'],
+                );
+            return message.copyWith(text: decrypted);
+          }
+        } catch (e) {
+          debugPrint('⚠️ Sender-copy decryption failed: $e');
+        }
+      }
+
+      // Fallback: check local SQLite (for messages sent before this fix)
       try {
         final localResults = await DatabaseManager.instance.query(
           'SELECT text FROM messages WHERE id = ?',
@@ -532,7 +567,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       } catch (e) {
         debugPrint('Error fetching local plaintext for sender: $e');
       }
-      return message; // Fallback to whatever we have
+
+      return message; // Old message before fix — show [Encrypted] as last resort
     }
 
     // 3. If we are the RECIPIENT, proceed with normal decryption
@@ -541,13 +577,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
 
     try {
-      if (!VirgilE2EEService.instance.isInitialized) {
-        await SupabaseService.instance.initializeE2EE(_currentUserId!);
-      }
-
-      final senderKeys = await VirgilKeyService().getRecipientKeys(
-        message.senderId,
-      );
+      final senderKeys =
+          _recipientKeys ??
+          await VirgilKeyService().getRecipientKeys(message.senderId);
       if (senderKeys == null) {
         debugPrint('⚠️ Virgil keys not found for sender ${message.senderId}');
         return message.copyWith(status: MessageStatus.decryptionFailed);
@@ -557,7 +589,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         message.encryptedContent!,
         senderKeys['signaturePublicKey'],
       );
-
       return message.copyWith(text: decrypted);
     } catch (e) {
       debugPrint('⚠️ Message decryption failed: $e');
@@ -587,7 +618,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   void _updateChatItems() {
     final items = <dynamic>[];
     if (_messages.isEmpty) {
-      if (mounted) setState(() => _chatItems = []);
+      _chatItems = [];
       return;
     }
 
@@ -601,11 +632,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _chatItems = items;
-      });
-    }
+    _chatItems = items;
   }
 
   // ... (existing code)
@@ -1063,6 +1090,14 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       return;
     }
 
+    // ── Content moderation ────────────────────────────────────────────────────
+    final modResult = ModerationService.moderateMessage(text.trim());
+    if (!modResult.isAllowed) {
+      _showModerationWarning(modResult.reason!);
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     debugPrint('📨 Sending message from UI...');
     debugPrint('   Current User: $_currentUserId');
     debugPrint('   Recipient: ${widget.recipientId}');
@@ -1277,6 +1312,31 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     setState(() {
       _replyToMessage = null;
     });
+  }
+
+  /// Shows a blocking dialog when the moderation service flags a message.
+  void _showModerationWarning(String reason) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.shield_outlined, color: Colors.red, size: 40),
+        title: const Text(
+          'Message Blocked',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(reason, textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendFollowRequest() async {

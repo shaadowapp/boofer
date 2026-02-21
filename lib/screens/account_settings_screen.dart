@@ -169,6 +169,74 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ),
             ),
           ],
+
+          if (_isPrimary == true) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Colors.white10),
+            const SizedBox(height: 16),
+            if (_savedAccounts.length < 3)
+              OutlinedButton.icon(
+                onPressed: _handleCreateSubordinate,
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                label: const Text('Create another profile'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.primary,
+                  side: BorderSide(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              )
+            else
+              Text(
+                'Profile limit reached (Max 3)',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+              ),
+          ],
+
+          if (_isPrimary == false) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Subordinate Profile',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+          if (_isPrimary == true) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF845EF7).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Primary Profile',
+                style: TextStyle(
+                  color: Color(0xFF845EF7),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -201,9 +269,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           child: Column(
             children: [
-              ..._savedAccounts.map((account) {
+              ..._savedAccounts.asMap().entries.map((entry) {
+                final index = entry.key;
+                final account = entry.value;
                 final isCurrent = account['id'] == _currentUser?.id;
-                final isPrimary = account['isPrimary'] == true;
+
+                // Primary is either explicitly marked, or the first one if none are marked
+                // Primary logic: explicitly true OR (no explicit primary exists AND index is 0)
+                final hasExplicitPrimary = _savedAccounts.any(
+                  (a) => a['isPrimary'] == true,
+                );
+                final isPrimary =
+                    account['isPrimary'] == true ||
+                    (!hasExplicitPrimary && index == 0);
 
                 return Column(
                   children: [
@@ -229,18 +307,35 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                               : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      trailing: isCurrent
-                          ? Icon(
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isPrimary == true && !isPrimary && !isCurrent)
+                            IconButton(
+                              icon: Icon(
+                                Icons.delete_outline_rounded,
+                                color: theme.colorScheme.error,
+                                size: 20,
+                              ),
+                              onPressed: () => _handleDeleteAccount(
+                                account['id'],
+                                account['fullName'] ?? account['handle'],
+                              ),
+                            ),
+                          if (isCurrent)
+                            Icon(
                               Icons.check_circle,
                               color: theme.colorScheme.primary,
                             )
-                          : const SizedBox.shrink(),
+                          else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
                       onTap: isCurrent
                           ? null
                           : () => _handleSwitchAccount(account['id']),
                     ),
-                    if (account != _savedAccounts.last ||
-                        (_isPrimary == true && _savedAccounts.length < 3))
+                    if (account != _savedAccounts.last)
                       Divider(
                         height: 1,
                         indent: 20,
@@ -250,15 +345,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   ],
                 );
               }),
-              if (_isPrimary == true && _savedAccounts.length < 3)
-                _buildActionTile(
-                  theme,
-                  icon: Icons.person_add_alt_1_rounded,
-                  title: 'Create another profile',
-                  subtitle: 'Add a subordinate profile (max 3)',
-                  onTap: _handleCreateSubordinate,
-                  color: theme.colorScheme.primary,
-                ),
             ],
           ),
         ),
@@ -279,7 +365,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       try {
         await context.read<AuthStateProvider>().switchAccount(accountId);
         if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+          // Navigate to main directly to avoid re-triggering startup logic in main.dart
+          Navigator.pushNamedAndRemoveUntil(context, '/main', (route) => false);
         }
       } catch (e) {
         if (mounted) {
@@ -506,6 +593,39 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         );
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleDeleteAccount(String id, String name) async {
+    final confirmed = await _showConfirmationDialog(
+      title: 'Remove Profile?',
+      content:
+          'Are you sure you want to delete profile "$name"? This will permanently remove all their data from the cloud and this device.',
+      confirmText: 'Delete',
+      isDangerous: true,
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await MultiAccountStorageService.deleteAccountCompletely(id);
+        await _loadUserData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete profile: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }

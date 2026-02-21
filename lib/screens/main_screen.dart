@@ -32,6 +32,7 @@ import '../services/follow_service.dart';
 import '../l10n/app_localizations.dart';
 import '../services/receive_share_service.dart';
 import '../main.dart';
+import '../widgets/fast_profile_switcher.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -55,6 +56,7 @@ class _MainScreenState extends State<MainScreen> {
   late final PageController _pageController = PageController(
     initialPage: _baseIndex + _currentIndex,
   );
+  Timer? _holdTimer;
 
   final List<Widget> _screens = [
     const ProfileScreen(), // Index 0
@@ -97,6 +99,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    _holdTimer?.cancel();
     _pageController.dispose();
     _searchController.dispose();
     _profilePictureSubscription?.cancel();
@@ -111,6 +114,18 @@ class _MainScreenState extends State<MainScreen> {
       });
       HapticFeedback.selectionClick();
     }
+  }
+
+  void _startHoldTimer() {
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(seconds: 1), () {
+      HapticFeedback.vibrate();
+      FastProfileSwitcher.show(context, showAddButton: false);
+    });
+  }
+
+  void _cancelHoldTimer() {
+    _holdTimer?.cancel();
   }
 
   void _onTabTapped(int index) {
@@ -1088,8 +1103,12 @@ class _MainScreenState extends State<MainScreen> {
           activeIcon: StreamBuilder<String?>(
             stream: ProfilePictureService.instance.profilePictureStream,
             initialData: ProfilePictureService.instance.currentProfilePicture,
-            builder: (context, snapshot) =>
-                _buildProfileIcon(true, snapshot.data),
+            builder: (context, snapshot) => GestureDetector(
+              onPanDown: (_) => _startHoldTimer(),
+              onPanCancel: _cancelHoldTimer,
+              onPanEnd: (_) => _cancelHoldTimer(),
+              child: _buildProfileIcon(true, snapshot.data),
+            ),
           ),
           label: 'You',
         ),
@@ -1148,13 +1167,22 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               _buildModernNavItem(
                 index: 0,
-                icon: StreamBuilder<String?>(
-                  stream: ProfilePictureService.instance.profilePictureStream,
-                  initialData:
-                      ProfilePictureService.instance.currentProfilePicture,
-                  builder: (context, snapshot) {
-                    return _buildProfileIcon(_currentIndex == 0, snapshot.data);
-                  },
+                icon: GestureDetector(
+                  onSecondaryTap: () {},
+                  onPanDown: (_) => _startHoldTimer(),
+                  onPanCancel: _cancelHoldTimer,
+                  onPanEnd: (_) => _cancelHoldTimer(),
+                  child: StreamBuilder<String?>(
+                    stream: ProfilePictureService.instance.profilePictureStream,
+                    initialData:
+                        ProfilePictureService.instance.currentProfilePicture,
+                    builder: (context, snapshot) {
+                      return _buildProfileIcon(
+                        _currentIndex == 0,
+                        snapshot.data,
+                      );
+                    },
+                  ),
                 ),
                 label: 'You',
                 isProfile: true,
@@ -1232,7 +1260,12 @@ class _MainScreenState extends State<MainScreen> {
       icon = StreamBuilder<String?>(
         stream: ProfilePictureService.instance.profilePictureStream,
         initialData: ProfilePictureService.instance.currentProfilePicture,
-        builder: (context, snapshot) => _buildProfileIcon(false, snapshot.data),
+        builder: (context, snapshot) => GestureDetector(
+          onPanDown: (_) => _startHoldTimer(),
+          onPanCancel: _cancelHoldTimer,
+          onPanEnd: (_) => _cancelHoldTimer(),
+          child: _buildProfileIcon(false, snapshot.data),
+        ),
       );
     } else {
       final color = isSelected
@@ -1260,6 +1293,9 @@ class _MainScreenState extends State<MainScreen> {
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
+      onPanDown: isProfile ? (_) => _startHoldTimer() : null,
+      onPanCancel: isProfile ? _cancelHoldTimer : null,
+      onPanEnd: isProfile ? (_) => _cancelHoldTimer() : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
@@ -1485,6 +1521,12 @@ class _MainScreenState extends State<MainScreen> {
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
+      onLongPressStart: isProfile ? (_) => _startHoldTimer() : null,
+      onLongPressEnd: isProfile ? (_) => _cancelHoldTimer() : null,
+      // Also use Pan events for more reliable hold detection in nested scrolls
+      onPanDown: isProfile ? (_) => _startHoldTimer() : null,
+      onPanCancel: isProfile ? _cancelHoldTimer : null,
+      onPanEnd: isProfile ? (_) => _cancelHoldTimer() : null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1555,37 +1597,42 @@ class _MainScreenState extends State<MainScreen> {
     final isSelected = _currentIndex == index;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return InkWell(
-      onTap: () => _onTabTapped(index),
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
-          vertical: 8,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primaryContainer.withValues(alpha: 0.4)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+    return GestureDetector(
+      onPanDown: isProfile ? (_) => _startHoldTimer() : null,
+      onPanCancel: isProfile ? _cancelHoldTimer : null,
+      onPanEnd: isProfile ? (_) => _cancelHoldTimer() : null,
+      child: InkWell(
+        onTap: () => _onTabTapped(index),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            horizontal: isSelected ? 16 : 12,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              icon,
+              if (isSelected) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1632,8 +1679,12 @@ class _MainScreenState extends State<MainScreen> {
         child: StreamBuilder<String?>(
           stream: ProfilePictureService.instance.profilePictureStream,
           initialData: ProfilePictureService.instance.currentProfilePicture,
-          builder: (context, snapshot) =>
-              _buildProfileIcon(isSelected, snapshot.data),
+          builder: (context, snapshot) => GestureDetector(
+            onPanDown: (_) => _startHoldTimer(),
+            onPanCancel: _cancelHoldTimer,
+            onPanEnd: (_) => _cancelHoldTimer(),
+            child: _buildProfileIcon(isSelected, snapshot.data),
+          ),
         ),
       );
     } else if (label == 'Chats') {
@@ -1658,6 +1709,9 @@ class _MainScreenState extends State<MainScreen> {
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
+      onPanDown: isProfile ? (_) => _startHoldTimer() : null,
+      onPanCancel: isProfile ? _cancelHoldTimer : null,
+      onPanEnd: isProfile ? (_) => _cancelHoldTimer() : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

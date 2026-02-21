@@ -23,6 +23,15 @@ class SupabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ErrorHandler _errorHandler = ErrorHandler();
 
+  // Cache conversation timers so we don't hit the DB on every send.
+  // Key: conversationId, Value: timer string (e.g. '12_hours', 'after_seen')
+  final Map<String, String> _timerCache = {};
+
+  /// Invalidate the cached timer for a conversation (call after user changes timer setting).
+  void invalidateTimerCache(String conversationId) {
+    _timerCache.remove(conversationId);
+  }
+
   // Stream controllers for real-time updates
   final StreamController<List<Message>> _messagesController =
       StreamController<List<Message>>.broadcast();
@@ -391,23 +400,46 @@ class SupabaseService {
 
       final messageData = message.toJson();
 
-      // Fetch conversation timer to set expiry
-      final timerString = await getConversationTimer(receiverId!);
-      DateTime? expiresAt;
+      // Parallelize preparation tasks for better speed
+      final timerFuture = getConversationTimer(receiverId!);
 
+      // Initialize E2EE if needed
+      if (forceUnencrypted != true) {
+        if (!VirgilE2EEService.instance.isInitialized) {
+          await initializeE2EE(senderId!);
+        }
+      }
+
+      // Fetch keys in parallel
+      final recipientKeysFuture = forceUnencrypted == true
+          ? Future.value(null)
+          : VirgilKeyService().getRecipientKeys(receiverId);
+      final senderKeysFuture = forceUnencrypted == true
+          ? Future.value(null)
+          : VirgilKeyService().getRecipientKeys(senderId!);
+
+      // Wait for all pre-requisites
+      final results = await Future.wait([
+        timerFuture,
+        recipientKeysFuture,
+        senderKeysFuture,
+      ]);
+
+      final String timerString = results[0] as String;
+      final Map<String, dynamic>? recipientKeys =
+          results[1] as Map<String, dynamic>?;
+      final Map<String, dynamic>? senderOwnKeys =
+          results[2] as Map<String, dynamic>?;
+
+      // ... rest of the logic ...
+      DateTime? expiresAt;
       int minutes = 0;
       if (timerString == 'after_seen') {
-        // 'after_seen' is handled by status logic, but we can set a 24h safety fuse
         minutes = 24 * 60;
       } else {
-        // Parse "X_hours" or "X_hour"
         final parts = timerString.split('_');
-        if (parts.isNotEmpty) {
-          final hours = int.tryParse(parts[0]) ?? 12;
-          minutes = hours * 60;
-        } else {
-          minutes = 12 * 60; // Default to 12 hours
-        }
+        final hours = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 12) : 12;
+        minutes = hours * 60;
       }
       expiresAt = DateTime.now().add(Duration(minutes: minutes));
 
@@ -421,49 +453,41 @@ class SupabaseService {
         'status': messageData['status'],
         'type': messageData['type'],
         'is_encrypted': false,
-        'encrypted_content': null,
-        'encryption_version': null,
         'message_hash': messageData['messageHash'],
         'metadata': messageData['metadata'],
         'expires_at': expiresAt.toIso8601String(),
       };
 
-      // Try to apply Virgil-style E2EE
-      if (forceUnencrypted != true) {
+      // Apply E2EE if possible
+      if (recipientKeys != null) {
         try {
-          debugPrint('🔐 Attempting to apply Virgil E2EE...');
-          if (!VirgilE2EEService.instance.isInitialized) {
-            await initializeE2EE(senderId!);
-          }
-
-          // Fetch recipient's Virgil keys
-          final recipientKeys = await VirgilKeyService().getRecipientKeys(
-            receiverId,
-          );
-          if (recipientKeys != null) {
-            final cryptogram = await VirgilE2EEService.instance.encryptThenSign(
+          // Perform both encryptions in parallel
+          final encryptionFutures = await Future.wait([
+            VirgilE2EEService.instance.encryptThenSign(
               message.text,
               recipientKeys['encryptionPublicKey'],
-            );
+            ),
+            if (senderOwnKeys != null)
+              VirgilE2EEService.instance.encryptThenSign(
+                message.text,
+                senderOwnKeys['encryptionPublicKey'],
+              )
+            else
+              Future.value(null),
+          ]);
 
-            dbData['is_encrypted'] = true;
-            dbData['text'] = '[Encrypted]';
-            dbData['encrypted_content'] = cryptogram;
-            dbData['encryption_version'] = 'virgil_v1';
-
-            debugPrint('🔐 Virgil E2EE Applied: Message scrambled and signed');
-          } else {
-            debugPrint(
-              '⚠️ Virgil keys not found for recipient, sending plaintext',
-            );
-          }
+          dbData['is_encrypted'] = true;
+          dbData['text'] = '[Encrypted]';
+          dbData['encrypted_content'] = encryptionFutures[0];
+          dbData['encrypted_content_sender'] = encryptionFutures[1];
+          dbData['encryption_version'] = 'virgil_v1';
+          debugPrint('🔐 Virgil E2EE Applied (Dual-encrypted)');
         } catch (e) {
           debugPrint('❌ Virgil E2EE Encryption failed: $e');
-          // If encryption failed, ABORT sending to prevent leakage of plaintext
-          throw Exception(
-            'E2EE Encryption failed: $e. Message not sent to prevent leakage.',
-          );
+          throw Exception('E2EE Encryption failed. Message not sent.');
         }
+      } else if (forceUnencrypted != true) {
+        debugPrint('⚠️ Virgil keys not found for recipient, sending plaintext');
       }
 
       debugPrint('📤 DB DATA: ${jsonEncode(dbData)}');
@@ -515,13 +539,13 @@ class SupabaseService {
     }
   }
 
-  /// Listen to messages in real-time
+  /// Listen to messages in real-time (Optimized)
   RealtimeChannel listenToMessages(
     String conversationId,
     Function(List<Message>) onUpdate,
   ) {
     return _supabase
-        .channel('public:messages:conversation_id=eq.$conversationId')
+        .channel('public:messages:$conversationId')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -532,134 +556,157 @@ class SupabaseService {
             value: conversationId,
           ),
           callback: (payload) async {
-            // Re-fetch all messages for that conversation or handle the payload
-            final response = await _supabase
-                .from('messages')
-                .select()
-                .eq('conversation_id', conversationId)
-                .order('timestamp', ascending: false)
-                .limit(
-                  50,
-                ); // Only load last 50 messages initially (Optimized load)
+            final record = payload.newRecord.isEmpty
+                ? payload.oldRecord
+                : payload.newRecord;
+            if (record.isEmpty) return;
+
             final currentUserId = _supabase.auth.currentUser?.id;
-            final messages = await Future.wait(
-              (response as List).map((data) async {
-                var m = Message.fromJson(data);
+            var m = Message.fromJson(record);
 
-                // Decrypt only if encrypted AND we are the RECIPIENT
-                if (m.isEncrypted && m.senderId != currentUserId) {
-                  try {
-                    final senderKeys = await VirgilKeyService()
-                        .getRecipientKeys(m.senderId);
-                    if (senderKeys != null) {
-                      if (!VirgilE2EEService.instance.isInitialized) {
-                        await initializeE2EE(currentUserId!);
-                      }
-                      final decryptedText = await VirgilE2EEService.instance
-                          .decryptThenVerify(
-                            m.encryptedContent!,
-                            senderKeys['signaturePublicKey'],
-                          );
-                      m = m.copyWith(text: decryptedText);
-                    }
-                  } catch (e) {
-                    debugPrint('⚠️ Decryption failed: $e');
-                    m = m.copyWith(status: MessageStatus.decryptionFailed);
+            // Decrypt insert/update events if we are the recipient
+            if (payload.eventType != PostgresChangeEvent.delete &&
+                m.isEncrypted &&
+                m.senderId != currentUserId) {
+              try {
+                final senderKeys = await VirgilKeyService().getRecipientKeys(
+                  m.senderId,
+                );
+                if (senderKeys != null) {
+                  if (!VirgilE2EEService.instance.isInitialized) {
+                    await initializeE2EE(currentUserId!);
                   }
-                } else if (m.isEncrypted && m.senderId == currentUserId) {
-                  // If we are the sender, we can't decrypt from DB (encrypted for recipient)
-                  // We should ideally keep it plaintext in local DB, but here we just leave it
-                  // as "[Encrypted]" if text was swapped, or the optimistic text.
+                  final decryptedText = await VirgilE2EEService.instance
+                      .decryptThenVerify(
+                        m.encryptedContent!,
+                        senderKeys['signaturePublicKey'],
+                      );
+                  m = m.copyWith(text: decryptedText);
                 }
-                return m;
-              }),
-            );
+              } catch (e) {
+                debugPrint('⚠️ Realtime decryption failed: $e');
+              }
+            }
 
-            final filteredMessages = messages
-                .where((m) {
-                  final deletedFor = m.metadata?['deleted_for'] as List?;
-                  return deletedFor == null ||
-                      !deletedFor.contains(currentUserId);
-                })
-                .toList()
-                .reversed
-                .toList();
-
-            onUpdate(filteredMessages);
+            // Return the single event item as a list for backward compatibility
+            onUpdate([m]);
           },
         )
         .subscribe();
   }
 
-  /// Listen to ALL messages for the current user (for Lobby updates)
+  /// Listen to relevant messages for the current user (Optimized for performance)
+  /// This uses server-side filtering to avoid receiving all app messages.
   RealtimeChannel listenToAllUserMessages(
     String userId,
     Function(Map<String, dynamic> payload) onEvent,
   ) {
+    // We listen to:
+    // 1. INBOUND messages (receiver_id = user)
+    // 2. STATUS UPDATES for OUTBOUND messages (sender_id = user)
+
+    final channelName = 'user_messages_$userId';
+
     return _supabase
-        .channel('public:messages:global:$userId')
+        .channel(channelName)
         .onPostgresChanges(
-          event: PostgresChangeEvent.all,
+          event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiver_id',
+            value: userId,
+          ),
           callback: (payload) async {
-            final newRecord = payload.newRecord;
-            if (newRecord.isEmpty) return;
+            final record = payload.newRecord;
+            if (record.isEmpty) return;
 
-            final senderId = newRecord['sender_id'];
-            final receiverId = newRecord['receiver_id'];
+            // Track received messages (network usage)
+            final text = record['text'] as String? ?? '';
+            final size =
+                text.length + (record['media_url'] != null ? 1024 * 1024 : 0);
+            UnifiedStorageService.incrementNetworkUsage(
+              record['media_url'] != null ? 'media' : 'messages',
+              size,
+              isSent: false,
+            );
 
-            // Only process if the current user is involved
-            if (senderId == userId || receiverId == userId) {
-              // Track received messages (network usage)
-              if (payload.eventType == PostgresChangeEvent.insert &&
-                  receiverId == userId) {
-                final text = newRecord['text'] as String? ?? '';
-                final size =
-                    text.length +
-                    (newRecord['media_url'] != null ? 1024 * 1024 : 0);
-                UnifiedStorageService.incrementNetworkUsage(
-                  newRecord['media_url'] != null ? 'media' : 'messages',
-                  size,
-                  isSent: false,
+            // Handle decryption at source
+            if (record['is_encrypted'] == true) {
+              try {
+                final senderKeys = await VirgilKeyService().getRecipientKeys(
+                  record['sender_id'],
                 );
-              }
-              onEvent({
-                'eventType': payload.eventType.name,
-                'record': newRecord,
-              });
+                if (senderKeys != null) {
+                  if (!VirgilE2EEService.instance.isInitialized)
+                    await initializeE2EE(userId);
 
-              // Handle decryption for real-time insert (Virgil-style)
-              if (payload.eventType == PostgresChangeEvent.insert) {
-                if (newRecord['receiver_id'] == userId &&
-                    newRecord['is_encrypted'] == true) {
-                  debugPrint('📥 Virgil E2EE message received, decrypting...');
-                  try {
-                    final senderId = newRecord['sender_id'];
-                    final senderKeys = await VirgilKeyService()
-                        .getRecipientKeys(senderId);
-                    if (senderKeys != null) {
-                      final encryptedContent =
-                          newRecord['encrypted_content'] is String
-                          ? jsonDecode(newRecord['encrypted_content'])
-                          : newRecord['encrypted_content'];
-                      if (!VirgilE2EEService.instance.isInitialized) {
-                        await initializeE2EE(userId);
-                      }
-                      final decrypted = await VirgilE2EEService.instance
-                          .decryptThenVerify(
-                            encryptedContent,
-                            senderKeys['signaturePublicKey'],
-                          );
-                      newRecord['text'] = decrypted;
-                    }
-                  } catch (e) {
-                    debugPrint('⚠️ Real-time decryption failed: $e');
-                  }
+                  final encryptedContent = record['encrypted_content'] is String
+                      ? jsonDecode(record['encrypted_content'])
+                      : record['encrypted_content'];
+
+                  final decrypted = await VirgilE2EEService.instance
+                      .decryptThenVerify(
+                        encryptedContent,
+                        senderKeys['signaturePublicKey'],
+                      );
+                  record['text'] = decrypted;
                 }
+              } catch (e) {
+                debugPrint('⚠️ Decryption error: $e');
               }
             }
+
+            onEvent({'eventType': 'insert', 'record': record});
           },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sender_id', // Catch updates to messages we sent
+            value: userId,
+          ),
+          callback: (payload) {
+            onEvent({'eventType': 'update', 'record': payload.newRecord});
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiver_id', // Catch updates to messages we received
+            value: userId,
+          ),
+          callback: (payload) {
+            onEvent({'eventType': 'update', 'record': payload.newRecord});
+          },
+        )
+        .subscribe();
+  }
+
+  /// Listen for new followers
+  RealtimeChannel listenToUserFollows(
+    String userId,
+    Function(Map<String, dynamic> data) onFollow,
+  ) {
+    return _supabase
+        .channel('user_follows_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'follows',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'following_id',
+            value: userId,
+          ),
+          callback: (payload) => onFollow(payload.newRecord),
         )
         .subscribe();
   }
@@ -814,6 +861,11 @@ class SupabaseService {
       final sortedIds = [userId, friendId]..sort();
       final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
 
+      // Return cached value to avoid per-send DB round-trips
+      if (_timerCache.containsKey(conversationId)) {
+        return _timerCache[conversationId]!;
+      }
+
       // 1. Check conversation-specific setting
       final response = await _supabase
           .from('conversation_settings')
@@ -823,7 +875,9 @@ class SupabaseService {
           .maybeSingle();
 
       if (response != null && response['ephemeral_timer'] != null) {
-        return response['ephemeral_timer'] as String;
+        final timer = response['ephemeral_timer'] as String;
+        _timerCache[conversationId] = timer;
+        return timer;
       }
 
       // 2. Fallback to global user default
@@ -835,7 +889,9 @@ class SupabaseService {
 
       if (privacyResponse != null &&
           privacyResponse['default_message_timer'] != null) {
-        return privacyResponse['default_message_timer'] as String;
+        final timer = privacyResponse['default_message_timer'] as String;
+        _timerCache[conversationId] = timer;
+        return timer;
       }
     } catch (e) {
       debugPrint('Error fetching conversation timer: $e');
@@ -1106,6 +1162,20 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ Error deleting user account: $e');
       throw Exception('Failed to delete account: $e');
+    }
+  }
+
+  /// Delete another user's account (subordinate) using RPC
+  Future<void> deleteOtherUserAccount(String userId) async {
+    try {
+      await _supabase.rpc(
+        'delete_user_completely',
+        params: {'target_user_id': userId},
+      );
+      debugPrint('✅ User account $userId completely deleted from DB via RPC');
+    } catch (e) {
+      debugPrint('❌ Error calling delete_user_completely RPC: $e');
+      throw Exception('Failed to delete subordinate profile from DB: $e');
     }
   }
 

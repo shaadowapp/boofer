@@ -320,7 +320,7 @@ class User {
         json['pendingSentRequests'] ?? json['pending_sent_requests'],
       ),
       isVerified: toBool(json['isVerified'] ?? json['is_verified']),
-      guardianId: toString(json['guardianId'] ?? json['guardian_id']),
+      guardianId: json['guardianId'] ?? json['guardian_id'],
     );
   }
 

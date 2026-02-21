@@ -9,7 +9,11 @@ class VirgilKeyService {
   // Memory cache for public keys
   static final Map<String, Map<String, dynamic>> _keyCache = {};
 
+  // Pending requests for keys (to flatten concurrent calls)
+  static final Map<String, Future<Map<String, dynamic>?>> _pendingRequests = {};
+
   /// Upload the current user's public keys to Supabase
+  // ... (uploadPublicKeys remains same)
   Future<void> uploadPublicKeys() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -42,17 +46,40 @@ class VirgilKeyService {
 
   /// Fetch public keys for a specific recipient
   Future<Map<String, dynamic>?> getRecipientKeys(String recipientId) async {
-    try {
-      // Check cache first
-      if (_keyCache.containsKey(recipientId)) {
-        return _keyCache[recipientId];
-      }
+    // 1. Check cache first
+    if (_keyCache.containsKey(recipientId)) {
+      return _keyCache[recipientId];
+    }
 
+    // 2. Check for pending request to flatten calls
+    if (_pendingRequests.containsKey(recipientId)) {
+      return _pendingRequests[recipientId];
+    }
+
+    // 3. Start new request
+    final request = _fetchKeysFromDb(recipientId);
+    _pendingRequests[recipientId] = request;
+
+    try {
+      final keys = await request;
+      if (keys != null) {
+        _keyCache[recipientId] = keys;
+      }
+      return keys;
+    } finally {
+      _pendingRequests.remove(recipientId);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _fetchKeysFromDb(String recipientId) async {
+    try {
       final response = await _supabase
           .from('user_public_keys')
           .select('key_bundle')
           .eq('user_id', recipientId)
-          .single();
+          .maybeSingle();
+
+      if (response == null) return null;
 
       final bundle = response['key_bundle'] as Map<String, dynamic>;
 
@@ -62,14 +89,10 @@ class VirgilKeyService {
         return null;
       }
 
-      final keys = {
+      return {
         'encryptionPublicKey': base64Decode(bundle['encryptionPublicKey']),
         'signaturePublicKey': base64Decode(bundle['signaturePublicKey']),
       };
-
-      // Store in cache
-      _keyCache[recipientId] = keys;
-      return keys;
     } catch (e) {
       debugPrint('❌ Error fetching keys for $recipientId: $e');
       return null;
