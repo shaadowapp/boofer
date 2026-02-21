@@ -110,6 +110,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         widget.recipientId,
       );
 
+      // CRITICAL: Set user ID BEFORE parallel calls so decryption works
+      _currentUserId = currentUser.id;
+
       // Check cached relationship status first (to prevent flashing "Follow to Message" on network errors)
       final chatProvider = context.read<ChatProvider>();
       final isCachedFriend = chatProvider.isMutualFriend(widget.recipientId);
@@ -530,6 +533,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     // 1. If not encrypted, return as is
     if (!message.isEncrypted || message.encryptedContent == null) {
       return message;
+    }
+
+    // Ensure E2EE is initialized before decryption
+    if (!VirgilE2EEService.instance.isInitialized && _currentUserId != null) {
+      await SupabaseService.instance.initializeE2EE(_currentUserId!);
     }
 
     // 2. If we are the SENDER, decrypt using our own encrypted copy.
