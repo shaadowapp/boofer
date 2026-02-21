@@ -4,6 +4,10 @@ import '../services/supabase_service.dart';
 
 import '../models/user_model.dart';
 import '../widgets/user_avatar.dart';
+import '../services/multi_account_storage_service.dart';
+import '../providers/auth_state_provider.dart';
+import 'package:provider/provider.dart';
+import 'signup_steps_screen.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -15,6 +19,8 @@ class AccountSettingsScreen extends StatefulWidget {
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   User? _currentUser;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _savedAccounts = [];
+  bool? _isPrimary;
 
   @override
   void initState() {
@@ -24,9 +30,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Future<void> _loadUserData() async {
     final user = await SupabaseService.instance.getCurrentUserProfile();
+    final savedAccounts = await MultiAccountStorageService.getSavedAccounts();
+
+    bool? isPrimary;
+    if (user != null) {
+      final primaryId = await MultiAccountStorageService.getPrimaryAccountId();
+      isPrimary = (primaryId == user.id);
+    }
+
     if (mounted) {
       setState(() {
         _currentUser = user;
+        _savedAccounts = savedAccounts;
+        _isPrimary = isPrimary;
         _isLoading = false;
       });
     }
@@ -55,6 +71,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _buildInfoCard(theme),
+                  const SizedBox(height: 24),
+                  _buildProfilesSection(theme),
                   const SizedBox(height: 24),
                   _buildDangerZone(theme),
                 ]),
@@ -152,6 +170,136 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfilesSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 12),
+          child: Text(
+            'PROFILES',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.3,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Column(
+            children: [
+              ..._savedAccounts.map((account) {
+                final isCurrent = account['id'] == _currentUser?.id;
+                final isPrimary = account['isPrimary'] == true;
+
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: UserAvatar(
+                        avatar: account['avatar'],
+                        name: account['fullName'] ?? account['handle'],
+                        radius: 20,
+                      ),
+                      title: Text(
+                        account['fullName'] ?? account['handle'],
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: isCurrent
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: Text(
+                        isPrimary ? 'Primary Profile' : 'Subordinate Profile',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isPrimary
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      trailing: isCurrent
+                          ? Icon(
+                              Icons.check_circle,
+                              color: theme.colorScheme.primary,
+                            )
+                          : const SizedBox.shrink(),
+                      onTap: isCurrent
+                          ? null
+                          : () => _handleSwitchAccount(account['id']),
+                    ),
+                    if (account != _savedAccounts.last ||
+                        (_isPrimary == true && _savedAccounts.length < 3))
+                      Divider(
+                        height: 1,
+                        indent: 20,
+                        endIndent: 20,
+                        color: theme.colorScheme.outline.withValues(alpha: 0.1),
+                      ),
+                  ],
+                );
+              }),
+              if (_isPrimary == true && _savedAccounts.length < 3)
+                _buildActionTile(
+                  theme,
+                  icon: Icons.person_add_alt_1_rounded,
+                  title: 'Create another profile',
+                  subtitle: 'Add a subordinate profile (max 3)',
+                  onTap: _handleCreateSubordinate,
+                  color: theme.colorScheme.primary,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleSwitchAccount(String accountId) async {
+    final confirmed = await _showConfirmationDialog(
+      title: 'Switch Profile?',
+      content: 'Do you want to switch to this profile?',
+      confirmText: 'Switch',
+      isDangerous: false,
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await context.read<AuthStateProvider>().switchAccount(accountId);
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to switch: $e')));
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  void _handleCreateSubordinate() {
+    if (_currentUser == null) return;
+
+    // Navigate to signup steps with current user as guardian
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SignupStepsScreen(guardianId: _currentUser!.id),
       ),
     );
   }

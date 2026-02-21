@@ -36,15 +36,29 @@ class MultiAccountStorageService {
     required String fullName,
     String? avatar,
     String? supabaseSession, // raw JSON from supabase session
+    bool? isPrimary,
+    String? guardianId,
   }) async {
     try {
       final accounts = await getSavedAccounts();
+
+      // Enforce max 3 profiles
+      if (accounts.length >= 3 && !accounts.any((a) => a['id'] == id)) {
+        throw Exception('Maximum 3 profiles allowed per device');
+      }
+
       final idx = accounts.indexWhere((a) => a['id'] == id);
+
+      // If this is the first account, it's automatically primary
+      final effectiveIsPrimary = accounts.isEmpty ? true : (isPrimary ?? false);
+
       final entry = {
         'id': id,
         'handle': handle,
         'fullName': fullName,
         'avatar': avatar,
+        'isPrimary': effectiveIsPrimary,
+        'guardianId': guardianId,
         'savedAt': DateTime.now().toIso8601String(),
       };
 
@@ -98,6 +112,35 @@ class MultiAccountStorageService {
     } catch (_) {}
   }
 
+  /// Get the primary account ID for this device.
+  static Future<String?> getPrimaryAccountId() async {
+    final accounts = await getSavedAccounts();
+    final primary = accounts.firstWhere(
+      (a) => a['isPrimary'] == true,
+      orElse: () => accounts.isNotEmpty ? accounts.first : {},
+    );
+    return primary['id'] as String?;
+  }
+
+  /// Get the primary account details.
+  static Future<Map<String, dynamic>?> getPrimaryAccount() async {
+    final accounts = await getSavedAccounts();
+    return accounts.firstWhere(
+      (a) => a['isPrimary'] == true,
+      orElse: () => accounts.isNotEmpty ? accounts.first : {},
+    );
+  }
+
+  /// Check if a new subordinate profile can be created.
+  /// Returns true if count < 3 and currentUserId is the primary account.
+  static Future<bool> canCreateSubordinate(String currentUserId) async {
+    final accounts = await getSavedAccounts();
+    if (accounts.length >= 3) return false;
+
+    final primary = await getPrimaryAccount();
+    return primary != null && primary['id'] == currentUserId;
+  }
+
   /// Clear all saved accounts (use on full factory reset).
   static Future<void> clearAll() async {
     try {
@@ -109,5 +152,14 @@ class MultiAccountStorageService {
       await prefs.remove(_savedAccountsKey);
       await prefs.remove(_lastActiveAccountKey);
     } catch (_) {}
+  }
+
+  /// Get secured session for an account.
+  static Future<String?> getSession(String id) async {
+    try {
+      return await _secureStorage.read(key: 'boofer_session_$id');
+    } catch (_) {
+      return null;
+    }
   }
 }

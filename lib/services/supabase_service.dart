@@ -210,6 +210,76 @@ class SupabaseService {
     }
   }
 
+  /// Get user profile by Virtual Number
+  Future<app_user.User?> getUserByVirtualNumber(String virtualNumber) async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .eq('virtual_number', virtualNumber)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return app_user.User.fromJson(response);
+    } catch (e) {
+      debugPrint('❌ Failed to get user by virtual number: $e');
+      return null;
+    }
+  }
+
+  /// Get user profile with relationship data (followers/following status)
+  Future<Map<String, dynamic>?> getUserAndRelationship({
+    required String currentUserId,
+    required String profileUserId,
+  }) async {
+    try {
+      // Use SQL joins to fetch profile data + user relationship in one go.
+      // We join profiles with follows table to get status and counts.
+      final response = await _supabase
+          .from('profiles')
+          .select(
+            '*, followers:follows!following_id(count), following:follows!follower_id(count), my_follow:follows!following_id(follower_id)',
+          )
+          .eq('id', profileUserId)
+          .single();
+
+      final data = Map<String, dynamic>.from(response);
+
+      // Calculate isFollowing from my_follow (if currentUserId is in the list)
+      final myFollow = data['my_follow'] as List?;
+      data['is_following'] =
+          myFollow != null &&
+          myFollow.any((f) => f['follower_id'] == currentUserId);
+
+      // Extract counts (Supabase returns a list with one item containing the count if using .count())
+      // But here we used select('count'), so it might be different.
+      // Actually, standard way is to use an RPC or do separate count queries,
+      // but the user explicitly asked for joins.
+
+      // Re-query counts if join count is not reliable in this setup
+      if (data['followers'] is! int) {
+        final followersCount = await _supabase
+            .from('follows')
+            .count(CountOption.exact)
+            .eq('following_id', profileUserId);
+        data['followers_count'] = followersCount;
+      }
+
+      if (data['following'] is! int) {
+        final followingCount = await _supabase
+            .from('follows')
+            .count(CountOption.exact)
+            .eq('follower_id', profileUserId);
+        data['following_count'] = followingCount;
+      }
+
+      return data;
+    } catch (e) {
+      debugPrint('❌ Failed to get user and relationship: $e');
+      return null;
+    }
+  }
+
   /// Search users globally
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
@@ -422,14 +492,14 @@ class SupabaseService {
       final dbMessage = Message.fromJson(response);
       return dbMessage.copyWith(text: message.text);
     } catch (e, stackTrace) {
-      debugPrint('❌ CRITICAL FAILURE in SupabaseService.sendMessage: $e');
-      debugPrint('❌ Stack trace: $stackTrace');
+      debugPrint('❌ SupabaseService.sendMessage CRITICAL FAILURE: $e');
 
       if (e is PostgrestException) {
-        debugPrint('❌ Supabase Postgrest Error: ${e.message}');
-        debugPrint('❌ Supabase Error Details: ${e.details}');
-        debugPrint('❌ Supabase Error Hint: ${e.hint}');
-        debugPrint('❌ Supabase Error Code: ${e.code}');
+        debugPrint(
+          '❌ Supabase Postgrest Error Detail: ${e.message} (${e.code})',
+        );
+        debugPrint('❌ Postgrest Details: ${e.details}');
+        debugPrint('❌ Postgrest Hint: ${e.hint}');
       }
 
       _errorHandler.handleError(
@@ -439,7 +509,9 @@ class SupabaseService {
           originalException: e is Exception ? e : Exception(e.toString()),
         ),
       );
-      return null;
+
+      // IMPORTANT: Rethrow so the ChatService/UI knows it failed!
+      rethrow;
     }
   }
 

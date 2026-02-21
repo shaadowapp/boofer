@@ -30,6 +30,7 @@ class User {
   final int pendingReceivedRequests;
   final int pendingSentRequests;
   final bool isVerified;
+  final String? guardianId; // ID of the primary profile (guardian)
 
   const User({
     required this.id,
@@ -58,6 +59,7 @@ class User {
     this.pendingReceivedRequests = 0,
     this.pendingSentRequests = 0,
     this.isVerified = false,
+    this.guardianId,
   });
 
   /// Get formatted virtual number (XXX-XXX-XXXX)
@@ -151,6 +153,7 @@ class User {
     int? pendingReceivedRequests,
     int? pendingSentRequests,
     bool? isVerified,
+    String? guardianId,
   }) {
     return User(
       id: id ?? this.id,
@@ -180,6 +183,7 @@ class User {
           pendingReceivedRequests ?? this.pendingReceivedRequests,
       pendingSentRequests: pendingSentRequests ?? this.pendingSentRequests,
       isVerified: isVerified ?? this.isVerified,
+      guardianId: guardianId ?? this.guardianId,
     );
   }
 
@@ -212,6 +216,7 @@ class User {
       'pendingReceivedRequests': pendingReceivedRequests,
       'pendingSentRequests': pendingSentRequests,
       'isVerified': isVerified,
+      'guardianId': guardianId,
     };
   }
 
@@ -219,34 +224,20 @@ class User {
   Map<String, dynamic> toDatabaseJson() {
     return {
       'id': id,
-      'email': email,
+      'virtual_number': virtualNumber,
       'handle': handle,
       'full_name': fullName,
       'bio': bio,
-      'is_discoverable': isDiscoverable
-          ? 1
-          : 0, // Convert bool to int for SQLite
-      'last_username_change': lastUsernameChange?.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'is_discoverable': isDiscoverable ? 1 : 0,
       'profile_picture': profilePicture,
-      'avatar': avatar,
       'status': status.name,
+      'last_username_change': lastUsernameChange?.toIso8601String(),
       'last_seen': lastSeen?.toIso8601String(),
       'location': location,
-      'age': age,
-      'virtual_number': virtualNumber,
-      'gender': gender,
-      'looking_for': lookingFor,
-      'interests': interests,
-      'hobbies': hobbies,
-      // Removed count columns as they don't exist in the profiles table
-      // 'follower_count': followerCount,
-      // 'following_count': followingCount,
-      // 'friends_count': friendsCount,
-      // 'pending_received_requests': pendingReceivedRequests,
-      // 'pending_sent_requests': pendingSentRequests,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
       'is_verified': isVerified ? 1 : 0,
+      'guardian_id': guardianId,
     };
   }
 
@@ -329,6 +320,7 @@ class User {
         json['pendingSentRequests'] ?? json['pending_sent_requests'],
       ),
       isVerified: toBool(json['isVerified'] ?? json['is_verified']),
+      guardianId: toString(json['guardianId'] ?? json['guardian_id']),
     );
   }
 

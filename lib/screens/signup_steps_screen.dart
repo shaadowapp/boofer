@@ -9,7 +9,8 @@ import '../core/constants.dart';
 /// Multi-step onboarding wizard: Age/Gender → Interests → Hobbies → Looking For → Terms.
 /// All profile steps (except Terms) are skippable.
 class SignupStepsScreen extends StatefulWidget {
-  const SignupStepsScreen({super.key});
+  final String? guardianId;
+  const SignupStepsScreen({super.key, this.guardianId});
 
   @override
   State<SignupStepsScreen> createState() => _SignupStepsScreenState();
@@ -106,6 +107,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
             'interests': _interests.toList(),
             'hobbies': _hobbies.toList(),
             'lookingFor': _lookingFor,
+            'guardianId': widget.guardianId,
           },
         ),
       ),

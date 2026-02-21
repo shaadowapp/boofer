@@ -427,17 +427,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                             ],
-                            if (friend.isMutual) ...[
-                              const SizedBox(width: 4),
-                              Tooltip(
-                                message: 'Mutual Connection',
-                                child: Icon(
-                                  Icons.people,
-                                  size: 14,
-                                  color: Colors.green.withOpacity(0.7),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -782,22 +771,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 },
               ),
 
-              _buildChatOption(
-                context,
-                icon: Icons.block,
-                title: chatProvider.isUserBlocked(friend.id)
-                    ? l10n.unblockUser
-                    : l10n.blockUser,
-                isDestructive: !chatProvider.isUserBlocked(friend.id),
-                onTap: () {
-                  Navigator.pop(context);
-                  if (chatProvider.isUserBlocked(friend.id)) {
-                    _unblockUser(friend, chatProvider, l10n);
-                  } else {
-                    _showBlockConfirmation(friend, chatProvider, l10n);
-                  }
-                },
-              ),
+              if (friend.id != AppConstants.booferId &&
+                  friend.handle != 'boofer')
+                _buildChatOption(
+                  context,
+                  icon: Icons.block,
+                  title: chatProvider.isUserBlocked(friend.id)
+                      ? l10n.unblockUser
+                      : l10n.blockUser,
+                  isDestructive: !chatProvider.isUserBlocked(friend.id),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (chatProvider.isUserBlocked(friend.id)) {
+                      _unblockUser(friend, chatProvider, l10n);
+                    } else {
+                      _showBlockConfirmation(friend, chatProvider, l10n);
+                    }
+                  },
+                ),
 
               _buildChatOption(
                 context,

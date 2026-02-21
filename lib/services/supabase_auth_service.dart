@@ -39,4 +39,14 @@ class SupabaseAuthService {
   Stream<sb.AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 
   bool get isAuthenticated => _supabase.auth.currentSession != null;
+
+  /// Recover session from JSON string
+  Future<void> recoverSession(String sessionJson) async {
+    try {
+      await _supabase.auth.recoverSession(sessionJson);
+    } catch (e) {
+      debugPrint('❌ Error recovering session: $e');
+      rethrow;
+    }
+  }
 }

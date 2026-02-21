@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/supabase_auth_service.dart';
@@ -82,6 +83,7 @@ class AuthStateProvider with ChangeNotifier {
     String? lookingFor,
     List<String>? interests,
     List<String>? hobbies,
+    String? guardianId,
   }) async {
     _setState(AuthenticationState.loading);
     _clearError();
@@ -152,6 +154,7 @@ class AuthStateProvider with ChangeNotifier {
         location: location,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        guardianId: guardianId,
       );
 
       // Try to create profile on Supabase
@@ -167,11 +170,15 @@ class AuthStateProvider with ChangeNotifier {
       _setState(AuthenticationState.authenticated);
 
       // Save to multi-account storage
+      final session = _authService.currentSession;
       await MultiAccountStorageService.upsertAccount(
         id: newUser.id,
         handle: newUser.handle,
         fullName: newUser.fullName,
         avatar: newUser.avatar,
+        supabaseSession: session != null ? jsonEncode(session.toJson()) : null,
+        guardianId: guardianId,
+        isPrimary: guardianId == null, // Primary if no guardian
       );
       await MultiAccountStorageService.setLastActiveAccountId(newUser.id);
 
@@ -203,6 +210,37 @@ class AuthStateProvider with ChangeNotifier {
       _setState(AuthenticationState.unauthenticated);
     } catch (e) {
       _setError('Sign-out failed: $e');
+    }
+  }
+
+  Future<void> switchAccount(String accountId) async {
+    _setState(AuthenticationState.loading);
+    try {
+      final sessionJson = await MultiAccountStorageService.getSession(
+        accountId,
+      );
+      if (sessionJson == null) {
+        throw Exception('No saved session found for this account');
+      }
+
+      await _authService.recoverSession(sessionJson);
+
+      final profile = await _supabaseService.getUserProfile(accountId);
+      if (profile == null) {
+        throw Exception('Profile not found for this account');
+      }
+
+      await UserService.setCurrentUser(profile);
+      await MultiAccountStorageService.setLastActiveAccountId(accountId);
+
+      _currentUserId = accountId;
+      _setState(AuthenticationState.authenticated);
+
+      // Ensure following Boofer Official
+      FollowService.instance.ensureFollowingBoofer(accountId);
+    } catch (e) {
+      debugPrint('❌ Switch account failed: $e');
+      _setError('Switch account failed: $e');
     }
   }
 

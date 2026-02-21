@@ -14,7 +14,6 @@ import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
 import 'user_search_screen.dart';
-import 'start_new_chat_screen.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
 
@@ -31,6 +30,8 @@ import '../utils/svg_icons.dart';
 import '../services/notification_service.dart';
 import '../services/follow_service.dart';
 import '../l10n/app_localizations.dart';
+import '../services/receive_share_service.dart';
+import '../main.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -89,6 +90,8 @@ class _MainScreenState extends State<MainScreen> {
     // Initialize providers and load data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeUserData();
+      // Process any pending share intent captured during splash
+      ReceiveShareService.instance.init(BooferApp.navigatorKey);
     });
   }
 
@@ -357,10 +360,10 @@ class _MainScreenState extends State<MainScreen> {
         // Profile tab - No action
         break;
       case 1:
-        // Lobby tab - Start new chat
+        // Lobby tab - Find new people
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const StartNewChatScreen()),
+          MaterialPageRoute(builder: (context) => const UserSearchScreen()),
         );
         break;
       case 2:
@@ -1040,7 +1043,7 @@ class _MainScreenState extends State<MainScreen> {
           return _buildNavBar(context, appearance.navBarStyle);
         },
       ),
-      floatingActionButton: _currentIndex == 0
+      floatingActionButton: (_currentIndex == 0 || _currentIndex == 1)
           ? null
           : _getFloatingActionButton(),
     );
@@ -1699,14 +1702,6 @@ class _MainScreenState extends State<MainScreen> {
             child: SvgIcons.sized(SvgIcons.addCall, 24, color: Colors.white),
           ),
         ],
-      );
-    }
-
-    if (_currentIndex == 1) {
-      return FloatingActionButton(
-        onPressed: _onAddPressed,
-        heroTag: 'add',
-        child: SvgIcons.sized(SvgIcons.addChat, 24, color: Colors.white),
       );
     }
 

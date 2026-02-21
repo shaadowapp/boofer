@@ -9,6 +9,7 @@ import '../models/message_model.dart';
 import '../models/network_state.dart';
 import '../services/follow_service.dart';
 import '../services/supabase_service.dart';
+import '../services/user_service.dart';
 import '../core/constants.dart';
 
 /// Privacy-focused chat service for local message management
@@ -192,6 +193,17 @@ class ChatService {
         throw Exception('You don\'t have access to this conversation.');
       }
 
+      // 1. Ensure sender exists in local database (satisfies FOREIGN KEY constraint)
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser != null && currentUser.id == senderId) {
+        await _database.insert(
+          'users',
+          currentUser.toDatabaseJson(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 2. Save to local database with PLAINTEXT first (avoids race condition with listener)
       final message = Message.create(
         text: content,
         senderId: senderId,
@@ -203,7 +215,6 @@ class ChatService {
         metadata: metadata,
       );
 
-      // 1. Save to local database with PLAINTEXT first (avoids race condition with listener)
       await _database.insert('messages', {
         'id': message.id,
         'text': message.text,
@@ -213,6 +224,7 @@ class ChatService {
         'timestamp': message.timestamp.toIso8601String(),
         'is_offline': message.isOffline ? 1 : 0,
         'status': message.status.name,
+        'type': message.type.name,
         'message_hash': message.messageHash,
         'updated_at': DateTime.now().toIso8601String(),
         'created_at': message.timestamp.toIso8601String(),
@@ -228,8 +240,8 @@ class ChatService {
 
       Message messageToSave = message;
 
-      // 2. Send to Supabase only if receiver is someone else
-      if (receiverId != null && receiverId != senderId) {
+      // 2. Send to Supabase if receiver is set
+      if (receiverId != null) {
         final sentMessage = await _supabaseService.sendMessage(
           conversationId: conversationId,
           senderId: senderId,
@@ -254,6 +266,7 @@ class ChatService {
         'timestamp': messageToSave.timestamp.toIso8601String(),
         'is_offline': messageToSave.isOffline ? 1 : 0,
         'status': messageToSave.status.name,
+        'type': messageToSave.type.name,
         'message_hash': messageToSave.messageHash,
         'updated_at': DateTime.now().toIso8601String(),
         'created_at': messageToSave.timestamp.toIso8601String(),
@@ -295,7 +308,7 @@ class ChatService {
           originalException: e is Exception ? e : Exception(e.toString()),
         ),
       );
-      return null;
+      rethrow;
     }
   }
 
@@ -497,6 +510,7 @@ class ChatService {
         'timestamp': m.timestamp.toIso8601String(),
         'status': m.status.name,
         'is_offline': 0,
+        'type': m.type.name,
         'is_encrypted': m.isEncrypted ? 1 : 0,
         'encrypted_content': m.encryptedContent != null
             ? jsonEncode(m.encryptedContent)

@@ -5,12 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'user_avatar.dart';
+import '../screens/user_profile_screen.dart';
 import '../models/message_model.dart';
 import '../providers/appearance_provider.dart';
 import 'link_warning_bottom_sheet.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart' as app_user;
-import '../screens/user_profile_screen.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -100,15 +101,21 @@ class MessageBubble extends StatelessWidget {
                 (message.metadata!['reply_to'] as Map).cast<String, dynamic>(),
                 appearance,
               ),
-            _buildMessageText(
-              context,
-              isOwnMessage,
-              theme,
-              isEmojiOnly
-                  ? 56.0
-                  : appearance.bubbleFontSize, // Larger size for emoji
-              isEmojiOnly,
-            ),
+            if (message.type == MessageType.profile)
+              _buildProfileCard(
+                context,
+                isOwnMessage,
+                theme,
+                appearance.bubbleFontSize,
+              )
+            else
+              _buildMessageText(
+                context,
+                isOwnMessage,
+                theme,
+                isEmojiOnly ? 56.0 : appearance.bubbleFontSize,
+                isEmojiOnly,
+              ),
           ],
         ),
       ),
@@ -815,6 +822,111 @@ class MessageBubble extends StatelessWidget {
       fontSize: fontSize,
       isEncrypted: message.isEncrypted,
       onUserHandleTap: (handle) => _handleUserHandleTap(context, handle),
+    );
+  }
+
+  Widget _buildProfileCard(
+    BuildContext context,
+    bool isOwnMessage,
+    ThemeData theme,
+    double fontSize,
+  ) {
+    final metadata = message.metadata ?? {};
+    final profileId = metadata['profile_id'] as String?;
+    final profileName = metadata['profile_name'] as String? ?? 'User';
+    final profileHandle = metadata['profile_handle'] as String? ?? 'handle';
+    final profileAvatar = metadata['profile_avatar'] as String?;
+    final profilePicture = metadata['profile_picture'] as String?;
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isOwnMessage
+            ? Colors.black.withOpacity(0.1)
+            : theme.colorScheme.surface.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              UserAvatar(
+                avatar: profileAvatar,
+                profilePicture: profilePicture,
+                name: profileName,
+                radius: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profileName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: fontSize,
+                        color: isOwnMessage
+                            ? Colors.white
+                            : theme.colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '@$profileHandle',
+                      style: TextStyle(
+                        fontSize: fontSize - 2,
+                        color: isOwnMessage
+                            ? Colors.white70
+                            : theme.colorScheme.primary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                if (profileId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          UserProfileScreen(userId: profileId),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isOwnMessage
+                    ? Colors.white
+                    : theme.colorScheme.primary,
+                foregroundColor: isOwnMessage
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'View Profile',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

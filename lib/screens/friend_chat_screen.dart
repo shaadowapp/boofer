@@ -33,6 +33,7 @@ class FriendChatScreen extends StatefulWidget {
   final String? recipientAvatar;
   final String? recipientProfilePicture;
   final String? virtualNumber;
+  final String? initialText;
 
   const FriendChatScreen({
     super.key,
@@ -42,6 +43,7 @@ class FriendChatScreen extends StatefulWidget {
     this.recipientAvatar,
     this.recipientProfilePicture,
     this.virtualNumber,
+    this.initialText,
   });
 
   @override
@@ -836,6 +838,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         if (_replyToMessage != null) _buildReplyPreview(theme),
         ModernChatInput(
           autofocus: true,
+          initialText: widget.initialText,
           onSendMessage: (text) {
             _handleSendMessage(text);
           },
@@ -1782,15 +1785,17 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               },
             ),
             // Show block/unblock option
-            _buildBottomSheetOption(
-              icon: _isBlocked ? Icons.person_add : Icons.block,
-              title: _isBlocked ? 'Unblock user' : 'Block user',
-              onTap: () {
-                Navigator.pop(context);
-                _toggleBlockUser();
-              },
-              isDestructive: !_isBlocked,
-            ),
+            if (widget.recipientId != AppConstants.booferId &&
+                widget.recipientHandle != 'boofer')
+              _buildBottomSheetOption(
+                icon: _isBlocked ? Icons.person_add : Icons.block,
+                title: _isBlocked ? 'Unblock user' : 'Block user',
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleBlockUser();
+                },
+                isDestructive: !_isBlocked,
+              ),
             // Delete conversation from lobby
             _buildBottomSheetOption(
               icon: Icons.delete_outline,

@@ -9,6 +9,7 @@ import '../providers/follow_provider.dart';
 import '../widgets/follow_button.dart';
 import '../core/constants.dart';
 import 'friend_chat_screen.dart';
+import '../widgets/profile_share_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -36,15 +37,40 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final user = await _supabaseService.getUserProfile(widget.userId);
       final currentUser = await UserService.getCurrentUser();
+      final currentUserId = currentUser?.id ?? '';
 
-      if (mounted) {
+      // Use the new SQL join method to get profile + relationship
+      final userData = await _supabaseService.getUserAndRelationship(
+        currentUserId: currentUserId,
+        profileUserId: widget.userId,
+      );
+
+      if (userData != null && mounted) {
+        final profileUser = User.fromJson(userData);
+
+        // Update FollowProvider with the real relationship status from SQL join
+        final followProvider = context.read<FollowProvider>();
+        followProvider.setLocalFollowingStatus(
+          widget.userId,
+          userData['is_following'] ?? false,
+        );
+
+        // Also update counts in provider to ensure accuracy
+        // We can't set stats directly but we can trigger a load if needed,
+        // or just let the provider do its thing.
+        // But the user said counts are inaccurate, so let's push the truth.
+
         setState(() {
-          _profileUser = user;
-          _isOwnProfile = currentUser?.id == widget.userId;
+          _profileUser = profileUser;
+          _isOwnProfile = currentUserId == widget.userId;
           _isLoading = false;
         });
+
+        // Trigger background stats load to be sure
+        followProvider.loadFollowStats(widget.userId, refresh: true);
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
@@ -54,12 +80,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _shareProfile() {
     if (_profileUser == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ShareProfileScreen(user: _profileUser!),
-      ),
-    );
+
+    if (_isOwnProfile) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShareProfileScreen(user: _profileUser!),
+        ),
+      );
+    } else {
+      ProfileShareSheet.show(context, profile: _profileUser!);
+    }
   }
 
   void _showBlockConfirmation() {
@@ -171,16 +202,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 if (value == 'report') _showReportDialog();
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'block',
-                  child: Row(
-                    children: [
-                      Icon(Icons.block, color: Colors.red, size: 20),
-                      SizedBox(width: 12),
-                      Text('Block User', style: TextStyle(color: Colors.red)),
-                    ],
+                if (widget.userId != AppConstants.booferId &&
+                    _profileUser?.handle != 'boofer')
+                  const PopupMenuItem(
+                    value: 'block',
+                    child: Row(
+                      children: [
+                        Icon(Icons.block, color: Colors.red, size: 20),
+                        SizedBox(width: 12),
+                        Text('Block User', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
                   ),
-                ),
                 const PopupMenuItem(
                   value: 'report',
                   child: Row(
@@ -459,14 +492,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 icon: Icons.people_outline,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _StatBox(
-                label: 'Following',
-                value: '${stats?.followingCount ?? 0}',
-                icon: Icons.person_add_alt_1_outlined,
+            if (widget.userId != AppConstants.booferId) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatBox(
+                  label: 'Following',
+                  value: '${stats?.followingCount ?? 0}',
+                  icon: Icons.person_add_alt_1_outlined,
+                ),
               ),
-            ),
+            ],
           ],
         );
       },

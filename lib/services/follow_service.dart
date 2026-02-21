@@ -144,6 +144,36 @@ class FollowService {
     }
   }
 
+  /// Gets all users that the current user is related to (following or followed by).
+  Future<List<User>> getAllRelatedUsers({required String userId}) async {
+    try {
+      if (!StringUtils.isUuid(userId)) return [];
+
+      // Fetch followers and following in parallel
+      final results = await Future.wait([
+        getFollowers(userId: userId, limit: 1000),
+        getFollowing(userId: userId, limit: 1000),
+      ]);
+
+      final followers = results[0];
+      final following = results[1];
+
+      // Combine and remove duplicates based on ID
+      final Map<String, User> userMap = {};
+      for (final u in followers) {
+        userMap[u.id] = u;
+      }
+      for (final u in following) {
+        userMap[u.id] = u;
+      }
+
+      return userMap.values.toList();
+    } catch (e) {
+      debugPrint('Error getting related users: $e');
+      return [];
+    }
+  }
+
   Future<bool> isFollowing({
     required String followerId,
     required String followingId,

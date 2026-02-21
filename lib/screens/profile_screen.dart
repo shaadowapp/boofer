@@ -7,6 +7,8 @@ import '../services/user_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/profile_picture_service.dart';
 import '../models/user_model.dart';
+import '../widgets/boofer_identity_card.dart';
+
 import '../core/constants.dart';
 import 'settings_screen.dart';
 import 'archived_chats_screen.dart';
@@ -14,6 +16,7 @@ import 'help_screen.dart';
 import 'user_search_screen.dart';
 import 'appearance_settings_screen.dart';
 import 'followers_screen.dart';
+import 'following_screen.dart';
 import 'share_profile_screen.dart';
 import '../providers/follow_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -84,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (user != null) {
         final followProvider = context.read<FollowProvider>();
-        await followProvider.loadFollowStats(user.id);
+        await followProvider.loadFollowStats(user.id, refresh: true);
       }
 
       setState(() {
@@ -241,7 +244,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 110),
-                  _ProfileHeroCard(
+                  BooferIdentityCard(
                     user: _currentUser!,
                     onCopyNumber: () {
                       Clipboard.setData(
@@ -252,6 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                   ),
+
                   const SizedBox(height: 32),
                   _buildActionRow(),
                   const SizedBox(height: 32),
@@ -418,18 +422,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return Row(
           children: [
             Expanded(
-              child: _StatBox(
-                label: 'Followers',
-                value: '${stats?.followersCount ?? 0}',
-                icon: Icons.people_outline,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FollowersScreen(
+                      userId: _currentUser!.id,
+                      userName: _currentUser!.fullName,
+                    ),
+                  ),
+                ),
+                child: _StatBox(
+                  label: 'Followers',
+                  value: '${stats?.followersCount ?? 0}',
+                  icon: Icons.people_outline,
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _StatBox(
-                label: 'Following',
-                value: '${stats?.followingCount ?? 0}',
-                icon: Icons.person_add_alt_1_outlined,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FollowingScreen(
+                      userId: _currentUser!.id,
+                      userName: _currentUser!.fullName,
+                    ),
+                  ),
+                ),
+                child: _StatBox(
+                  label: 'Following',
+                  value: '${stats?.followingCount ?? 0}',
+                  icon: Icons.person_add_alt_1_outlined,
+                ),
               ),
             ),
           ],
@@ -1107,210 +1133,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-}
-
-class _ProfileHeroCard extends StatelessWidget {
-  final User user;
-  final VoidCallback onCopyNumber;
-  const _ProfileHeroCard({required this.user, required this.onCopyNumber});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E30) : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.08),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 10,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
-              ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 85,
-                      height: 105,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.onSurface.withOpacity(0.1),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          user.avatar ?? '👤',
-                          style: const TextStyle(fontSize: 44),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'BOOFER IDENTITY',
-                            style: TextStyle(
-                              color: Color(0xFF845EF7),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2.5,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            user.fullName,
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '@${user.handle}',
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.4,
-                              ),
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            user.bio.isNotEmpty
-                                ? user.bio
-                                : 'No bio identity established yet.',
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.6,
-                              ),
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  height: 1,
-                  color: theme.colorScheme.onSurface.withOpacity(0.05),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'VIRTUAL NUMBER',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.3),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          user.formattedVirtualNumber,
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      onPressed: onCopyNumber,
-                      icon: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF845EF7).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.copy_rounded,
-                          color: Color(0xFF845EF7),
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.05),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.policy_rounded,
-                  color: theme.colorScheme.primary.withOpacity(0.5),
-                  size: 14,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'GOVERNMENT OF BOOFER',
-                  style: TextStyle(
-                    color: theme.colorScheme.primary.withOpacity(0.7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

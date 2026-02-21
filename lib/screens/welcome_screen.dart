@@ -5,6 +5,8 @@ import '../providers/auth_state_provider.dart';
 import '../services/local_storage_service.dart';
 import '../services/user_service.dart';
 import 'main_screen.dart';
+import '../models/user_model.dart';
+import '../widgets/boofer_identity_card.dart';
 
 /// Animated welcome screen shown as a 'gate' after data collection.
 /// Users see their draft profile (Aadhaar style) and can edit it
@@ -70,6 +72,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         lookingFor: _localData['lookingFor'],
         interests: _localData['interests'],
         hobbies: _localData['hobbies'],
+        guardianId: _localData['guardianId'],
       );
 
       if (!mounted) return;
@@ -278,12 +281,19 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     position: _cardSlideAnim,
                     child: FadeTransition(
                       opacity: _fadeAnim,
-                      child: _ProfileCard(
-                        avatar: _localData['avatar'],
-                        fullName: _localData['fullName'],
-                        handle: _localData['handle'],
-                        bio: _localData['bio'],
-                        virtualNumber: _localData['virtualNumber'],
+                      child: BooferIdentityCard(
+                        user: User(
+                          id: 'draft',
+                          email: '',
+                          handle: _localData['handle'],
+                          fullName: _localData['fullName'],
+                          bio: _localData['bio'] ?? '',
+                          isDiscoverable: true,
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                          avatar: _localData['avatar'],
+                          virtualNumber: _localData['virtualNumber'],
+                        ),
                         onCopyNumber: () {
                           Clipboard.setData(
                             ClipboardData(text: _localData['virtualNumber']),
@@ -342,219 +352,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         ],
       ),
     );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  final String avatar;
-  final String fullName;
-  final String handle;
-  final String bio;
-  final String virtualNumber;
-  final VoidCallback onCopyNumber;
-
-  const _ProfileCard({
-    required this.avatar,
-    required this.fullName,
-    required this.handle,
-    required this.bio,
-    required this.virtualNumber,
-    required this.onCopyNumber,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E30),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header Accent
-          Container(
-            height: 12,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
-              ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Avatar Box
-                    Container(
-                      width: 90,
-                      height: 110,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          avatar,
-                          style: const TextStyle(fontSize: 48),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    // Identity Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'BOOFER IDENTITY',
-                            style: TextStyle(
-                              color: Color(0xFF845EF7),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            fullName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '@$handle',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            bio,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Divider
-                Container(height: 1, color: Colors.white.withOpacity(0.05)),
-                const SizedBox(height: 20),
-                // Virtual Number Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'VIRTUAL NUMBER',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.3),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatNumber(virtualNumber),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      onPressed: onCopyNumber,
-                      icon: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF845EF7).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.copy_rounded,
-                          color: Color(0xFF845EF7),
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Footer watermark
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.02),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.verified_user,
-                  color: Colors.white10,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'GOVERNMENT OF BOOFER',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.1),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatNumber(String num) {
-    if (num.length < 10) return num;
-    return '${num.substring(0, 3)} ${num.substring(3, 6)} ${num.substring(6)}';
   }
 }
 

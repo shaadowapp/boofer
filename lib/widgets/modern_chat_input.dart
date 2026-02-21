@@ -7,6 +7,7 @@ class ModernChatInput extends StatefulWidget {
   final VoidCallback? onTypingStarted;
   final VoidCallback? onTypingStopped;
   final bool autofocus;
+  final String? initialText;
 
   const ModernChatInput({
     super.key,
@@ -14,6 +15,7 @@ class ModernChatInput extends StatefulWidget {
     this.onTypingStarted,
     this.onTypingStopped,
     this.autofocus = false,
+    this.initialText,
   });
 
   @override
@@ -43,6 +45,11 @@ class _ModernChatInputState extends State<ModernChatInput>
       parent: _emojiController,
       curve: Curves.easeOutBack,
     );
+
+    if (widget.initialText != null && widget.initialText!.isNotEmpty) {
+      _textController.text = widget.initialText!;
+      _isComposing = true;
+    }
   }
 
   @override

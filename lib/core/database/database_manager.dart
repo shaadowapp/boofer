@@ -18,7 +18,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 10;
+  static const int _databaseVersion = 11;
 
   /// Get database instance
   Future<Database> get database async {
@@ -92,6 +92,7 @@ class DatabaseManager {
         timestamp TEXT NOT NULL,
         is_offline INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'pending',
+        type TEXT NOT NULL DEFAULT 'text',
         message_hash TEXT UNIQUE,
         is_encrypted INTEGER NOT NULL DEFAULT 0,
         encrypted_content TEXT,
@@ -489,6 +490,7 @@ class DatabaseManager {
           timestamp TEXT NOT NULL,
           is_offline INTEGER NOT NULL DEFAULT 0,
           status TEXT NOT NULL DEFAULT 'pending',
+          type TEXT NOT NULL DEFAULT 'text',
           message_hash TEXT UNIQUE,
           is_encrypted INTEGER NOT NULL DEFAULT 0,
           encrypted_content TEXT,
@@ -506,8 +508,8 @@ class DatabaseManager {
       try {
         await db.execute(
           '''
-          INSERT INTO messages (id, text, sender_id, receiver_id, conversation_id, timestamp, status, message_hash, created_at, updated_at, metadata)
-          SELECT CAST(id AS TEXT), text, sender_id, receiver_id, conversation_id, timestamp, status, message_hash, created_at, updated_at, metadata
+          INSERT INTO messages (id, text, sender_id, receiver_id, conversation_id, timestamp, status, type, message_hash, created_at, updated_at, metadata)
+          SELECT CAST(id AS TEXT), text, sender_id, receiver_id, conversation_id, timestamp, status, 'text', message_hash, created_at, updated_at, metadata
           FROM messages_old_v''' +
               oldVersion.toString(),
         );
@@ -515,6 +517,17 @@ class DatabaseManager {
         debugPrint(
           '⚠️ Data migration for messages failed: $e. Supabase will re-sync.',
         );
+      }
+    }
+
+    if (oldVersion < 11) {
+      // Add type column to messages table if it doesn't exist
+      try {
+        await db.execute(
+          'ALTER TABLE messages ADD COLUMN type TEXT NOT NULL DEFAULT "text"',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
       }
     }
   }

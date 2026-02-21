@@ -5,8 +5,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../models/user_model.dart';
+import '../widgets/boofer_identity_card.dart';
+import 'qr_scanner_screen.dart';
 
 class ShareProfileScreen extends StatefulWidget {
   final User user;
@@ -124,6 +125,23 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const QrScannerScreen(),
+                ),
+              );
+            },
+            icon: Icon(
+              Icons.qr_code_scanner_rounded,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -260,163 +278,10 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
   }
 
   Widget _buildBooferCard(ThemeData theme, bool isDark) {
-    return Container(
-      key: const ValueKey('boofer_card'),
-      width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 360, minHeight: 240),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E30) : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
-          children: [
-            // Branding Bar (Vertical on left or horizontal on top?)
-            // Let's do a top branding bar
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Left: Avatar
-                      Container(
-                        width: 90,
-                        height: 115,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.onSurface.withOpacity(0.1),
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            widget.user.avatar ?? '👤',
-                            style: const TextStyle(fontSize: 50),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      // Right: Info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'BOOFER IDENTITY',
-                              style: TextStyle(
-                                color: const Color(0xFF845EF7),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 3,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              widget.user.fullName,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '@${widget.user.handle.toUpperCase()}',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.4,
-                                ),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'VIRTUAL NUMBER',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.3,
-                                ),
-                                fontSize: 8,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                            Text(
-                              widget.user.formattedVirtualNumber,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Quote/Bio at bottom
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.05),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.verified_user_rounded,
-                        color: theme.colorScheme.primary.withOpacity(0.5),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'GOVERNMENT OF BOOFER',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary.withOpacity(0.7),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return BooferIdentityCard(
+      user: widget.user,
+      onCopyNumber: _copyHandle,
+      showQrInsteadOfCopy: true,
     );
   }
 
@@ -424,85 +289,130 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
     return Container(
       key: const ValueKey('qr_card'),
       width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 340, minHeight: 340),
+      constraints: const BoxConstraints(maxWidth: 320, minHeight: 420),
+
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E30) : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+        border: Border.all(
+          color: theme.colorScheme.onSurface.withOpacity(0.08),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: QrImageView(
-                      data: 'boofer://profile/${widget.user.id}',
-                      version: QrVersions.auto,
-                      gapless: false,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: Colors.black,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.circle,
-                        color: Colors.black,
-                      ),
-                    ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: IntrinsicHeight(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                height: 10,
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
                   ),
-                  // Branded Logo Overlay
-                  Container(
-                    width: 50,
-                    height: 50,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 260,
+                      width: 260,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(28),
                         ),
-                      ],
+                        child: QrImageView(
+                          data: 'boofer://profile/@${widget.user.handle}',
+                          version: QrVersions.auto,
+                          size: 260.0,
+                          gapless: true,
+                          padding: const EdgeInsets.all(0),
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.circle,
+                            color: Colors.black,
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.circle,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: SvgPicture.asset(
-                      'assets/images/logo/logo-boofer-b.svg',
-                      width: 30,
-                      height: 30,
+                    const SizedBox(height: 16),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '@${widget.user.handle.toUpperCase()}',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'SCAN TO CONNECT',
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withOpacity(0.3),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.05),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(32),
                   ),
-                ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.policy_rounded,
+                      color: theme.colorScheme.primary.withOpacity(0.5),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'GOVERNMENT OF BOOFER',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary.withOpacity(0.7),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '@${widget.user.handle.toUpperCase()}',
-              style: TextStyle(
-                color: theme.colorScheme.onSurface,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -13,6 +13,8 @@ import 'main_screen.dart';
 import 'legal_acceptance_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'privacy_policy_screen.dart';
+import '../services/receive_share_service.dart';
+import '../main.dart';
 
 /// Smart auth gateway — shown only when:
 ///   • 0 saved accounts  → signup flow (slides + swipe-to-start)
@@ -104,6 +106,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _fadeAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOut);
 
     _init();
+
+    // Process any pending share intent captured during splash
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ReceiveShareService.instance.init(BooferApp.navigatorKey);
+    });
   }
 
   Future<void> _init() async {

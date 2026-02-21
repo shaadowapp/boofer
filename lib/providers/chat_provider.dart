@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 import '../services/follow_service.dart';
@@ -15,6 +15,7 @@ import '../services/virgil_key_service.dart';
 import '../models/friend_model.dart';
 import '../models/user_model.dart';
 import '../services/supabase_service.dart';
+import '../services/notification_service.dart';
 import '../core/constants.dart';
 import '../services/chat_cache_service.dart';
 
@@ -106,6 +107,7 @@ class ChatProvider with ChangeNotifier {
     required String content,
     String? receiverId,
     MessageType type = MessageType.text,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       // Determine initial status based on presence
@@ -129,6 +131,7 @@ class ChatProvider with ChangeNotifier {
         receiverId: receiverId,
         type: type,
         status: initialStatus,
+        metadata: metadata,
       );
     } catch (e) {
       _handleError(e);
@@ -147,6 +150,10 @@ class ChatProvider with ChangeNotifier {
       }
     }
     return null;
+  }
+
+  Future<bool> checkNotificationPermission() async {
+    return await NotificationService.instance.checkPermission();
   }
 
   Future<void> markMessageAsRead(String messageId) async {
@@ -219,218 +226,117 @@ class ChatProvider with ChangeNotifier {
   bool _isLoadingFromNetwork = false;
   bool _isAppOnline = true; // Assume online initially
 
-  // Load real friends from Firestore with optimized caching
+  // Load real friends from Firestore - Optimized for current requirements
   Future<void> _loadRealFriends({bool forceRefresh = false}) async {
     try {
       final currentUser = await UserService.getCurrentUser();
-      if (currentUser == null) {
-        print('⚠️ No current user found, cannot load friends');
-        _friendsLoaded = true;
-        notifyListeners();
-        return;
-      }
+      if (currentUser == null) return;
 
-      print(
-        '📱 Loading friends for user: ${currentUser.id} (Force: $forceRefresh)',
-      );
-
-      // Start global realtime listener for lobby updates
+      // Initialize global listeners
       if (_globalMessagesSubscription == null) {
         _globalMessagesSubscription = SupabaseService.instance
             .listenToAllUserMessages(currentUser.id, (payload) {
               _handleRealtimeMessageEvent(payload, currentUser.id);
             });
       }
+      if (_profilesSubscription == null) _setupProfilesListener();
+      if (_presenceChannel == null) _setupPresence(currentUser.id);
 
-      // Start global profile status listener
-      if (_profilesSubscription == null) {
-        _setupProfilesListener();
-      }
-
-      // Start global presence listener
-      if (_presenceChannel == null) {
-        _setupPresence(currentUser.id);
-      }
-
-      final cacheService = ChatCacheService.instance;
-
-      // STEP 1: Load from cache immediately (stale-while-revalidate)
-      final cachedFriends = await cacheService.getCachedFriends(currentUser.id);
-      if (cachedFriends.isNotEmpty) {
-        // Filter out invalid IDs from cache
-        cachedFriends.removeWhere((friend) {
-          if (friend.id == AppConstants.booferId) return false;
-          final uuidRegex = RegExp(
-            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-          );
-          return !uuidRegex.hasMatch(friend.id);
-        });
-
-        _friends = cachedFriends;
-        _friendsLoaded = true;
-        notifyListeners();
-        print('✅ Loaded ${cachedFriends.length} friends from cache (instant)');
-      }
-
-      // STEP 2: Handle Throttling for manual refreshes
-      if (forceRefresh) {
-        final isThrottled = await cacheService.isFriendsRefreshThrottled();
-        if (isThrottled) {
-          debugPrint('⏳ Friends refresh throttled. Using existing state.');
-          // Only set loaded to true if we actually have data or already were in a loaded state
-          if (_friends.isNotEmpty) {
-            _friendsLoaded = true;
-          }
-          notifyListeners();
-          return;
-        }
-      }
-
-      // STEP 3: Check if background refresh is needed
-      final lastSync = await cacheService.getLastSyncTime('last_friends_sync');
-      final isCacheStale =
-          lastSync == null ||
-          DateTime.now().difference(lastSync) > const Duration(minutes: 5);
-
-      // FORCE refresh if this is the first time the app is loading in this session
-      // to ensure we catch any relationship updates
-      final bool isFirstTimeThisSession =
-          !_isLoadingFromNetwork && !_friendsLoaded;
-
-      if (!forceRefresh &&
-          !isCacheStale &&
-          !isFirstTimeThisSession &&
-          _friends.isNotEmpty) {
-        debugPrint(
-          '✅ Friends cache is fresh (<5m), skipping background network call',
-        );
-        _friendsLoaded = true;
-        notifyListeners();
-        return;
-      }
-
-      // STEP 4: Fetch from network
-      print('🔄 Fetching fresh conversations and friends from network...');
       _isLoadingFromNetwork = true;
+      notifyListeners();
 
       final supabaseService = SupabaseService.instance;
       final followService = FollowService.instance;
 
-      // 1. Get ALL previous conversations from the messages table
-      final conversationData = await supabaseService.getUserConversations(
-        currentUser.id,
-      );
+      // 1. Fetch from network directly (bypassing stale cache logic)
+      final results = await Future.wait([
+        supabaseService.getUserConversations(currentUser.id),
+        followService.getAllRelatedUsers(userId: currentUser.id),
+        supabaseService.getBlockedUserIds(),
+      ]);
 
-      // 2. Get mutual friends (for people we haven't talked to yet)
-      final friendUsers = await followService.getFriends(
-        userId: currentUser.id,
-      );
+      final List<Map<String, dynamic>> conversationData =
+          results[0] as List<Map<String, dynamic>>;
+      final List<User> relatedUsers = results[1] as List<User>;
+      final List<String> blockedIds = results[2] as List<String>;
 
-      // 2.1 Get blocked users
-      try {
-        final blockedIds = await supabaseService.getBlockedUserIds();
-        _blockedUsers.addAll(blockedIds);
-      } catch (e) {
-        print('⚠️ Failed to load blocked users: $e');
+      _blockedUsers.clear();
+      _blockedUsers.addAll(blockedIds);
+
+      final Map<String, Friend> friendsMap = {};
+
+      // 2. Add all related users (friends) first
+      for (final user in relatedUsers) {
+        friendsMap[user.id] = Friend(
+          id: user.id,
+          name: user.id == currentUser.id ? 'You' : user.fullName,
+          handle: user.handle,
+          virtualNumber: user.virtualNumber ?? '',
+          avatar: user.profilePicture ?? user.avatar,
+          lastMessage: '',
+          lastMessageTime: DateTime.now().subtract(const Duration(days: 365)),
+          unreadCount: 0,
+          isOnline: user.status == UserStatus.online,
+          isArchived: false,
+          isVerified: user.isVerified,
+          isMutual: true,
+          profilePicture: user.profilePicture,
+        );
       }
 
-      // Map to keep track of friends we've processed from conversations
-      final Set<String> processedUserIds = {};
-      final List<Friend> combinedFriends = [];
-      final Set<String> mutualFriendIds = friendUsers.map((u) => u.id).toSet();
-
-      // 3. Process Conversations (Priority)
+      // 3. Update/Add existing conversations
       for (final conv in conversationData) {
-        var friend = Friend.fromJson(conv);
-        // Check if this contact is also a mutual friend
-        if (mutualFriendIds.contains(friend.id)) {
-          friend = friend.copyWith(isMutual: true);
-        }
-        processedUserIds.add(friend.id);
-        combinedFriends.add(friend);
+        final friendId = conv['otherUser']['id'];
+        final friend = Friend.fromJson(conv);
+        friendsMap[friendId] = friend.copyWith(
+          isMutual: friendsMap.containsKey(friendId),
+        );
       }
 
-      // 4. Add friends who we haven't messaged yet
-      for (final user in friendUsers) {
-        if (!processedUserIds.contains(user.id)) {
-          combinedFriends.add(
-            Friend(
-              id: user.id,
-              name: user.fullName,
-              handle: user.handle,
-              virtualNumber: user.virtualNumber ?? 'No number',
-              avatar: user.profilePicture,
-              lastMessage: '', // No message yet
-              lastMessageTime: DateTime.now().subtract(
-                const Duration(days: 365),
-              ),
-              unreadCount: 0,
-              isOnline: user.status == UserStatus.online,
-              isArchived: false,
-              isVerified: user.isVerified,
-              isMutual: true, // They are from the mutual friends list
-              profilePicture: user.profilePicture,
-            ),
-          );
-        }
+      // 4. Ensure Self-chat and Boofer
+      if (!friendsMap.containsKey(currentUser.id)) {
+        friendsMap[currentUser.id] = Friend(
+          id: currentUser.id,
+          name: 'You',
+          handle: currentUser.handle,
+          virtualNumber: currentUser.virtualNumber ?? '',
+          avatar: currentUser.profilePicture,
+          lastMessage: 'Message yourself',
+          lastMessageTime: DateTime.now().subtract(const Duration(days: 366)),
+          unreadCount: 0,
+          isOnline: true,
+          isArchived: false,
+          profilePicture: currentUser.profilePicture,
+        );
       }
 
-      // No decryption needed, messages are plaintext
-
-      _friends = combinedFriends;
-
-      // Sort: Most recent message first
-      _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-
-      // 5. Ensure "You" (Self-chat) is present if we have messaged ourselves
-      if (!_friends.any((f) => f.id == currentUser.id)) {
-        // Only add if there was a self conversation found above or if we want to force it
-        // For now, only add if conversation exists
-      }
-
-      // 6. ALWAYS ensure Boofer is present
-      if (!_friends.any((f) => f.id == AppConstants.booferId)) {
-        Friend booferFriend = Friend(
+      if (!friendsMap.containsKey(AppConstants.booferId)) {
+        friendsMap[AppConstants.booferId] = Friend(
           id: AppConstants.booferId,
           name: 'Boofer',
           handle: 'boofer',
           virtualNumber: 'BOOFER-001',
           avatar: '🛸',
           lastMessage: 'Welcome to Boofer! 🛸',
-          lastMessageTime: DateTime.now(),
+          lastMessageTime: DateTime.now().subtract(const Duration(days: 300)),
           unreadCount: 0,
           isOnline: true,
           isArchived: false,
         );
-        _friends.insert(0, booferFriend);
       }
 
-      // Re-sort after adding special contacts to ensure time order is respected
+      _friends = friendsMap.values.toList();
+
+      // Sort: Most recent message first
       _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-
-      // Filtering invalid IDs before saving to cache
-      _friends.removeWhere((friend) {
-        if (friend.id == AppConstants.booferId) return false;
-        // Basic UUID check (8-4-4-4-12 hex chars)
-        final uuidRegex = RegExp(
-          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-        );
-        return !uuidRegex.hasMatch(friend.id);
-      });
-
-      // STEP 5: Update cache
-      await cacheService.cacheFriends(currentUser.id, _friends);
-      print('💾 Cached ${_friends.length} friends locally');
 
       _isLoadingFromNetwork = false;
       _friendsLoaded = true;
       notifyListeners();
     } catch (e) {
-      print('❌ Error loading friends: $e');
+      debugPrint('❌ [LOBBY] Load Error: $e');
       _isLoadingFromNetwork = false;
-      // Only set to true if we at least have some friends (even from cache)
-      // otherwise keep it false to allow re-fetches
-      _friendsLoaded = _friends.isNotEmpty;
+      _friendsLoaded = true; // Still mark as loaded to show UI
       notifyListeners();
     }
   }
@@ -455,6 +361,11 @@ class ChatProvider with ChangeNotifier {
       return b.lastMessageTime.compareTo(a.lastMessageTime);
     });
     return active;
+  }
+
+  /// Returns all shareable friends (all related users)
+  List<Friend> get allShareableFriends {
+    return _friends.where((f) => f.id != AppConstants.booferId).toList();
   }
 
   List<Friend> get archivedChats {
@@ -916,7 +827,18 @@ class ChatProvider with ChangeNotifier {
         _friends.removeAt(index);
         _friends.insert(0, updatedFriend);
         notifyListeners();
+
+        // 🎯 Trigger System Notification
+        if (receiverId == currentUserId &&
+            _currentConversationId != updatedFriend.id) {
+          NotificationService.instance.showMessageNotification(
+            senderName: updatedFriend.name,
+            message: updatedFriend.lastMessage,
+            conversationId: updatedFriend.id,
+          );
+        }
       } else {
+        // Person who messaged us isn't in our friends list? Refresh to pick them up
         refreshFriends();
       }
     }

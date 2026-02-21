@@ -1,7 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
 
-enum MessageType { text, image, video, audio, file }
+enum MessageType { text, image, video, audio, file, profile }
 
 enum MessageStatus { pending, sent, delivered, read, failed, decryptionFailed }
 
@@ -61,7 +61,7 @@ class Message {
     // Use UUID v4 for valid Supabase ID
     final id = const Uuid().v4();
     final messageHash =
-        '${senderId}_${now.millisecondsSinceEpoch}_${text.hashCode}';
+        '${senderId}_${receiverId ?? "self"}_${now.millisecondsSinceEpoch}_${text.hashCode}';
 
     return Message(
       id: id,
