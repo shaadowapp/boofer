@@ -602,13 +602,16 @@ class SupabaseService {
     Function(Map<String, dynamic> payload) onEvent,
   ) {
     // We listen to:
-    // 1. INBOUND messages (receiver_id = user)
-    // 2. STATUS UPDATES for OUTBOUND messages (sender_id = user)
+    // 1. INBOUND messages (receiver_id = user) — messages others send to us
+    // 2. OUTBOUND messages (sender_id = user) — messages we send to others
+    // 3. STATUS UPDATES for messages we sent (sender_id = user)
+    // 4. STATUS UPDATES for messages we received (receiver_id = user)
 
     final channelName = 'user_messages_$userId';
 
     return _supabase
         .channel(channelName)
+        // --- 1. INBOUND: new messages we receive ---
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -619,7 +622,7 @@ class SupabaseService {
             value: userId,
           ),
           callback: (payload) async {
-            final record = payload.newRecord;
+            final record = Map<String, dynamic>.from(payload.newRecord);
             if (record.isEmpty) return;
 
             // Track received messages (network usage)
@@ -654,33 +657,84 @@ class SupabaseService {
                   record['text'] = decrypted;
                 }
               } catch (e) {
-                debugPrint('⚠️ Decryption error: $e');
+                debugPrint('⚠️ Decryption error (inbound): $e');
               }
             }
 
             onEvent({'eventType': 'insert', 'record': record});
           },
         )
+        // --- 2. OUTBOUND: new messages we send (so our own lobby updates too) ---
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sender_id',
+            value: userId,
+          ),
+          callback: (payload) async {
+            final record = Map<String, dynamic>.from(payload.newRecord);
+            if (record.isEmpty) return;
+
+            // For our own sent encrypted messages, show a placeholder
+            // (we can decrypt via encrypted_content_sender if present)
+            if (record['is_encrypted'] == true) {
+              try {
+                final encryptedSenderContent =
+                    record['encrypted_content_sender'];
+                if (encryptedSenderContent != null) {
+                  if (!VirgilE2EEService.instance.isInitialized)
+                    await initializeE2EE(userId);
+
+                  final senderKeys = await VirgilKeyService().getRecipientKeys(
+                    userId,
+                  );
+                  if (senderKeys != null) {
+                    final contentMap = encryptedSenderContent is String
+                        ? jsonDecode(encryptedSenderContent)
+                              as Map<String, dynamic>
+                        : Map<String, dynamic>.from(encryptedSenderContent);
+
+                    final decrypted = await VirgilE2EEService.instance
+                        .decryptThenVerify(
+                          contentMap,
+                          senderKeys['signaturePublicKey'],
+                        );
+                    record['text'] = decrypted;
+                  }
+                }
+              } catch (e) {
+                debugPrint('⚠️ Decryption error (outbound self-copy): $e');
+              }
+            }
+
+            onEvent({'eventType': 'insert', 'record': record});
+          },
+        )
+        // --- 3. STATUS UPDATES for messages we sent ---
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'messages',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
-            column: 'sender_id', // Catch updates to messages we sent
+            column: 'sender_id',
             value: userId,
           ),
           callback: (payload) {
             onEvent({'eventType': 'update', 'record': payload.newRecord});
           },
         )
+        // --- 4. STATUS UPDATES for messages we received ---
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'messages',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
-            column: 'receiver_id', // Catch updates to messages we received
+            column: 'receiver_id',
             value: userId,
           ),
           callback: (payload) {
@@ -740,29 +794,57 @@ class SupabaseService {
           String lastMessage = data['last_message_text'] ?? '';
           final isEncrypted = data['last_message_is_encrypted'] ?? false;
           final encryptedContent = data['last_message_encrypted_content'];
+          final encryptedContentSender =
+              data['last_message_encrypted_content_sender'];
+          final lastSenderId = data['last_message_sender_id'];
 
-          // Automatically decrypt previews if we are NOT the sender
-          if (isEncrypted &&
-              encryptedContent != null &&
-              lastMessage == '[Encrypted]' &&
-              data['last_message_sender_id'] != userId) {
-            try {
-              final senderKeys = await VirgilKeyService().getRecipientKeys(
-                friendId,
-              );
-              if (senderKeys != null) {
-                final contentMap = encryptedContent is String
-                    ? jsonDecode(encryptedContent) as Map<String, dynamic>
-                    : Map<String, dynamic>.from(encryptedContent);
+          if (isEncrypted && lastMessage == '[Encrypted]') {
+            if (lastSenderId == userId) {
+              // We are the sender — decrypt using our self-copy (encrypted_content_sender)
+              final selfCopy = encryptedContentSender ?? encryptedContent;
+              if (selfCopy != null) {
+                try {
+                  final ourKeys = await VirgilKeyService().getRecipientKeys(
+                    userId,
+                  );
+                  if (ourKeys != null) {
+                    final contentMap = selfCopy is String
+                        ? jsonDecode(selfCopy) as Map<String, dynamic>
+                        : Map<String, dynamic>.from(selfCopy);
 
-                lastMessage = await VirgilE2EEService.instance
-                    .decryptThenVerify(
-                      contentMap,
-                      senderKeys['signaturePublicKey'],
-                    );
+                    lastMessage = await VirgilE2EEService.instance
+                        .decryptThenVerify(
+                          contentMap,
+                          ourKeys['signaturePublicKey'],
+                        );
+                  }
+                } catch (e) {
+                  // Leave as [Encrypted] if we can't decrypt our own copy
+                  debugPrint(
+                    '⚠️ Could not decrypt own sent message preview: $e',
+                  );
+                }
               }
-            } catch (e) {
-              lastMessage = '[Encrypted] (Decryption Error)';
+            } else if (encryptedContent != null) {
+              // We are the recipient — decrypt using sender's key
+              try {
+                final senderKeys = await VirgilKeyService().getRecipientKeys(
+                  friendId,
+                );
+                if (senderKeys != null) {
+                  final contentMap = encryptedContent is String
+                      ? jsonDecode(encryptedContent) as Map<String, dynamic>
+                      : Map<String, dynamic>.from(encryptedContent);
+
+                  lastMessage = await VirgilE2EEService.instance
+                      .decryptThenVerify(
+                        contentMap,
+                        senderKeys['signaturePublicKey'],
+                      );
+                }
+              } catch (e) {
+                lastMessage = '[Encrypted] (Decryption Error)';
+              }
             }
           }
 
@@ -771,6 +853,8 @@ class SupabaseService {
             'lastMessage': lastMessage,
             'lastMessageTime': data['last_message_time'],
             'unreadCount': data['unread_count'] ?? 0,
+            'lastMessageStatus': data['last_message_status'],
+            'lastSenderId': data['last_message_sender_id'],
             'otherUser': {
               'id': data['friend_id'],
               'name': data['friend_name'] ?? 'Unknown',
@@ -778,6 +862,7 @@ class SupabaseService {
               'avatar': data['friend_avatar'],
               'profilePicture': data['friend_profile_picture'],
               'status': data['friend_status'],
+              'is_verified': data['friend_is_verified'],
             },
             'is_encrypted': isEncrypted,
             'encrypted_content': encryptedContent,

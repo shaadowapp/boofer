@@ -164,11 +164,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
             onRefresh: () async {
               await chatProvider.refreshFriends();
             },
-            child: ListView.builder(
+            child: ListView.separated(
               itemCount: _calculateTotalItems(
                 activeChats,
                 archivedChats,
                 archiveSettings,
+              ),
+              separatorBuilder: (context, index) => Divider(
+                height: 0,
+                thickness: 0.5,
+                indent:
+                    74, // align with text start (16 padding + 56 avatar + 2)
+                endIndent: 0,
+                color: Theme.of(context).dividerColor.withOpacity(0.15),
               ),
               itemBuilder: (context, index) {
                 return _buildListItem(
@@ -258,77 +266,57 @@ class _LobbyScreenState extends State<LobbyScreen> {
     List<Friend> archivedChats,
     AppLocalizations l10n,
   ) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
-              width: 0.5,
-            ),
-          ),
+          MaterialPageRoute(builder: (_) => const ArchivedChatsScreen()),
         ),
-        child: Row(
-          children: [
-            // Archive icon as avatar
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.primary.withOpacity(0.1),
-              child: Icon(
-                Icons.archive,
-                color: Theme.of(context).colorScheme.primary,
-                size: 24,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: colorScheme.primary.withOpacity(0.12),
+                child: Icon(
+                  Icons.archive_rounded,
+                  color: colorScheme.primary,
+                  size: 26,
+                ),
               ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // Archive info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${l10n.archived} (${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'})',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.archived,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15.5,
                       ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.5),
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'View archived conversations',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      '${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 13.5,
+                        color: colorScheme.onSurface.withOpacity(0.55),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurface.withOpacity(0.35),
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -339,207 +327,216 @@ class _LobbyScreenState extends State<LobbyScreen> {
     ChatProvider chatProvider,
     AppLocalizations l10n,
   ) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FriendChatScreen(
-              recipientId: friend.id,
-              recipientName: friend.name,
-              recipientAvatar: friend.avatar,
-              recipientProfilePicture: friend.profilePicture,
-              recipientHandle: friend.handle,
-              virtualNumber: friend.virtualNumber,
+    final bool hasUnread =
+        friend.unreadCount > 0 && friend.lastSenderId != _currentUserId;
+    final bool isMuted = chatProvider.isChatMuted(friend.id);
+    final bool isPinned = chatProvider.isChatPinned(friend.id);
+    final bool isSentByMe = friend.lastSenderId == _currentUserId;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FriendChatScreen(
+                recipientId: friend.id,
+                recipientName: friend.name,
+                recipientAvatar: friend.avatar,
+                recipientProfilePicture: friend.profilePicture,
+                recipientHandle: friend.handle,
+                virtualNumber: friend.virtualNumber,
+              ),
             ),
-          ),
-        );
-      },
-      onLongPress: () {
-        _showChatOptionsBottomSheet(friend, chatProvider, l10n);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.1),
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                UserAvatar(
-                  avatar: friend.avatar,
-                  profilePicture: friend.profilePicture,
-                  name: friend.name,
-                  radius: 28,
-                  fontSize: 24,
-                ),
-                if (friend.isOnline)
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 2,
+          ).then((_) {
+            if (mounted) {
+              context.read<ChatProvider>().refreshFriends();
+            }
+          });
+        },
+        onLongPress: () {
+          _showChatOptionsBottomSheet(friend, chatProvider, l10n);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ── Avatar with online dot ──
+              Stack(
+                children: [
+                  UserAvatar(
+                    avatar: friend.avatar,
+                    profilePicture: friend.profilePicture,
+                    name: friend.name,
+                    radius: 28,
+                    fontSize: 22,
+                  ),
+                  if (friend.isOnline)
+                    Positioned(
+                      right: 1,
+                      bottom: 1,
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF25D366), // WhatsApp green
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Row(
+                ],
+              ),
+
+              const SizedBox(width: 14),
+
+              // ── Content ──
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Name row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  friend.name,
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    fontWeight: hasUnread
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    fontSize: 15.5,
+                                    letterSpacing: -0.1,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (friend.isVerified) ...[
+                                const SizedBox(width: 3),
+                                Icon(
+                                  Icons.verified_rounded,
+                                  size: 14,
+                                  color: colorScheme.primary,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // Status icons + time
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Flexible(
-                              child: Text(
-                                friend.name,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (friend.isVerified) ...[
-                              const SizedBox(width: 4),
+                            if (isMuted) ...[
                               Icon(
-                                Icons.verified,
+                                Icons.volume_off_rounded,
                                 size: 14,
-                                color: Theme.of(context).colorScheme.primary,
+                                color: colorScheme.onSurface.withOpacity(0.40),
                               ),
+                              const SizedBox(width: 3),
                             ],
+                            if (isPinned) ...[
+                              Icon(
+                                Icons.push_pin_rounded,
+                                size: 13,
+                                color: colorScheme.primary.withOpacity(0.75),
+                              ),
+                              const SizedBox(width: 3),
+                            ],
+                            Text(
+                              _formatTime(friend.lastMessageTime),
+                              style: textTheme.bodySmall?.copyWith(
+                                fontSize: 12,
+                                color: hasUnread
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface.withOpacity(0.50),
+                                fontWeight: hasUnread
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      Row(
-                        children: [
-                          if (chatProvider.isChatMuted(friend.id)) ...[
-                            Icon(
-                              Icons.volume_off,
-                              size: 16,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withOpacity(0.5),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          if (chatProvider.isChatPinned(friend.id)) ...[
-                            Icon(
-                              Icons.push_pin,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            _formatTime(friend.lastMessageTime),
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: friend.unreadCount > 0
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).colorScheme.onSurface
-                                            .withOpacity(0.5),
-                                  fontWeight: friend.unreadCount > 0
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    // Preview row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Status tick (for our own sent messages)
+                        if (isSentByMe && friend.lastMessage.isNotEmpty) ...[
+                          _buildStatusIcon(friend.lastMessageStatus),
+                          const SizedBox(width: 3),
                         ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (friend.lastSenderId == _currentUserId &&
-                                friend.lastMessage.isNotEmpty) ...[
-                              _buildStatusIcon(friend.lastMessageStatus),
-                              const SizedBox(width: 4),
-                            ],
-                            Flexible(
-                              child: Text(
-                                friend.lastMessage.isNotEmpty
-                                    ? friend.lastMessage
-                                    : 'Say hi to ${friend.name}! 👋',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: friend.unreadCount > 0
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.onSurface
-                                          : Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withOpacity(0.5),
-                                      fontStyle: friend.lastMessage.isEmpty
-                                          ? FontStyle.italic
-                                          : FontStyle.normal,
-                                      fontWeight: friend.unreadCount > 0
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                    ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            friend.lastMessage.isNotEmpty
+                                ? friend.lastMessage
+                                : 'Say hi to ${friend.name}! 👋',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontSize: 13.5,
+                              color: hasUnread
+                                  ? colorScheme.onSurface.withOpacity(0.85)
+                                  : colorScheme.onSurface.withOpacity(0.55),
+                              fontStyle: friend.lastMessage.isEmpty
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      if (friend.unreadCount > 0 &&
-                          friend.lastSenderId != _currentUserId)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 20,
-                            minHeight: 20,
-                          ),
-                          child: Center(
+                        // Unread badge
+                        if (hasUnread)
+                          Container(
+                            margin: const EdgeInsets.only(left: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isMuted
+                                  ? colorScheme.onSurface.withOpacity(0.35)
+                                  : colorScheme.primary,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                             child: Text(
                               friend.unreadCount > 99
                                   ? '99+'
                                   : friend.unreadCount.toString(),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

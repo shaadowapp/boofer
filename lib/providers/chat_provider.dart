@@ -753,34 +753,43 @@ class ChatProvider with ChangeNotifier {
 
       // Update lobby list
       final index = _friends.indexWhere((f) => f.id == friendId);
-      final messageText = record['text'] ?? '';
+      final messageText = (record['text'] ?? '').toString();
       final timeStr = record['timestamp'];
       final timestamp = timeStr != null
-          ? DateTime.parse(timeStr)
+          ? DateTime.parse(timeStr.toString())
           : DateTime.now();
 
       if (index != -1) {
         var friend = _friends[index];
         int newUnread = friend.unreadCount;
 
-        // ONLY increment unread if we aren't already looking at this chat
+        // ONLY increment unread if WE received it (not sent by us),
+        // we aren't already looking at this chat,
         // and the message isn't already marked as read.
         if (receiverId == currentUserId &&
+            senderId != currentUserId &&
             record['status'] != 'read' &&
             _currentConversationId != record['conversation_id']) {
           newUnread++;
         }
 
+        // If WE sent the message into a conversation we have open, reset unread to 0
+        if (senderId == currentUserId &&
+            _currentConversationId == record['conversation_id']) {
+          newUnread = 0;
+        }
+
         final isEncrypted = record['is_encrypted'] ?? false;
         final encryptedContent = record['encrypted_content'];
-        String displayMessage =
-            messageText; // Decryption now happens in SupabaseService
+
+        // Use decrypted text from the realtime service; it's already decrypted before reaching here
+        final displayMessage = messageText.isNotEmpty ? messageText : '';
 
         final updatedFriend = friend.copyWith(
           lastMessage: displayMessage,
           lastMessageTime: timestamp,
           unreadCount: newUnread,
-          isLastMessageEncrypted: isEncrypted,
+          isLastMessageEncrypted: isEncrypted && messageText.isEmpty,
           lastMessageEncryptedContent: encryptedContent is String
               ? jsonDecode(encryptedContent)
               : (encryptedContent != null
@@ -797,7 +806,7 @@ class ChatProvider with ChangeNotifier {
         _friends.insert(0, updatedFriend);
         notifyListeners();
 
-        // 🎯 Trigger System Notification
+        // 🎯 Trigger System Notification (only for received messages, not our own sends)
         final sortedIds = [currentUserId, friendId]..sort();
         final convId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
         final isSelfMessage =
@@ -813,6 +822,7 @@ class ChatProvider with ChangeNotifier {
           );
         }
       } else {
+        // Friend not in list yet — do a full refresh to load them
         refreshFriends();
       }
     }

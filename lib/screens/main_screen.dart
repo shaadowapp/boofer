@@ -903,156 +903,177 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       extendBody: extendBody,
       appBar: _currentIndex == 0
-          ? null // Hide app bar on profile tab
-          : AppBar(
-              backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-              elevation: 0,
-              automaticallyImplyLeading: false, // Remove default back button
-              title: Align(
-                alignment: Alignment.centerLeft,
-                child: SvgPicture.asset(
-                  'assets/images/logo/boofer-logo.svg', // Your SVG logo file
-                  height: 40, // Increased from 32 to 40
-                  width: 150, // Increased from 120 to 150
-                  // Removed colorFilter to show original logo colors
-                ),
-              ),
-              titleSpacing: 16, // Add some padding from the left edge
-              actions: [
-                // Friends button - combines all friend-related functionality
-                Container(
-                  width: 48,
-                  height: 48,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Stack(
+          ? null
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(kToolbarHeight + 52),
+              child: Container(
+                color: Theme.of(context).appBarTheme.backgroundColor,
+                child: SafeArea(
+                  bottom: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: SvgPicture.asset(
-                          'assets/icons/find_users.svg',
-                          width: 24,
-                          height: 24,
-                          colorFilter: ColorFilter.mode(
-                            Theme.of(context).appBarTheme.foregroundColor ??
-                                Colors.white,
-                            BlendMode.srcIn,
+                      // ── Title row (WhatsApp-style) ──
+                      SizedBox(
+                        height: kToolbarHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: SvgPicture.asset(
+                                  'assets/images/logo/boofer-logo.svg',
+                                  height: 36,
+                                  alignment: Alignment.centerLeft,
+                                ),
+                              ),
+                              // Discover
+                              IconButton(
+                                icon: SvgPicture.asset(
+                                  'assets/icons/find_users.svg',
+                                  width: 22,
+                                  height: 22,
+                                  colorFilter: ColorFilter.mode(
+                                    Theme.of(
+                                          context,
+                                        ).appBarTheme.foregroundColor ??
+                                        Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const UserSearchScreen(),
+                                  ),
+                                ),
+                                tooltip: 'Discover',
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: SvgIcons.more(
+                                  horizontal: false,
+                                  color:
+                                      Theme.of(
+                                        context,
+                                      ).appBarTheme.foregroundColor ??
+                                      Colors.white,
+                                ),
+                                onPressed: _showMoreOptions,
+                                tooltip: 'More options',
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
                           ),
                         ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const UserSearchScreen(),
+                      ),
+                      // ── Search bar ──
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                        child: SizedBox(
+                          height: 38,
+                          child: TextField(
+                            controller: _searchController,
+                            textAlignVertical: TextAlignVertical.center,
+                            decoration: InputDecoration(
+                              hintText: _getSearchPlaceholder(),
+                              hintStyle: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.50),
+                                fontSize: 14,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.50),
+                                size: 20,
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 38,
+                              ),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? GestureDetector(
+                                      onTap: _clearSearch,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 10,
+                                        ),
+                                        child: Icon(
+                                          Icons.close_rounded,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withValues(alpha: 0.55),
+                                          size: 18,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                              suffixIconConstraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                              filled: true,
+                              fillColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white.withValues(alpha: 0.09)
+                                  : Colors.black.withValues(alpha: 0.07),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(9),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(9),
+                                borderSide: BorderSide.none,
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(9),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              isDense: true,
                             ),
-                          );
-                        },
-                        tooltip: 'Discover',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 14,
+                            ),
+                            onChanged: (v) => setState(() {}),
+                            onSubmitted: (v) {
+                              if (v.isNotEmpty) {
+                                if (_checkArchiveTrigger(v)) return;
+                                _performSearch(v);
+                              }
+                            },
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                // More options button
-                Container(
-                  width: 48,
-                  height: 48,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  child: IconButton(
-                    icon: SvgIcons.more(
-                      horizontal: false,
-                      color:
-                          Theme.of(context).appBarTheme.foregroundColor ??
-                          Colors.white,
-                    ),
-                    onPressed: _showMoreOptions,
-                    tooltip: 'More options',
-                  ),
-                ),
-                const SizedBox(width: 4), // Reduced padding from the right edge
-              ],
-            ),
-      body: Column(
-        children: [
-          // Search bar below navbar (hide on profile tab)
-          if (_currentIndex != 0)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Theme.of(context).appBarTheme.backgroundColor,
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: _getSearchPlaceholder(),
-                  hintStyle: TextStyle(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.clear,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                          onPressed: _clearSearch,
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                ),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                onChanged: (value) {
-                  setState(() {});
-                  // Don't perform search automatically - only show/hide clear button
-                },
-                onSubmitted: (value) {
-                  if (value.isNotEmpty) {
-                    // Check for archive trigger first
-                    if (_checkArchiveTrigger(value)) {
-                      return; // Archive screen opened, don't proceed with normal search
-                    }
-                    // Perform contact search
-                    _performSearch(value);
-                  }
-                },
               ),
             ),
-          Expanded(
-            child: _isSearching
-                ? _buildSearchResults()
-                : PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: _onPageChanged,
-                    physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    dragStartBehavior: DragStartBehavior.down,
-                    itemBuilder: (context, index) {
-                      // Map index to our screens in order: Profile(0), Chats(1), Calls(2)
-                      int screenIndex = index % 3;
-                      return _screens[screenIndex];
-                    },
-                  ),
-          ),
-        ],
-      ),
+      body: _isSearching
+          ? _buildSearchResults()
+          : PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              dragStartBehavior: DragStartBehavior.down,
+              itemBuilder: (context, index) {
+                int screenIndex = index % 3;
+                return _screens[screenIndex];
+              },
+            ),
       bottomNavigationBar: Consumer<AppearanceProvider>(
         builder: (context, appearance, child) {
           return _buildNavBar(context, appearance.navBarStyle);

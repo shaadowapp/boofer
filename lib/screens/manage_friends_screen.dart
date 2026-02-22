@@ -82,15 +82,31 @@ class _ManageFriendsScreenState extends State<ManageFriendsScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Friends'),
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
+        elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           tabs: [
             Tab(text: 'Followers (${_followers.length})'),
             Tab(text: 'Following (${_following.length})'),
           ],
-          indicatorColor: theme.colorScheme.primary,
-          labelColor: theme.colorScheme.primary,
-          unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+          indicatorColor:
+              theme.appBarTheme.foregroundColor ?? theme.colorScheme.primary,
+          indicatorWeight: 2.5,
+          labelColor:
+              theme.appBarTheme.foregroundColor ?? theme.colorScheme.primary,
+          unselectedLabelColor:
+              (theme.appBarTheme.foregroundColor ?? theme.colorScheme.onSurface)
+                  .withValues(alpha: 0.55),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w400,
+            fontSize: 14,
+          ),
         ),
       ),
       body: _isLoading
@@ -112,14 +128,20 @@ class _ManageFriendsScreenState extends State<ManageFriendsScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.people_outline,
+              Icons.people_outline_rounded,
               size: 64,
-              color: Colors.grey.withOpacity(0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.35),
             ),
             const SizedBox(height: 16),
             Text(
               emptyMessage,
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.55),
+              ),
             ),
           ],
         ),
