@@ -100,3 +100,8 @@ firebase_rules_temp_testing.js
 moltbook_register.json
 # Environment files
 .env*
+
+# Android signing
+key.properties
+*.jks
+*.keystore
