@@ -7,6 +7,7 @@ class UserAvatar extends StatelessWidget {
   final double radius;
   final double? fontSize;
   final Color? backgroundColor;
+  final bool isCompany;
 
   const UserAvatar({
     super.key,
@@ -16,6 +17,7 @@ class UserAvatar extends StatelessWidget {
     this.radius = 20.0,
     this.fontSize,
     this.backgroundColor,
+    this.isCompany = false,
   });
 
   @override
@@ -56,6 +58,18 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
+    // 2.5 Company Fallback
+    if (isCompany) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: bg,
+        child: Text(
+          '🏢',
+          style: TextStyle(fontSize: fontSize ?? (radius * 1.0), height: 1.1),
+        ),
+      );
+    }
+
     // 3. Fallback to Initials
     return CircleAvatar(
       radius: radius,
@@ -74,12 +88,23 @@ class UserAvatar extends StatelessWidget {
   String _getInitials(String? fullName) {
     if (fullName == null || fullName.trim().isEmpty) return '?';
 
-    final names = fullName.trim().split(RegExp(r'\s+'));
-    if (names.isEmpty) return '?';
+    final text = fullName.trim();
+    final parts = text
+        .split(RegExp(r'[\s\-._]+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
 
-    if (names.length >= 2) {
-      return '${names.first[0]}${names.last[0]}'.toUpperCase();
+    if (parts.isEmpty) return '?';
+
+    if (parts.length >= 2) {
+      return (parts.first[0] + parts.last[0]).toUpperCase();
     }
-    return names.first[0].toUpperCase();
+
+    // For single word names, take up to 2 letters (common for company abbreviations)
+    if (text.length >= 2) {
+      return text.substring(0, 2).toUpperCase();
+    }
+
+    return text[0].toUpperCase();
   }
 }

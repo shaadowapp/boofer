@@ -107,7 +107,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onPageChanged(int index) {
-    int navbarIndex = index % 3;
+    int navbarIndex = (index - _baseIndex) % _screens.length;
     if (_currentIndex != navbarIndex) {
       setState(() {
         _currentIndex = navbarIndex;
@@ -133,12 +133,13 @@ class _MainScreenState extends State<MainScreen> {
 
     int currentPage =
         _pageController.page?.round() ?? (_baseIndex + _currentIndex);
-    int currentOffset = currentPage % 3;
+    int currentOffset = (currentPage - _baseIndex) % _screens.length;
     int targetOffset = index;
 
     int diff = targetOffset - currentOffset;
-    if (diff > 1) diff -= 3;
-    if (diff < -1) diff += 3;
+    int totalScreens = _screens.length;
+    if (diff > 1) diff -= totalScreens;
+    if (diff < -1) diff += totalScreens;
 
     _pageController.animateToPage(
       currentPage + diff,
@@ -1070,7 +1071,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               dragStartBehavior: DragStartBehavior.down,
               itemBuilder: (context, index) {
-                int screenIndex = index % 3;
+                int screenIndex = (index - _baseIndex) % _screens.length;
                 return _screens[screenIndex];
               },
             ),
@@ -1134,17 +1135,13 @@ class _MainScreenState extends State<MainScreen> {
           label: 'You',
         ),
         BottomNavigationBarItem(
-          icon: SvgIcons.chat(
-            filled: false,
-            context: context,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          icon: _buildChatIcon(
+            false,
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
-          activeIcon: SvgIcons.chat(
-            filled: true,
-            context: context,
-            color: Theme.of(context).colorScheme.primary,
+          activeIcon: _buildChatIcon(
+            true,
+            Theme.of(context).colorScheme.primary,
           ),
           label: 'Chats',
         ),
@@ -1210,10 +1207,9 @@ class _MainScreenState extends State<MainScreen> {
               ),
               _buildModernNavItem(
                 index: 1,
-                icon: SvgIcons.chat(
-                  filled: _currentIndex == 1,
-                  context: context,
-                  color: _currentIndex == 1
+                icon: _buildChatIcon(
+                  _currentIndex == 1,
+                  _currentIndex == 1
                       ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -1294,11 +1290,7 @@ class _MainScreenState extends State<MainScreen> {
           : Theme.of(context).colorScheme.onSurface;
       switch (label) {
         case 'Chats':
-          icon = SvgIcons.chat(
-            filled: isSelected,
-            context: context,
-            color: color,
-          );
+          icon = _buildChatIcon(isSelected, color);
           break;
         case 'Calls':
           icon = SvgIcons.call(
@@ -1446,6 +1438,8 @@ class _MainScreenState extends State<MainScreen> {
                             _buildProfileIcon(isSelected, snapshot.data),
                       ),
                     )
+                  : label == 'Chats'
+                  ? _buildChatIcon(isSelected, color)
                   : _getSvgIcon(label, isSelected, color),
             ),
             AnimatedContainer(
@@ -1572,6 +1566,16 @@ class _MainScreenState extends State<MainScreen> {
                         builder: (context, snapshot) =>
                             _buildProfileIcon(isSelected, snapshot.data),
                       ),
+                    )
+                  : label == 'Chats'
+                  ? _buildChatIcon(
+                      isSelected,
+                      Color.lerp(
+                            Theme.of(context).colorScheme.onSurfaceVariant,
+                            color,
+                            selectionFactor,
+                          ) ??
+                          color,
                     )
                   : _getSvgIcon(
                       label,
@@ -1709,10 +1713,9 @@ class _MainScreenState extends State<MainScreen> {
         ),
       );
     } else if (label == 'Chats') {
-      icon = SvgIcons.chat(
-        filled: isSelected,
-        context: context,
-        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+      icon = _buildChatIcon(
+        isSelected,
+        isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
       );
     } else if (label == 'Calls') {
       icon = SvgIcons.call(
@@ -1781,5 +1784,20 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Container();
+  }
+
+  Widget _buildChatIcon(bool isSelected, Color color) {
+    return Consumer<ChatProvider>(
+      builder: (context, chatProvider, child) {
+        return Badge(
+          isLabelVisible: chatProvider.hasUnreadMessages,
+          child: SvgIcons.chat(
+            filled: isSelected,
+            context: context,
+            color: color,
+          ),
+        );
+      },
+    );
   }
 }

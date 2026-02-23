@@ -20,7 +20,7 @@ class SupabaseService {
       _instance ??= SupabaseService._internal();
   SupabaseService._internal();
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final ErrorHandler _errorHandler = ErrorHandler();
 
   // Cache conversation timers so we don't hit the DB on every send.
@@ -242,45 +242,24 @@ class SupabaseService {
     required String profileUserId,
   }) async {
     try {
-      // Use SQL joins to fetch profile data + user relationship in one go.
-      // We join profiles with follows table to get status and counts.
+      // Fetch profile data + user relationship status in one go.
+      // Now using the pre-calculated follower_count and following_count columns.
       final response = await _supabase
           .from('profiles')
-          .select(
-            '*, followers:follows!following_id(count), following:follows!follower_id(count), my_follow:follows!following_id(follower_id)',
-          )
+          .select('*, my_follow:follows!following_id(follower_id)')
           .eq('id', profileUserId)
           .single();
 
       final data = Map<String, dynamic>.from(response);
 
-      // Calculate isFollowing from my_follow (if currentUserId is in the list)
+      // Calculate isFollowing from my_follow
       final myFollow = data['my_follow'] as List?;
       data['is_following'] =
           myFollow != null &&
           myFollow.any((f) => f['follower_id'] == currentUserId);
 
-      // Extract counts (Supabase returns a list with one item containing the count if using .count())
-      // But here we used select('count'), so it might be different.
-      // Actually, standard way is to use an RPC or do separate count queries,
-      // but the user explicitly asked for joins.
-
-      // Re-query counts if join count is not reliable in this setup
-      if (data['followers'] is! int) {
-        final followersCount = await _supabase
-            .from('follows')
-            .count(CountOption.exact)
-            .eq('following_id', profileUserId);
-        data['followers_count'] = followersCount;
-      }
-
-      if (data['following'] is! int) {
-        final followingCount = await _supabase
-            .from('follows')
-            .count(CountOption.exact)
-            .eq('follower_id', profileUserId);
-        data['following_count'] = followingCount;
-      }
+      // Map snake_case to camelCase for the model if needed,
+      // though User.fromJson already handles both.
 
       return data;
     } catch (e) {
@@ -741,7 +720,14 @@ class SupabaseService {
             onEvent({'eventType': 'update', 'record': payload.newRecord});
           },
         )
-        .subscribe();
+        .subscribe((status, [error]) {
+          debugPrint(
+            '🔔 [REALTIME] Subscription status for $channelName: $status',
+          );
+          if (error != null) {
+            debugPrint('❌ [REALTIME] Subscription error: ${error.toString()}');
+          }
+        });
   }
 
   /// Listen for new followers
@@ -767,47 +753,54 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getUserConversations(String userId) async {
     try {
-      debugPrint('📥 Fetching definitive lobby items for $userId...');
+      debugPrint('📥 [LOBBY_FLOW] Fetching v_chat_lobby for user: $userId');
 
       // We use the new v_chat_lobby view which calculates everything in SQL
       final response = await _supabase
           .from('v_chat_lobby')
           .select()
           .eq('current_user_id', userId)
-          .order('last_message_time', ascending: false);
+          .order('last_message_time', ascending: false)
+          .timeout(const Duration(seconds: 10));
 
       final List conversations = response as List;
       debugPrint(
-        '✅ Definitive lobby loaded: ${conversations.length} active chats',
+        '✅ [LOBBY_FLOW] v_chat_lobby returned ${conversations.length} records',
       );
 
       // Pre-initialize E2EE once if there are any encrypted messages
       if (conversations.any((c) => c['last_message_is_encrypted'] == true)) {
+        debugPrint(
+          '🔐 [LOBBY_FLOW] Encrypted messages detected, ensuring E2EE initialized',
+        );
         if (!VirgilE2EEService.instance.isInitialized) {
           await initializeE2EE(userId);
         }
       }
 
-      return Future.wait(
+      final results = await Future.wait(
         conversations.map((data) async {
           final friendId = data['friend_id'];
-          String lastMessage = data['last_message_text'] ?? '';
           final isEncrypted = data['last_message_is_encrypted'] ?? false;
+          final lastSenderId = data['last_message_sender_id'];
           final encryptedContent = data['last_message_encrypted_content'];
           final encryptedContentSender =
               data['last_message_encrypted_content_sender'];
-          final lastSenderId = data['last_message_sender_id'];
 
-          if (isEncrypted && lastMessage == '[Encrypted]') {
-            if (lastSenderId == userId) {
-              // We are the sender — decrypt using our self-copy (encrypted_content_sender)
-              final selfCopy = encryptedContentSender ?? encryptedContent;
-              if (selfCopy != null) {
-                try {
+          String lastMessage = data['last_message_text'] ?? '';
+
+          // Decrypt if it's encrypted
+          if (isEncrypted) {
+            try {
+              if (lastSenderId == userId) {
+                // We are the sender — decrypt using our self-copy
+                final selfCopy = encryptedContentSender ?? encryptedContent;
+                if (selfCopy != null) {
                   final ourKeys = await VirgilKeyService().getRecipientKeys(
                     userId,
                   );
-                  if (ourKeys != null) {
+                  if (ourKeys != null &&
+                      ourKeys['signaturePublicKey'] != null) {
                     final contentMap = selfCopy is String
                         ? jsonDecode(selfCopy) as Map<String, dynamic>
                         : Map<String, dynamic>.from(selfCopy);
@@ -818,20 +811,14 @@ class SupabaseService {
                           ourKeys['signaturePublicKey'],
                         );
                   }
-                } catch (e) {
-                  // Leave as [Encrypted] if we can't decrypt our own copy
-                  debugPrint(
-                    '⚠️ Could not decrypt own sent message preview: $e',
-                  );
                 }
-              }
-            } else if (encryptedContent != null) {
-              // We are the recipient — decrypt using sender's key
-              try {
+              } else if (encryptedContent != null) {
+                // We are the recipient — decrypt using sender's key
                 final senderKeys = await VirgilKeyService().getRecipientKeys(
-                  friendId,
+                  lastSenderId,
                 );
-                if (senderKeys != null) {
+                if (senderKeys != null &&
+                    senderKeys['signaturePublicKey'] != null) {
                   final contentMap = encryptedContent is String
                       ? jsonDecode(encryptedContent) as Map<String, dynamic>
                       : Map<String, dynamic>.from(encryptedContent);
@@ -842,9 +829,10 @@ class SupabaseService {
                         senderKeys['signaturePublicKey'],
                       );
                 }
-              } catch (e) {
-                lastMessage = '[Encrypted] (Decryption Error)';
               }
+            } catch (e) {
+              debugPrint('⚠️ [LOBBY_FLOW] Decryption failed for $friendId: $e');
+              lastMessage = '[Encrypted]';
             }
           }
 
@@ -869,9 +857,43 @@ class SupabaseService {
           };
         }),
       );
+
+      debugPrint(
+        '✅ [LOBBY_FLOW] Processing of ${results.length} lobby items completed',
+      );
+      return results;
+    } catch (e, stackTrace) {
+      debugPrint('❌ [LOBBY_FLOW] getUserConversations FAILED: $e');
+      debugPrint('$stackTrace');
+      return [];
+    }
+  }
+
+  /// Get blocked user IDs for current user
+  Future<List<String>> getBlockedUserIds() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        debugPrint(
+          '⚠️ [LOBBY_FLOW] getBlockedUserIds called but no user logged in',
+        );
+        return [];
+      }
+
+      debugPrint(
+        '📥 [LOBBY_FLOW] Fetching blocked users from blocked_users table for: $userId',
+      );
+      final response = await _supabase
+          .from('blocked_users')
+          .select('blocked_id')
+          .eq('blocker_id', userId);
+
+      final List data = response as List;
+      final ids = data.map((item) => item['blocked_id'] as String).toList();
+      debugPrint('✅ [LOBBY_FLOW] Found ${ids.length} blocked users');
+      return ids;
     } catch (e) {
-      debugPrint('❌ Lobby view fetch failed: $e');
-      // Return empty list so at least UI doesn't crash
+      debugPrint('❌ [LOBBY_FLOW] getBlockedUserIds failed: $e');
       return [];
     }
   }
@@ -1112,9 +1134,9 @@ class SupabaseService {
   Future<void> signOut() async {
     try {
       await _supabase.auth.signOut();
-      print('✅ Supabase user signed out successfully');
+      debugPrint('✅ Supabase user signed out successfully');
     } catch (e) {
-      print('❌ Supabase signout failed: $e');
+      debugPrint('❌ Supabase signout failed: $e');
       throw Exception('Failed to sign out from Supabase: $e');
     }
   }
@@ -1203,26 +1225,6 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ Failed to unblock user: $e');
       throw Exception('Failed to unblock user: $e');
-    }
-  }
-
-  /// Get blocked users IDs
-  Future<List<String>> getBlockedUserIds() async {
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return [];
-
-    try {
-      final response = await _supabase
-          .from('blocked_users')
-          .select('blocked_id')
-          .eq('blocker_id', userId);
-
-      return (response as List).map((e) => e['blocked_id'] as String).toList();
-    } catch (e) {
-      debugPrint(
-        'ℹ️ Failed to fetch blocked users (table might be missing): $e',
-      );
-      return [];
     }
   }
 

@@ -28,24 +28,43 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('🚀 [LOBBY_UI] initState triggered');
     _loadUserNumber();
     _loadCurrentUserId();
   }
 
   Future<void> _loadCurrentUserId() async {
-    final user = await UserService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _currentUserId = user?.id;
-      });
+    try {
+      debugPrint('🚀 [LOBBY_UI] Loading current user ID from UserService...');
+      final user = await UserService.getCurrentUser().timeout(
+        const Duration(seconds: 5),
+      );
+      debugPrint('✅ [LOBBY_UI] User ID loaded: ${user?.id}');
+      if (mounted) {
+        setState(() {
+          _currentUserId = user?.id;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ [LOBBY_UI] Could not load current user ID: $e');
     }
   }
 
   Future<void> _loadUserNumber() async {
-    final number = await UserService.getUserNumber();
-    setState(() {
-      _userNumber = number;
-    });
+    try {
+      debugPrint('🚀 [LOBBY_UI] Loading user number...');
+      final number = await UserService.getUserNumber().timeout(
+        const Duration(seconds: 5),
+      );
+      debugPrint('✅ [LOBBY_UI] User number loaded: $number');
+      if (mounted) {
+        setState(() {
+          _userNumber = number;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ [LOBBY_UI] Could not load user number: $e');
+    }
   }
 
   String _formatTime(DateTime time) {
@@ -71,7 +90,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     // Handle case where localizations are not available
     if (l10n == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Center(child: CircularProgressIndicator());
     }
 
     return Scaffold(
@@ -80,82 +99,101 @@ class _LobbyScreenState extends State<LobbyScreen> {
           final activeChats = chatProvider.activeChats;
           final archivedChats = chatProvider.archivedChats;
 
+          debugPrint('🚀 [LOBBY_UI] UI CONSUMER REBUILD');
+          debugPrint(
+            '🚀 [LOBBY_UI] Provider State: friendsLoaded=${chatProvider.friendsLoaded}, isLoadingFromNetwork=${chatProvider.isLoadingFromNetwork}',
+          );
+          debugPrint(
+            '🚀 [LOBBY_UI] Data State: activeChats=${activeChats.length}, archivedChats=${archivedChats.length}',
+          );
+
           // 1. Initial Loading State (Before cache or network returned anything)
           if (!chatProvider.friendsLoaded && activeChats.isEmpty) {
+            debugPrint(
+              '🚀 [LOBBY_UI] Showing initial CircularProgressIndicator',
+            );
             return const Center(child: CircularProgressIndicator());
           }
 
           // 2. Empty State (Loaded but no chats found)
           if (activeChats.isEmpty) {
+            debugPrint('🚀 [LOBBY_UI] Showing "No chats yet" state');
             return RefreshIndicator(
               onRefresh: () async {
                 await chatProvider.refreshFriends();
               },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.height - 200,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgIcons.sized(
-                          SvgIcons.peopleOutline,
-                          64,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No chats yet',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.5),
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start connecting with people',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.5),
-                              ),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const UserSearchScreen(),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.explore_outlined),
-                          label: const Text('Explore Users'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SvgIcons.sized(
+                              SvgIcons.peopleOutline,
+                              64,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.5),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No chats yet',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.5),
+                                  ),
                             ),
-                          ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Start connecting with people',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.5),
+                                  ),
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const UserSearchScreen(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.explore_outlined),
+                              label: const Text('Explore Users'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             );
           }
@@ -374,6 +412,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     name: friend.name,
                     radius: 28,
                     fontSize: 22,
+                    isCompany: friend.isCompany,
                   ),
                   if (friend.isOnline)
                     Positioned(
@@ -623,6 +662,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       name: friend.name,
                       radius: 30,
                       fontSize: 24,
+                      isCompany: friend.isCompany,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -769,7 +809,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
 
               if (friend.id != AppConstants.booferId &&
-                  friend.handle != 'boofer')
+                  friend.handle != 'boofer' &&
+                  friend.id != _currentUserId)
                 _buildChatOption(
                   context,
                   icon: Icons.block,

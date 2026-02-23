@@ -110,6 +110,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               name: _currentUser?.fullName ?? _currentUser?.handle,
               radius: 48,
               fontSize: 40,
+              isCompany: _currentUser?.isCompany ?? false,
             ),
           ),
 
@@ -290,6 +291,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         avatar: account['avatar'],
                         name: account['fullName'] ?? account['handle'],
                         radius: 20,
+                        isCompany:
+                            account['is_company'] == true ||
+                            account['isCompany'] == true,
                       ),
                       title: Text(
                         account['fullName'] ?? account['handle'],

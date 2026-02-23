@@ -1,22 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // import 'package:integration_test/integration_test.dart'; // Package not available
-import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'package:boofer/main.dart' as app;
-import 'package:boofer/services/chat_service.dart';
 import 'package:boofer/services/backup/mesh_service.dart';
 import 'package:boofer/services/backup/online_service.dart';
 import 'package:boofer/services/backup/network_service.dart';
-import 'package:boofer/models/message_model.dart';
 import 'package:boofer/widgets/message_bubble.dart';
 import 'package:boofer/widgets/chat_input.dart';
 import 'package:boofer/widgets/connection_status.dart';
-import 'package:boofer/models/network_state.dart';
 
 @GenerateMocks([IMeshService, IOnlineService, INetworkService])
-import 'app_e2e_test.mocks.dart';
-
 void main() {
   // IntegrationTestWidgetsFlutterBinding.ensureInitialized(); // Package not available
 
@@ -39,7 +33,10 @@ void main() {
       expect(find.text('Offline'), findsOneWidget);
 
       // Send a message in offline mode
-      await tester.enterText(find.byType(TextField), 'Hello from offline mode!');
+      await tester.enterText(
+        find.byType(TextField),
+        'Hello from offline mode!',
+      );
       await tester.tap(find.byIcon(Icons.send));
       await tester.pumpAndSettle();
 
@@ -89,7 +86,9 @@ void main() {
       expect(find.text('Offline message'), findsOneWidget);
     });
 
-    testWidgets('message persistence across app restarts', (WidgetTester tester) async {
+    testWidgets('message persistence across app restarts', (
+      WidgetTester tester,
+    ) async {
       // First app session
       app.main();
       await tester.pumpAndSettle();
@@ -207,7 +206,9 @@ void main() {
       expect(find.text('Valid message'), findsOneWidget);
     });
 
-    testWidgets('scroll behavior with many messages', (WidgetTester tester) async {
+    testWidgets('scroll behavior with many messages', (
+      WidgetTester tester,
+    ) async {
       app.main();
       await tester.pumpAndSettle();
 

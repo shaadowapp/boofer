@@ -11,6 +11,7 @@ import '../models/message_model.dart';
 import '../providers/appearance_provider.dart';
 import 'link_warning_bottom_sheet.dart';
 import '../services/supabase_service.dart';
+import '../core/constants.dart';
 import '../models/user_model.dart' as app_user;
 
 class MessageBubble extends StatelessWidget {
@@ -837,6 +838,9 @@ class MessageBubble extends StatelessWidget {
     final profileHandle = metadata['profile_handle'] as String? ?? 'handle';
     final profileAvatar = metadata['profile_avatar'] as String?;
     final profilePicture = metadata['profile_picture'] as String?;
+    final isCompany =
+        metadata['is_company'] == true ||
+        (profileId != null && AppConstants.officialIds.contains(profileId));
 
     return Container(
       width: 220,
@@ -857,6 +861,7 @@ class MessageBubble extends StatelessWidget {
                 profilePicture: profilePicture,
                 name: profileName,
                 radius: 20,
+                isCompany: isCompany,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1049,13 +1054,12 @@ class MessageBubble extends StatelessWidget {
                     builder: (context, snapshot) {
                       final user = snapshot.data;
                       return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: user?.profilePicture != null
-                              ? NetworkImage(user!.profilePicture!)
-                              : null,
-                          child: user?.profilePicture == null
-                              ? const Icon(Icons.person)
-                              : null,
+                        leading: UserAvatar(
+                          avatar: user?.avatar,
+                          profilePicture: user?.profilePicture,
+                          name: user?.fullName ?? user?.handle,
+                          radius: 20,
+                          isCompany: user?.isCompany ?? false,
                         ),
                         title: Text(user?.fullName ?? 'User'),
                         subtitle: Text(

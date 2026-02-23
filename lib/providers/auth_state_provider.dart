@@ -58,16 +58,16 @@ class AuthStateProvider with ChangeNotifier {
           // Ensure following Boofer Official
           FollowService.instance.ensureFollowingBoofer(profile.id);
 
-          print('✅ User session restored successfully from Supabase');
+          debugPrint('✅ User session restored successfully from Supabase');
           return;
         }
       }
 
       // No valid session found
       _setState(AuthenticationState.unauthenticated);
-      print('ℹ️ No valid user session - onboarding required');
+      debugPrint('ℹ️ No valid user session - onboarding required');
     } catch (e) {
-      print('❌ Error checking auth state: $e');
+      debugPrint('❌ Error checking auth state: $e');
       _setError('Failed to check authentication state: $e');
     }
   }

@@ -51,7 +51,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         _currentUserId = currentUser.id;
         _currentUserHandle = currentUser.handle;
       });
-      print(
+      debugPrint(
         '✅ Current user loaded: ${currentUser.handle} (ID: ${currentUser.id})',
       );
     }
@@ -102,11 +102,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         _loading = false;
       });
 
-      print(
+      debugPrint(
         '✅ Loaded ${filteredUsers.length} real users from Supabase and synced follow status',
       );
     } catch (e) {
-      print('❌ Error loading users from Supabase: $e');
+      debugPrint('❌ Error loading users from Supabase: $e');
 
       setState(() {
         _suggestedUsers = [];

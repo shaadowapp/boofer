@@ -10,7 +10,7 @@ class FollowService {
   static FollowService get instance => _instance ??= FollowService._internal();
   FollowService._internal();
 
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   /// Ensures that the given user follows the Boofer Official account.
   Future<void> ensureFollowingBoofer(String userId) async {

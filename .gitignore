@@ -98,3 +98,5 @@ firebase_rules_temp_testing.js
 # Moltbook credentials
 .moltbook_credentials.json
 moltbook_register.json
+# Environment files
+.env*

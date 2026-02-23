@@ -7,7 +7,7 @@ class SupabaseAuthService {
   factory SupabaseAuthService() => _instance;
   SupabaseAuthService._internal();
 
-  final sb.SupabaseClient _supabase = sb.Supabase.instance.client;
+  sb.SupabaseClient get _supabase => sb.Supabase.instance.client;
 
   /// Sign in anonymously via Supabase
   Future<sb.User?> signInAnonymously({Map<String, dynamic>? data}) async {

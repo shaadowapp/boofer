@@ -22,7 +22,9 @@ import '../main.dart';
 ///
 /// Single account is handled in main.dart (direct /main route).
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final List<Map<String, dynamic>>? initialAccounts;
+
+  const OnboardingScreen({super.key, this.initialAccounts});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -114,7 +116,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _init() async {
-    final accounts = await MultiAccountStorageService.getSavedAccounts();
+    final accounts =
+        widget.initialAccounts ??
+        await MultiAccountStorageService.getSavedAccounts();
     if (!mounted) return;
 
     setState(() {
@@ -270,13 +274,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0F0F1A),
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Colors.white.withValues(alpha: 0.24),
-          ),
-        ),
+      return const Scaffold(
+        backgroundColor: Color(0xFF0F172A),
+        body: Center(child: CircularProgressIndicator(color: Colors.white24)),
       );
     }
 

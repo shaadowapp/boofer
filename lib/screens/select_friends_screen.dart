@@ -184,6 +184,7 @@ class _SelectFriendsScreenState extends State<SelectFriendsScreen> {
                     profilePicture: friend.profilePicture,
                     name: friend.name,
                     radius: 24,
+                    isCompany: friend.isCompany,
                   ),
                   title: Text(
                     friend.name,

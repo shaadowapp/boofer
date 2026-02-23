@@ -178,11 +178,11 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
     });
 
     try {
-      print('🔄 Saving comprehensive profile data...');
+      debugPrint('🔄 Saving comprehensive profile data...');
 
       // Generate virtual number for the user
       final virtualNumberService = VirtualNumberService();
-      print(
+      debugPrint(
         '🔄 Attempting to generate virtual number for user: ${widget.initialUser.id}',
       );
 
@@ -190,12 +190,12 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
           .generateAndAssignVirtualNumber(widget.initialUser.id);
 
       if (virtualNumber == null) {
-        print('❌ Virtual number generation failed');
+        debugPrint('❌ Virtual number generation failed');
         _showError('Failed to generate virtual number. Please try again.');
         return;
       }
 
-      print('✅ Virtual number generated successfully: $virtualNumber');
+      debugPrint('✅ Virtual number generated successfully: $virtualNumber');
 
       // Update user profile with all details including virtual number
       final updatedUser = widget.initialUser.copyWith(
@@ -238,9 +238,9 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
         try {
           await LocalStorageService.setString('profile_completed', 'true');
           await LocalStorageService.setString('user_type', 'completed_user');
-          print('✅ Profile completion status saved to local storage');
+          debugPrint('✅ Profile completion status saved to local storage');
         } catch (e) {
-          print(
+          debugPrint(
             '⚠️ Warning: Could not save profile completion to local storage: $e',
           );
           // Continue anyway - this is not critical

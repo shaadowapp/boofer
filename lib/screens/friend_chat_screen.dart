@@ -710,6 +710,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     name: _recipientUser?.fullName ?? widget.recipientName,
                     radius: 20,
                     fontSize: 18,
+                    isCompany: _recipientUser?.isCompany ?? isOfficial,
                   ),
                 ),
                 const SizedBox(width: 8), // Reduced from 12
@@ -1395,7 +1396,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     try {
       if (_isBlocked) {
         // Unblock user (mock implementation for now)
-        // await _friendshipService.unblockUser(_currentUserId!, widget.recipientId);
         setState(() {
           _isBlocked = false;
         });
@@ -1410,7 +1410,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         }
       } else {
         // Block user (mock implementation for now)
-        // await _friendshipService.blockUser(_currentUserId!, widget.recipientId);
         setState(() {
           _isBlocked = true;
           _isMutual = false;
@@ -1854,7 +1853,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
             // Show block/unblock option
             if (widget.recipientId != AppConstants.booferId &&
-                widget.recipientHandle != 'boofer')
+                widget.recipientHandle != 'boofer' &&
+                widget.recipientId != _currentUserId)
               _buildBottomSheetOption(
                 icon: _isBlocked ? Icons.person_add : Icons.block,
                 title: _isBlocked ? 'Unblock user' : 'Block user',

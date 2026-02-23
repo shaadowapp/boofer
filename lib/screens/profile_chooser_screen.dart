@@ -111,6 +111,9 @@ class _ProfileChooserScreenState extends State<ProfileChooserScreen> {
                                 avatar: account['avatar'],
                                 name: account['fullName'] ?? account['handle'],
                                 radius: 28,
+                                isCompany:
+                                    account['is_company'] == true ||
+                                    account['isCompany'] == true,
                               ),
                               if (isPrimary)
                                 Positioned(

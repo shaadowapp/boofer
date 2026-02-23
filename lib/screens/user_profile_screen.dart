@@ -286,30 +286,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         _buildActionRow(),
                         const SizedBox(height: 32),
 
-                        if (_profileUser!.interests.isNotEmpty) ...[
-                          _buildSectionTitle('Interests'),
-                          const SizedBox(height: 12),
-                          _buildChipCloud(
-                            _profileUser!.interests,
-                            const Color(0xFF845EF7),
-                          ),
-                          const SizedBox(height: 24),
+                        if (!_profileUser!.isCompany) ...[
+                          if (_profileUser!.interests.isNotEmpty) ...[
+                            _buildSectionTitle('Interests'),
+                            const SizedBox(height: 12),
+                            _buildChipCloud(
+                              _profileUser!.interests,
+                              const Color(0xFF845EF7),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+
+                          if (_profileUser!.hobbies.isNotEmpty) ...[
+                            _buildSectionTitle('Hobbies'),
+                            const SizedBox(height: 12),
+                            _buildChipCloud(
+                              _profileUser!.hobbies,
+                              const Color(0xFFFF6B6B),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ],
 
-                        if (_profileUser!.hobbies.isNotEmpty) ...[
-                          _buildSectionTitle('Hobbies'),
-                          const SizedBox(height: 12),
-                          _buildChipCloud(
-                            _profileUser!.hobbies,
-                            const Color(0xFFFF6B6B),
-                          ),
-                          const SizedBox(height: 24),
+                        if (_profileUser!.id != AppConstants.booferId) ...[
+                          _buildSectionTitle('Network Stats'),
+                          const SizedBox(height: 16),
+                          _buildStatsGrid(),
+                          const SizedBox(height: 40),
                         ],
-
-                        _buildSectionTitle('Network Stats'),
-                        const SizedBox(height: 16),
-                        _buildStatsGrid(),
-                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
@@ -483,21 +487,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Consumer<FollowProvider>(
       builder: (context, provider, child) {
         final stats = provider.getFollowStats(widget.userId);
+        final followers =
+            stats?.followersCount ?? _profileUser?.followerCount ?? 0;
+        final following =
+            stats?.followingCount ?? _profileUser?.followingCount ?? 0;
+
         return Row(
           children: [
             Expanded(
               child: _StatBox(
                 label: 'Followers',
-                value: '${stats?.followersCount ?? 0}',
+                value: '$followers',
                 icon: Icons.people_outline,
               ),
             ),
-            if (widget.userId != AppConstants.booferId) ...[
+            if (!(_profileUser?.isCompany ?? false)) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: _StatBox(
                   label: 'Following',
-                  value: '${stats?.followingCount ?? 0}',
+                  value: '$following',
                   icon: Icons.person_add_alt_1_outlined,
                 ),
               ),
@@ -1207,7 +1216,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          user.avatar ?? '👤',
+                          user.isCompany ? '🏢' : (user.avatar ?? '👤'),
                           style: const TextStyle(fontSize: 44),
                         ),
                       ),
@@ -1217,10 +1226,14 @@ class _ProfileHeroCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'BOOFER IDENTITY',
+                          Text(
+                            user.isCompany
+                                ? 'OFFICIAL BOOFER ENTITY'
+                                : 'BOOFER IDENTITY',
                             style: TextStyle(
-                              color: Color(0xFF845EF7),
+                              color: user.isCompany
+                                  ? const Color(0xFF20C997)
+                                  : const Color(0xFF845EF7),
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 2.5,
@@ -1237,14 +1250,39 @@ class _ProfileHeroCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          Text(
-                            '@${user.handle}',
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.4,
+                          Row(
+                            children: [
+                              Text(
+                                '@${user.handle}',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.4),
+                                  fontSize: 13,
+                                ),
                               ),
-                              fontSize: 13,
-                            ),
+                              if (!user.isCompany && user.age != null) ...[
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  width: 4,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Text(
+                                  '${user.age} yrs',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.4),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 12),
                           Text(

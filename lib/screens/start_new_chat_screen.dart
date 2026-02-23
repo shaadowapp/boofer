@@ -61,20 +61,20 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
         _filterUsers(_searchQuery);
         _isLoading = false;
       });
-      print('✅ Loaded ${_allUsers.length} users from Start Chat cache');
+      debugPrint('✅ Loaded ${_allUsers.length} users from Start Chat cache');
     }
 
     // STEP 2: Check Throttling/Validity
     if (!forceRefresh) {
       final isCacheValid = await cacheService.isStartChatCacheValid();
       if (isCacheValid && _allUsers.isNotEmpty) {
-        print('✅ Start Chat cache is fresh, skipping network call');
+        debugPrint('✅ Start Chat cache is fresh, skipping network call');
         return;
       }
     } else {
       final isThrottled = await cacheService.isStartChatRefreshThrottled();
       if (isThrottled) {
-        print('⏳ Start Chat refresh throttled.');
+        debugPrint('⏳ Start Chat refresh throttled.');
         return;
       }
     }

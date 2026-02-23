@@ -164,6 +164,9 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
                                         account['fullName'] ??
                                         account['handle'],
                                     radius: 24,
+                                    isCompany:
+                                        account['is_company'] == true ||
+                                        account['isCompany'] == true,
                                   ),
                                   if (isPrimary)
                                     Positioned(

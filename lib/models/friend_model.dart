@@ -25,6 +25,7 @@ class Friend {
   final Map<String, dynamic>? lastMessageEncryptedContent;
   final String? lastSenderId;
   final MessageStatus? lastMessageStatus;
+  final bool isCompany;
 
   Friend({
     required this.id,
@@ -49,6 +50,7 @@ class Friend {
     this.lastMessageEncryptedContent,
     this.lastSenderId,
     this.lastMessageStatus,
+    this.isCompany = false,
   });
 
   /// Get formatted virtual number (XXX-XXX-XXXX)
@@ -98,6 +100,7 @@ class Friend {
     Map<String, dynamic>? lastMessageEncryptedContent,
     String? lastSenderId,
     MessageStatus? lastMessageStatus,
+    bool? isCompany,
   }) {
     return Friend(
       id: id ?? this.id,
@@ -124,6 +127,7 @@ class Friend {
           lastMessageEncryptedContent ?? this.lastMessageEncryptedContent,
       lastSenderId: lastSenderId ?? this.lastSenderId,
       lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
+      isCompany: isCompany ?? this.isCompany,
     );
   }
 
@@ -152,6 +156,7 @@ class Friend {
       'lastMessageEncryptedContent': lastMessageEncryptedContent,
       'lastSenderId': lastSenderId,
       'lastMessageStatus': lastMessageStatus?.name,
+      'isCompany': isCompany,
     };
   }
 
@@ -171,6 +176,7 @@ class Friend {
       isVerified: isVerified,
       profilePicture: profilePicture,
       avatar: avatar,
+      isCompany: isCompany,
     );
   }
 
@@ -250,6 +256,7 @@ class Friend {
         lastMessageStatus: toStatus(
           json['lastMessageStatus'] ?? json['last_status'] ?? json['status'],
         ),
+        isCompany: toBool(otherUser['is_company'] ?? otherUser['isCompany']),
       );
     }
 
@@ -292,6 +299,7 @@ class Friend {
       lastMessageStatus: toStatus(
         json['lastMessageStatus'] ?? json['last_status'] ?? json['status'],
       ),
+      isCompany: toBool(json['isCompany'] ?? json['is_company']),
     );
   }
 

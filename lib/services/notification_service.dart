@@ -9,7 +9,6 @@ class NotificationChannels {
   // Channel IDs
   static const String messages = 'messages';
   static const String groupMessages = 'group_messages';
-  static const String friendRequests = 'friend_requests';
   static const String calls = 'calls';
   static const String missedCalls = 'missed_calls';
   static const String mentions = 'mentions';
@@ -31,12 +30,6 @@ class NotificationChannels {
       groupMessages,
       'Group Messages',
       description: 'Notifications for group chat messages',
-      importance: Importance.high,
-    ),
-    AndroidNotificationChannel(
-      friendRequests,
-      'Friend Requests',
-      description: 'Notifications for new friend requests',
       importance: Importance.high,
     ),
     AndroidNotificationChannel(
@@ -240,12 +233,14 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
       category: AndroidNotificationCategory.message,
+      number: 1, // Shows dot/badge on Android
     );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      badgeNumber: 1, // Shows badge on iOS
     );
 
     final details = NotificationDetails(

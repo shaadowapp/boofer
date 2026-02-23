@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.google.gms:google-services:4.3.15")
+        // classpath("com.google.gms:google-services:4.3.15")
     }
 }
 
@@ -28,6 +28,16 @@ subprojects {
     afterEvaluate {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
+            
+            // Fix for "Namespace not specified" error in outdated plugins
+            try {
+                if (android.namespace == null) {
+                    android.namespace = "com.shaadow.boofer.fix.${project.name.replace("-", ".")}"
+                }
+            } catch (e: Exception) {
+                // Older AGP versions might not have the namespace property on BaseExtension
+            }
+
             android.compileOptions {
                 sourceCompatibility = JavaVersion.VERSION_17
                 targetCompatibility = JavaVersion.VERSION_17

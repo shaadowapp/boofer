@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../core/constants.dart';
 
 class BooferIdentityCard extends StatelessWidget {
   final User user;
   final VoidCallback onCopyNumber;
+  final bool showStats; // Whether to show counts/interests
 
   final bool showQrInsteadOfCopy;
 
@@ -13,6 +15,7 @@ class BooferIdentityCard extends StatelessWidget {
     required this.user,
     required this.onCopyNumber,
     this.showQrInsteadOfCopy = false,
+    this.showStats = true,
   });
 
   @override
@@ -69,7 +72,7 @@ class BooferIdentityCard extends StatelessWidget {
                         ),
                         child: Center(
                           child: Text(
-                            user.avatar ?? '👤',
+                            user.isCompany ? '🏢' : (user.avatar ?? '👤'),
                             style: const TextStyle(fontSize: 44),
                           ),
                         ),
@@ -79,10 +82,14 @@ class BooferIdentityCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'BOOFER IDENTITY',
+                            Text(
+                              user.isCompany
+                                  ? 'OFFICIAL BOOFER ENTITY'
+                                  : 'BOOFER IDENTITY',
                               style: TextStyle(
-                                color: Color(0xFF845EF7),
+                                color: user.isCompany
+                                    ? const Color(0xFF20C997)
+                                    : const Color(0xFF845EF7),
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 2.5,
@@ -99,37 +106,84 @@ class BooferIdentityCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            Text(
-                              '@${user.handle}',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.4,
+                            Row(
+                              children: [
+                                Text(
+                                  '@${user.handle}',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.4),
+                                    fontSize: 13,
+                                  ),
                                 ),
-                                fontSize: 13,
-                              ),
+                                if (!user.isCompany && user.age != null) ...[
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    width: 4,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${user.age} yrs',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.4),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 10),
-                            Text(
-                              'Follow me on Boofer!',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withOpacity(
-                                  0.6,
+                            if (user.bio.isNotEmpty)
+                              Text(
+                                user.bio,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.7),
+                                  fontSize: 13,
+                                  height: 1.4,
                                 ),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            else
+                              Text(
+                                user.isCompany
+                                    ? 'Official Verified Entity'
+                                    : 'Identity established on Boofer.',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.5),
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
                           ],
                         ),
                       ),
                     ],
                   ),
+                  if (showStats && user.id != AppConstants.booferId) ...[
+                    const SizedBox(height: 16),
+                    _buildStatsRow(theme),
+                    if (!user.isCompany &&
+                        (user.interests.isNotEmpty ||
+                            user.hobbies.isNotEmpty)) ...[
+                      const SizedBox(height: 16),
+                      _buildItemsRow(theme),
+                    ],
+                  ],
                   const SizedBox(height: 20),
                   Container(
-                    height: 1,
-                    color: theme.colorScheme.onSurface.withOpacity(0.05),
+                    height: 0.5,
+                    color: theme.colorScheme.onSurface.withOpacity(0.1),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -243,6 +297,72 @@ class BooferIdentityCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatsRow(ThemeData theme) {
+    return Row(
+      children: [
+        _buildMiniStat(theme, '${user.followerCount}', 'FOLLOWERS'),
+        if (!user.isCompany) ...[
+          const SizedBox(width: 24),
+          _buildMiniStat(theme, '${user.followingCount}', 'FOLLOWING'),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMiniStat(ThemeData theme, String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.3),
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemsRow(ThemeData theme) {
+    final allItems = [...user.interests, ...user.hobbies].take(4).toList();
+    if (allItems.isEmpty) return const SizedBox.shrink();
+
+    return Row(
+      children: allItems.map((item) {
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.onSurface.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: theme.colorScheme.onSurface.withOpacity(0.1),
+            ),
+          ),
+          child: Text(
+            item,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

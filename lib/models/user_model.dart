@@ -30,6 +30,7 @@ class User {
   final int pendingReceivedRequests;
   final int pendingSentRequests;
   final bool isVerified;
+  final bool isCompany; // Indicates if this is a company/official account
   final String? guardianId; // ID of the primary profile (guardian)
 
   const User({
@@ -59,6 +60,7 @@ class User {
     this.pendingReceivedRequests = 0,
     this.pendingSentRequests = 0,
     this.isVerified = false,
+    this.isCompany = false,
     this.guardianId,
   });
 
@@ -153,6 +155,7 @@ class User {
     int? pendingReceivedRequests,
     int? pendingSentRequests,
     bool? isVerified,
+    bool? isCompany,
     String? guardianId,
   }) {
     return User(
@@ -183,6 +186,7 @@ class User {
           pendingReceivedRequests ?? this.pendingReceivedRequests,
       pendingSentRequests: pendingSentRequests ?? this.pendingSentRequests,
       isVerified: isVerified ?? this.isVerified,
+      isCompany: isCompany ?? this.isCompany,
       guardianId: guardianId ?? this.guardianId,
     );
   }
@@ -216,6 +220,7 @@ class User {
       'pendingReceivedRequests': pendingReceivedRequests,
       'pendingSentRequests': pendingSentRequests,
       'isVerified': isVerified,
+      'isCompany': isCompany,
       'guardianId': guardianId,
     };
   }
@@ -237,6 +242,7 @@ class User {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_verified': isVerified ? 1 : 0,
+      'is_company': isCompany ? 1 : 0,
       'guardian_id': guardianId,
     };
   }
@@ -320,6 +326,7 @@ class User {
         json['pendingSentRequests'] ?? json['pending_sent_requests'],
       ),
       isVerified: toBool(json['isVerified'] ?? json['is_verified']),
+      isCompany: toBool(json['isCompany'] ?? json['is_company']),
       guardianId: json['guardianId'] ?? json['guardian_id'],
     );
   }

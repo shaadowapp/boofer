@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../models/user_model.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
 
 class UserProfileSyncService {
-  final sb.SupabaseClient _supabase = sb.Supabase.instance.client;
+  sb.SupabaseClient get _supabase => sb.Supabase.instance.client;
   final ErrorHandler _errorHandler = ErrorHandler();
 
   Future<bool> syncUserProfile(
@@ -17,7 +18,7 @@ class UserProfileSyncService {
         // We can't sync if we aren't logged in to Supabase
         // But we should return true to allow local flow to continue
         // The data will be synced later when connection is restored
-        print('⚠️ Skipping Supabase sync: No active session');
+        debugPrint('⚠️ Skipping Supabase sync: No active session');
         return true;
       }
 

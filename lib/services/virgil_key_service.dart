@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'virgil_e2ee_service.dart';
 
 class VirgilKeyService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   // Memory cache for public keys
   static final Map<String, Map<String, dynamic>> _keyCache = {};

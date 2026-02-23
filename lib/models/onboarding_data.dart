@@ -2,6 +2,7 @@ import 'dart:convert';
 
 class OnboardingData {
   final bool completed;
+  final bool termsAccepted;
   final String userName;
   final String virtualNumber;
   final String? pin;
@@ -10,6 +11,7 @@ class OnboardingData {
 
   const OnboardingData({
     required this.completed,
+    this.termsAccepted = false,
     required this.userName,
     required this.virtualNumber,
     this.pin,
@@ -20,6 +22,7 @@ class OnboardingData {
   /// Create a copy with updated fields
   OnboardingData copyWith({
     bool? completed,
+    bool? termsAccepted,
     String? userName,
     String? virtualNumber,
     String? pin,
@@ -28,6 +31,7 @@ class OnboardingData {
   }) {
     return OnboardingData(
       completed: completed ?? this.completed,
+      termsAccepted: termsAccepted ?? this.termsAccepted,
       userName: userName ?? this.userName,
       virtualNumber: virtualNumber ?? this.virtualNumber,
       pin: pin ?? this.pin,
@@ -40,6 +44,7 @@ class OnboardingData {
   Map<String, dynamic> toJson() {
     return {
       'completed': completed,
+      'termsAccepted': termsAccepted,
       'userName': userName,
       'virtualNumber': virtualNumber,
       'pin': pin,
@@ -52,10 +57,11 @@ class OnboardingData {
   factory OnboardingData.fromJson(Map<String, dynamic> json) {
     return OnboardingData(
       completed: json['completed'] ?? false,
+      termsAccepted: json['termsAccepted'] ?? false,
       userName: json['userName'] ?? '',
       virtualNumber: json['virtualNumber'] ?? '',
       pin: json['pin'],
-      completedAt: json['completedAt'] != null 
+      completedAt: json['completedAt'] != null
           ? DateTime.parse(json['completedAt'])
           : null,
       additionalData: json['additionalData'] as Map<String, dynamic>?,

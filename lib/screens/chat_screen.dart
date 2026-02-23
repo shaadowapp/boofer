@@ -499,7 +499,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Handle message tap
   void _handleMessageTap(Message message) {
     // Could show message details or perform other actions
-    print('Message tapped: ${message.id}');
+    debugPrint('Message tapped: ${message.id}');
   }
 
   void _handleReply(Message message) {

@@ -12,6 +12,10 @@ class ThemeProvider extends ChangeNotifier {
   double _fontSizeScale = 1.0; // Font size multiplier (16.0 / 16.0 = 1.0)
   double _cornerRadius = 16.0; // Corner radius for UI elements
 
+  // Cache for ThemeData to avoid redundant object creation during frequent rebuilds
+  ThemeData? _lightThemeCache;
+  ThemeData? _darkThemeCache;
+
   AppThemeMode get themeMode => _themeMode;
   bool get isDarkMode =>
       _themeMode == AppThemeMode.dark ||
@@ -40,6 +44,7 @@ class ThemeProvider extends ChangeNotifier {
   void updateAccentColor(Color color) {
     if (_accentColor != color) {
       _accentColor = color;
+      _clearThemeCache();
       notifyListeners();
     }
   }
@@ -50,6 +55,7 @@ class ThemeProvider extends ChangeNotifier {
     if ((_fontSizeScale - newScale).abs() > 0.01) {
       // Only update if change is significant
       _fontSizeScale = newScale;
+      _clearThemeCache();
       notifyListeners();
     }
   }
@@ -58,8 +64,14 @@ class ThemeProvider extends ChangeNotifier {
   void updateCornerRadius(double radius) {
     if (_cornerRadius != radius) {
       _cornerRadius = radius;
+      _clearThemeCache();
       notifyListeners();
     }
+  }
+
+  void _clearThemeCache() {
+    _lightThemeCache = null;
+    _darkThemeCache = null;
   }
 
   Future<void> _loadTheme() async {
@@ -113,6 +125,7 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> setThemeMode(AppThemeMode mode) async {
     if (_themeMode != mode) {
       _themeMode = mode;
+      _clearThemeCache();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_themeKey, mode.index);
       notifyListeners();
@@ -120,7 +133,9 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   ThemeData get lightTheme {
-    return ThemeData(
+    if (_lightThemeCache != null) return _lightThemeCache!;
+
+    _lightThemeCache = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
@@ -239,10 +254,13 @@ class ThemeProvider extends ChangeNotifier {
         }),
       ),
     );
+    return _lightThemeCache!;
   }
 
   ThemeData get darkTheme {
-    return ThemeData(
+    if (_darkThemeCache != null) return _darkThemeCache!;
+
+    _darkThemeCache = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
@@ -359,6 +377,7 @@ class ThemeProvider extends ChangeNotifier {
         }),
       ),
     );
+    return _darkThemeCache!;
   }
 
   // Build text theme with font size scaling

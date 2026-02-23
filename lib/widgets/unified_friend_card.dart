@@ -121,31 +121,35 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                     widget.user.profilePicture!.startsWith('http')
                 ? NetworkImage(widget.user.profilePicture!)
                 : null,
-            child: widget.user.avatar != null && widget.user.avatar!.isNotEmpty
-                ? Text(
-                    widget.user.avatar!,
-                    style: const TextStyle(fontSize: 24),
-                  )
-                : (widget.user.profilePicture == null ||
-                          !widget.user.profilePicture!.startsWith('http')
+            child:
+                widget.user.isCompany &&
+                    (widget.user.avatar == null || widget.user.avatar!.isEmpty)
+                ? const Text('🏢', style: TextStyle(fontSize: 24))
+                : (widget.user.avatar != null && widget.user.avatar!.isNotEmpty
                       ? Text(
-                          widget.user.fullName.isNotEmpty
-                              ? widget.user.fullName
-                                    .split(' ')
-                                    .map((e) => e.isNotEmpty ? e[0] : '')
-                                    .take(2)
-                                    .join()
-                                    .toUpperCase()
-                              : widget.user.handle.isNotEmpty
-                              ? widget.user.handle[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
+                          widget.user.avatar!,
+                          style: const TextStyle(fontSize: 24),
                         )
-                      : null),
+                      : (widget.user.profilePicture == null ||
+                                !widget.user.profilePicture!.startsWith('http')
+                            ? Text(
+                                widget.user.fullName.isNotEmpty
+                                    ? widget.user.fullName
+                                          .split(' ')
+                                          .map((e) => e.isNotEmpty ? e[0] : '')
+                                          .take(2)
+                                          .join()
+                                          .toUpperCase()
+                                    : widget.user.handle.isNotEmpty
+                                    ? widget.user.handle[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                ),
+                              )
+                            : null)),
           ),
           if (widget.showOnlineStatus &&
               widget.user.status == UserStatus.online)
@@ -187,27 +191,47 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (widget.user.isVerified ||
+            if (widget.user.isCompany ||
+                widget.user.isVerified ||
                 AppConstants.officialIds.contains(widget.user.id)) ...[
               const SizedBox(width: 4),
               Icon(
                 Icons.verified,
                 size: 16,
-                color: widget.user.id == AppConstants.booferId
+                color:
+                    widget.user.id == AppConstants.booferId ||
+                        widget.user.isCompany
                     ? Colors.green
                     : theme.colorScheme.primary,
               ),
+              if (widget.user.isCompany) ...[
+                const SizedBox(width: 4),
+                const BooferBadge(letter: 'OFFICIAL'),
+              ],
             ],
           ],
         ),
         if (widget.showHandle) ...[
           const SizedBox(height: 2),
-          Text(
-            widget.user.formattedHandle,
-            style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
-              fontSize: 14,
-            ),
+          Row(
+            children: [
+              Text(
+                widget.user.formattedHandle,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  fontSize: 14,
+                ),
+              ),
+              if (!widget.user.isCompany && widget.user.age != null) ...[
+                Text(
+                  ' • ${widget.user.age} yrs',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
         if (widget.showBio && widget.user.bio.isNotEmpty) ...[
@@ -226,13 +250,27 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
             !widget.showBio &&
             widget.user.virtualNumber != null) ...[
           const SizedBox(height: 2),
-          Text(
-            widget.user.formattedVirtualNumber,
-            style: TextStyle(
-              color: theme.colorScheme.primary.withOpacity(0.8),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              Text(
+                widget.user.formattedVirtualNumber,
+                style: TextStyle(
+                  color: theme.colorScheme.primary.withOpacity(0.8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (widget.user.id != AppConstants.booferId) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '• ${widget.user.followerCount} followers',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ],

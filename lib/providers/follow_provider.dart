@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/user_model.dart';
-import '../models/friend_request_model.dart';
+import '../models/follow_model.dart';
 import '../services/follow_service.dart';
 
 /// Provider for managing follow system state (Instagram style)

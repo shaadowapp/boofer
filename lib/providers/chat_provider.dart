@@ -5,14 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
-import '../services/follow_service.dart';
+// Removed unused import
 import '../services/chat_service.dart';
 import '../services/user_service.dart';
 import '../models/message_model.dart';
-import '../services/unified_storage_service.dart';
-
 import '../models/friend_model.dart';
-import '../models/user_model.dart';
+// Removed unused import
 import '../services/supabase_service.dart';
 import '../services/notification_service.dart';
 import '../core/constants.dart';
@@ -217,6 +215,13 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Get total unread messages count
+  int get totalUnreadMessages {
+    return _friends.fold(0, (sum, friend) => sum + friend.unreadCount);
+  }
+
+  bool get hasUnreadMessages => totalUnreadMessages > 0;
+
   // Real friends data from Firestore
   List<Friend> _friends = [];
   final List<Friend> _archivedFriends = [];
@@ -224,126 +229,180 @@ class ChatProvider with ChangeNotifier {
   final Set<String> _blockedUsers = {};
   bool _friendsLoaded = false;
   bool _isLoadingFromNetwork = false;
+  bool _isRefreshing = false; // Guard to prevent concurrent refreshes
   bool _isAppOnline = true; // Assume online initially
 
   // Load real friends from Firestore - Optimized for current requirements
   Future<void> _loadRealFriends({bool forceRefresh = false}) async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+
     try {
+      debugPrint(
+        '🚀 [LOBBY] Starting _loadRealFriends (forceRefresh: $forceRefresh)',
+      );
+      // Use StackTrace to see who called this
+      debugPrint(
+        '📍 [LOBBY] Called from: ${StackTrace.current.toString().split('\n')[1]}',
+      );
+
       final currentUser = await UserService.getCurrentUser();
-      if (currentUser == null) return;
+      final supabaseUser = Supabase.instance.client.auth.currentUser;
+
+      if (currentUser == null) {
+        debugPrint(
+          'ℹ️ [LOBBY] No current user found in local memory, skipping network load',
+        );
+        _friendsLoaded = true;
+        _isLoadingFromNetwork = false;
+        notifyListeners();
+        return;
+      }
+
+      debugPrint(
+        '✅ [LOBBY] Session Check: LocalId=${currentUser.id}, SupabaseUid=${supabaseUser?.id}',
+      );
+      if (supabaseUser?.id != currentUser.id) {
+        debugPrint('⚠️ [LOBBY] AUTH MISMATCH! RLS will block network results.');
+      }
 
       // Initialize global listeners
       if (_globalMessagesSubscription == null) {
+        debugPrint(
+          '📡 [LOBBY] Setting up message subscription for ${currentUser.id}...',
+        );
         _globalMessagesSubscription = SupabaseService.instance
             .listenToAllUserMessages(currentUser.id, (payload) {
               _handleRealtimeMessageEvent(payload, currentUser.id);
             });
       }
       if (_followSubscription == null) {
+        debugPrint('📡 [LOBBY] Setting up follow subscription...');
         _followSubscription = SupabaseService.instance.listenToUserFollows(
           currentUser.id,
           (data) => _handleFollowEvent(data),
         );
       }
-      if (_profilesSubscription == null) _setupProfilesListener();
-      if (_presenceChannel == null) _setupPresence(currentUser.id);
+      if (_profilesSubscription == null) {
+        debugPrint('📡 [LOBBY] Setting up profiles listener...');
+        _setupProfilesListener();
+      }
+      if (_presenceChannel == null) {
+        debugPrint('📡 [LOBBY] Setting up presence for ${currentUser.id}...');
+        _setupPresence(currentUser.id);
+      }
 
       _isLoadingFromNetwork = true;
       notifyListeners();
 
+      debugPrint('🚀 [LOBBY] Fetching data via SupabaseService...');
       final supabaseService = SupabaseService.instance;
-      final followService = FollowService.instance;
 
-      // 1. Fetch from network directly (bypassing stale cache logic)
-      final results = await Future.wait([
-        supabaseService.getUserConversations(currentUser.id),
-        followService.getAllRelatedUsers(userId: currentUser.id),
-        supabaseService.getBlockedUserIds(),
-      ]);
+      // Single source of truth: the v_chat_lobby view
+      debugPrint(
+        '🚀 [LOBBY] Awaiting getUserConversations and getBlockedUserIds...',
+      );
+      final results =
+          await Future.wait([
+            supabaseService.getUserConversations(currentUser.id),
+            supabaseService.getBlockedUserIds(),
+          ]).timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              debugPrint('⚠️ [LOBBY] Fetch TIMEOUT after 15s');
+              return [[], []];
+            },
+          );
 
-      final List<Map<String, dynamic>> conversationData =
-          results[0] as List<Map<String, dynamic>>;
-      final List<User> relatedUsers = results[1] as List<User>;
-      final List<String> blockedIds = results[2] as List<String>;
+      final List<Map<String, dynamic>> conversationData = (results[0] as List)
+          .cast<Map<String, dynamic>>();
+      final List<String> blockedUserIds = (results[1] as List).cast<String>();
+
+      debugPrint(
+        '🚀 [LOBBY] Received ${conversationData.length} conversations and ${blockedUserIds.length} blocked users',
+      );
 
       _blockedUsers.clear();
-      _blockedUsers.addAll(blockedIds);
+      _blockedUsers.addAll(blockedUserIds);
 
-      final Map<String, Friend> friendsMap = {};
+      final List<Friend> friendsList = [];
 
-      // 2. Add all related users (friends) first
-      for (final user in relatedUsers) {
-        friendsMap[user.id] = Friend(
-          id: user.id,
-          name: user.id == currentUser.id ? 'You' : user.fullName,
-          handle: user.handle,
-          virtualNumber: user.virtualNumber ?? '',
-          avatar: user.profilePicture ?? user.avatar,
-          lastMessage: '',
-          lastMessageTime: DateTime.now().subtract(const Duration(days: 365)),
-          unreadCount: 0,
-          isOnline: user.status == UserStatus.online,
-          isArchived: false,
-          isVerified: user.isVerified,
-          isMutual: true,
-          profilePicture: user.profilePicture,
-        );
-      }
-
-      // 3. Update/Add existing conversations
+      // 1. Map conversations directly from view
+      int parseCount = 0;
       for (final conv in conversationData) {
-        final friendId = conv['otherUser']['id'];
-        final friend = Friend.fromJson(conv);
-        friendsMap[friendId] = friend.copyWith(
-          isMutual: friendsMap.containsKey(friendId),
+        try {
+          final friend = Friend.fromJson(conv);
+          if (!blockedUserIds.contains(friend.id)) {
+            friendsList.add(friend);
+            parseCount++;
+          }
+        } catch (e) {
+          debugPrint('⚠️ [LOBBY] Error parsing conversation: $e');
+          debugPrint('⚠️ [LOBBY] Raw data that failed: $conv');
+        }
+      }
+      debugPrint(
+        '🚀 [LOBBY] Successfully parsed $parseCount friends from server data',
+      );
+
+      // 2. Ensure Self-chat exists
+      if (!friendsList.any((f) => f.id == currentUser.id)) {
+        debugPrint('🚀 [LOBBY] Adding Self-chat tile');
+        friendsList.add(
+          Friend(
+            id: currentUser.id,
+            name: 'You',
+            handle: currentUser.handle,
+            virtualNumber: currentUser.virtualNumber ?? '',
+            avatar: currentUser.profilePicture ?? '👤',
+            lastMessage: 'Message yourself',
+            lastMessageTime: DateTime.now().subtract(const Duration(days: 366)),
+            unreadCount: 0,
+            isOnline: true,
+            isArchived: false,
+          ),
         );
       }
 
-      // 4. Ensure Self-chat and Boofer
-      if (!friendsMap.containsKey(currentUser.id)) {
-        friendsMap[currentUser.id] = Friend(
-          id: currentUser.id,
-          name: 'You',
-          handle: currentUser.handle,
-          virtualNumber: currentUser.virtualNumber ?? '',
-          avatar: currentUser.profilePicture,
-          lastMessage: 'Message yourself',
-          lastMessageTime: DateTime.now().subtract(const Duration(days: 366)),
-          unreadCount: 0,
-          isOnline: true,
-          isArchived: false,
-          profilePicture: currentUser.profilePicture,
+      // 3. Ensure Boofer exists
+      if (!friendsList.any((f) => f.id == AppConstants.booferId)) {
+        debugPrint('🚀 [LOBBY] Adding Boofer tile');
+        friendsList.add(
+          Friend(
+            id: AppConstants.booferId,
+            name: 'Boofer',
+            handle: 'boofer',
+            virtualNumber: 'BOOFER-001',
+            avatar: '🛸',
+            lastMessage: 'Welcome to Boofer! 🛸',
+            lastMessageTime: DateTime.now().subtract(const Duration(days: 300)),
+            unreadCount: 0,
+            isOnline: true,
+            isArchived: false,
+          ),
         );
       }
 
-      if (!friendsMap.containsKey(AppConstants.booferId)) {
-        friendsMap[AppConstants.booferId] = Friend(
-          id: AppConstants.booferId,
-          name: 'Boofer',
-          handle: 'boofer',
-          virtualNumber: 'BOOFER-001',
-          avatar: '🛸',
-          lastMessage: 'Welcome to Boofer! 🛸',
-          lastMessageTime: DateTime.now().subtract(const Duration(days: 300)),
-          unreadCount: 0,
-          isOnline: true,
-          isArchived: false,
-        );
-      }
-
-      _friends = friendsMap.values.toList();
+      _friends = friendsList;
 
       // Sort: Most recent message first
       _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      debugPrint(
+        '🚀 [LOBBY] Total friends in list (including officials): ${_friends.length}',
+      );
 
       _isLoadingFromNetwork = false;
       _friendsLoaded = true;
+      debugPrint('✅ [LOBBY] _loadRealFriends completed. Notifying listeners.');
       notifyListeners();
-    } catch (e) {
-      debugPrint('❌ [LOBBY] Load Error: $e');
+    } catch (e, stack) {
+      debugPrint('❌ [LOBBY] CRITICAL Load Error: $e');
+      debugPrint('❌ [LOBBY] STACK: $stack');
       _isLoadingFromNetwork = false;
       _friendsLoaded = true; // Still mark as loaded to show UI
       notifyListeners();
+    } finally {
+      _isRefreshing = false;
     }
   }
 
@@ -479,7 +538,7 @@ class ChatProvider with ChangeNotifier {
           );
         }
       } catch (e) {
-        print('❌ Error syncing read status: $e');
+        debugPrint('❌ Error syncing read status: $e');
       }
 
       return true;
@@ -510,7 +569,7 @@ class ChatProvider with ChangeNotifier {
     } catch (e) {
       _blockedUsers.remove(userId);
       notifyListeners();
-      print('❌ Failed to block user: $e');
+      debugPrint('❌ Failed to block user: $e');
       throw e;
     }
   }
@@ -524,7 +583,7 @@ class ChatProvider with ChangeNotifier {
     } catch (e) {
       _blockedUsers.add(userId);
       notifyListeners();
-      print('❌ Failed to unblock user: $e');
+      debugPrint('❌ Failed to unblock user: $e');
       throw e;
     }
   }
@@ -554,7 +613,7 @@ class ChatProvider with ChangeNotifier {
         _archivedFriends.addAll(deletedArchived);
       }
       notifyListeners();
-      print('❌ Failed to delete chat: $e');
+      debugPrint('❌ Failed to delete chat: $e');
       rethrow;
     }
   }
@@ -783,13 +842,16 @@ class ChatProvider with ChangeNotifier {
         final encryptedContent = record['encrypted_content'];
 
         // Use decrypted text from the realtime service; it's already decrypted before reaching here
-        final displayMessage = messageText.isNotEmpty ? messageText : '';
+        // If it's still empty but was encrypted, mark it as [Encrypted]
+        final displayMessage = messageText.isNotEmpty
+            ? messageText
+            : (isEncrypted ? '[Encrypted]' : '');
 
         final updatedFriend = friend.copyWith(
           lastMessage: displayMessage,
           lastMessageTime: timestamp,
           unreadCount: newUnread,
-          isLastMessageEncrypted: isEncrypted && messageText.isEmpty,
+          isLastMessageEncrypted: isEncrypted,
           lastMessageEncryptedContent: encryptedContent is String
               ? jsonDecode(encryptedContent)
               : (encryptedContent != null

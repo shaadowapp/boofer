@@ -6,6 +6,8 @@ import '../providers/chat_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
+import 'dart:async';
+// Background services removed
 import 'help_screen.dart';
 import 'about_screen.dart';
 
@@ -263,17 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           }
                         },
                       ),
-                      _buildColorfulTile(
-                        context,
-                        title: 'Notification Channels',
-                        subtitle: 'Customize alerts',
-                        icon: Icons.tune_outlined,
-                        color: Colors.deepOrange,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/notification-settings',
-                        ),
-                      ),
+                      // Background service tiles removed
                     ],
                   ),
 

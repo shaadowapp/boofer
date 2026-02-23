@@ -15,8 +15,6 @@ dependencies:
   intl: ^0.20.2
   cupertino_icons: ^1.0.8
   # Removed Isar temporarily to fix build issues
-  # isar: ^3.1.0+1
-  # isar_flutter_libs: ^3.1.0+1
   path_provider: ^2.1.2
   connectivity_plus: ^5.0.2
   rxdart: ^0.27.7
@@ -30,8 +28,7 @@ dependencies:
   path: ^1.9.0
   get_it: ^7.7.0
   uuid: ^4.5.2
-  # Google Sign-In for simplified authentication
-  google_sign_in: ^6.2.1
+  # Removed Google Sign-In as requested
 
   http: ^1.1.0
   crypto: ^3.0.3
@@ -47,16 +44,16 @@ dependencies:
   app_links: ^6.4.1
   receive_sharing_intent: ^1.6.3
   flutter_local_notifications: ^20.1.0
+  device_info_plus: ^12.3.0
+  # Removed Firebase as requested
+  libsignal_protocol_dart: ^0.7.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
-  # Removed build tools temporarily
-  # isar_generator: ^3.1.0+1
   build_runner: ^2.4.8
   mockito: ^5.4.4
-  isar: ^3.1.0+1
   integration_test:
     sdk: flutter
 flutter:

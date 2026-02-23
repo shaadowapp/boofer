@@ -279,6 +279,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                               profilePicture: friend.profilePicture,
                               name: friend.name,
                               radius: 28,
+                              isCompany: friend.isCompany,
                             ),
                             if (isSelected)
                               Positioned(

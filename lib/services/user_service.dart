@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_manager.dart';
@@ -61,6 +62,7 @@ class UserService {
         await LocalStorageService.getVirtualNumber();
   }
 
+  /*
   /// Create user from Google account data
   static Future<User> createUserFromGoogleData({
     required String firebaseUid,
@@ -95,6 +97,7 @@ class UserService {
       updatedAt: now,
     );
   }
+  */
 
   /// Generate handle from display name
   static String? _generateHandleFromName(String displayName) {
@@ -222,7 +225,7 @@ class UserService {
         ProfilePictureService.instance;
     await profilePictureService.updateProfilePicture(user.profilePicture);
 
-    print('✅ User stored with profile picture: ${user.profilePicture}');
+    debugPrint('✅ User stored with profile picture: ${user.profilePicture}');
   }
 
   /// Clear user data

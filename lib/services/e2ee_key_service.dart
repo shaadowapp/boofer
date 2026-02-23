@@ -11,7 +11,7 @@ class E2EEKeyService {
       _instance ??= E2EEKeyService._internal();
   E2EEKeyService._internal();
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final E2EEService _e2eeService = E2EEService.instance;
 
   /// Upload the public key bundle for the current user to Supabase
@@ -109,8 +109,9 @@ class E2EEKeyService {
 
       // Use the first available pre-key
       final preKeys = bundle['preKeys'] as List;
-      if (preKeys.isEmpty)
+      if (preKeys.isEmpty) {
         throw Exception('No pre-keys in bundle for $recipientId');
+      }
 
       final preKeyData = preKeys.first;
       final preKeyId = preKeyData['keyId'] as int;

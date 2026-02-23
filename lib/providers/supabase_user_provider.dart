@@ -32,10 +32,10 @@ class SupabaseUserProvider with ChangeNotifier {
       await refreshCurrentUser();
 
       _setLoading(false);
-      print('✅ SupabaseUserProvider initialized successfully');
+      debugPrint('✅ SupabaseUserProvider initialized successfully');
     } catch (e) {
       _setError('Failed to initialize user provider: $e');
-      print('❌ SupabaseUserProvider initialization failed: $e');
+      debugPrint('❌ SupabaseUserProvider initialization failed: $e');
     }
   }
 
@@ -52,10 +52,10 @@ class SupabaseUserProvider with ChangeNotifier {
         );
 
         notifyListeners();
-        print('✅ Current user loaded from Supabase: ${_currentUser!.fullName}');
+        debugPrint('✅ Current user loaded from Supabase: ${_currentUser!.fullName}');
       }
     } catch (e) {
-      print('❌ Failed to refresh current user from Supabase: $e');
+      debugPrint('❌ Failed to refresh current user from Supabase: $e');
     }
   }
 
@@ -114,6 +114,6 @@ class SupabaseUserProvider with ChangeNotifier {
     _error = error;
     _isLoading = false;
     notifyListeners();
-    print('❌ SupabaseUserProvider error: $error');
+    debugPrint('❌ SupabaseUserProvider error: $error');
   }
 }

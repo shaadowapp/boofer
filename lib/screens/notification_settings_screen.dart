@@ -32,7 +32,6 @@ class _NotificationSettingsScreenState
       NotificationChannels.groupMessages,
       NotificationChannels.calls,
       NotificationChannels.missedCalls,
-      NotificationChannels.friendRequests,
       NotificationChannels.mentions,
       NotificationChannels.reactions,
     ];
@@ -118,15 +117,6 @@ class _NotificationSettingsScreenState
                   icon: Icons.people_outline_rounded,
                   color: Colors.pink,
                   children: [
-                    _buildChannelTile(
-                      context,
-                      icon: Icons.person_add_rounded,
-                      title: 'Followed Notification',
-                      subtitle: 'New followers',
-                      channelId: NotificationChannels.friendRequests,
-                      color: Colors.teal,
-                    ),
-                    const Divider(height: 1),
                     _buildChannelTile(
                       context,
                       icon: Icons.alternate_email_rounded,

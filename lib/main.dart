@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+
 import 'core/network/supabase_config.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
@@ -14,7 +16,6 @@ import 'providers/follow_provider.dart';
 import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
 import 'services/supabase_service.dart';
-import 'services/sync_service.dart';
 import 'services/profile_picture_service.dart';
 import 'services/notification_service.dart';
 import 'services/local_storage_service.dart';
@@ -29,133 +30,182 @@ import 'screens/onboarding_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'screens/legal_acceptance_screen.dart';
 import 'models/friend_model.dart';
+import 'models/user_model.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/appearance_settings_screen.dart';
 import 'screens/customization_settings_screen.dart';
 import 'screens/welcome_screen.dart';
-import 'screens/splash_screen.dart';
-import 'screens/profile_chooser_screen.dart';
 import 'l10n/app_localizations.dart';
 
+/// The initialization logic for the application.
+/// This handles services that depend on Supabase and Firebase being ready.
 Future<Map<String, dynamic>> _initializeApp() async {
+  debugPrint('🚀 [BOOT] _initializeApp() invoked');
   try {
-    debugPrint('🚀 [INIT] Phase 1: Basic Boot');
-    WidgetsFlutterBinding.ensureInitialized();
+    debugPrint('🚀 [BOOT] Phase 2: Services Initialization Started');
 
-    // Capture any sharing intent early - non-blocking
-    ReceiveShareService.instance.checkInitialShare().catchError((e) {
-      debugPrint('⚠️ [INIT] Share capture failed (non-critical): $e');
-    });
+    // Ensure we have a valid client before proceeding
+    final client = Supabase.instance.client;
+    debugPrint('🚀 [BOOT] Supabase client obtained: ${client.hashCode}');
 
-    debugPrint('🚀 [INIT] Phase 2: Supabase');
-    await Supabase.initialize(
-      url: SupabaseConfig.url,
-      anonKey: SupabaseConfig.anonKey,
-    );
+    // Early Share Check
+    debugPrint('🚀 [BOOT] Checking for initial share...');
+    ReceiveShareService.instance
+        .checkInitialShare()
+        .then((_) {
+          debugPrint('✅ [BOOT] Share check completed');
+        })
+        .catchError((e) {
+          debugPrint('⚠️ [BOOT] Share capture failed: $e');
+        });
 
-    debugPrint('🚀 [INIT] Phase 3: Services');
-    SyncService.instance.initialize();
-    NotificationService.instance.initialize();
-    ProfilePictureService.instance.initialize();
+    // Await core services
+    debugPrint('🚀 [BOOT] Initializing NotificationService...');
+    await NotificationService.instance.initialize();
+    debugPrint('✅ [BOOT] NotificationService Initialized');
 
-    debugPrint('🚀 [INIT] Phase 4: E2EE');
+    debugPrint('🚀 [BOOT] Initializing ProfilePictureService...');
+    await ProfilePictureService.instance.initialize();
+    debugPrint('✅ [BOOT] ProfilePictureService Initialized');
+
+    debugPrint('🚀 [BOOT] Phase 3: SupabaseService initialization');
     await SupabaseService.instance.initialize();
+    debugPrint('✅ [BOOT] SupabaseService Initialized');
 
-    debugPrint('🚀 [INIT] Phase 5: Routing');
+    debugPrint('🚀 [BOOT] Phase 4: Route Determination');
     String initialRoute = '/onboarding';
 
-    // Migration
+    // Account migration and discovery logic
+    debugPrint('🚀 [BOOT] Checking local storage for current_user...');
     try {
       final userJson = await LocalStorageService.getString('current_user');
       if (userJson != null) {
-        final Map<String, dynamic> user = jsonDecode(userJson);
-        final userId = user['id'] as String? ?? '';
+        debugPrint('🚀 [BOOT] Found current_user in local storage');
+        final Map<String, dynamic> userMap = jsonDecode(userJson);
+        final userId = userMap['id'] as String? ?? '';
         if (userId.isNotEmpty) {
+          debugPrint('🚀 [BOOT] User ID: $userId');
           final existing = await MultiAccountStorageService.getSavedAccounts();
+          debugPrint('🚀 [BOOT] Saved accounts found: ${existing.length}');
           if (!existing.any((a) => a['id'] == userId)) {
+            debugPrint(
+              '🚀 [BOOT] Migrating current user to multi-account storage',
+            );
             await MultiAccountStorageService.upsertAccount(
               id: userId,
-              handle: user['handle'] as String? ?? '',
-              fullName: user['fullName'] as String? ?? '',
-              avatar: user['avatar'] as String?,
+              handle: userMap['handle'] as String? ?? '',
+              fullName: userMap['fullName'] as String? ?? '',
+              avatar: userMap['avatar'] as String?,
             );
           }
           await MultiAccountStorageService.setLastActiveAccountId(userId);
         }
+      } else {
+        debugPrint('🚀 [BOOT] No current_user in local storage');
       }
     } catch (e) {
-      debugPrint('⚠️ [INIT] Migration error (non-critical): $e');
+      debugPrint('⚠️ [BOOT] Migration error (non-critical): $e');
     }
 
     final savedAccounts = await MultiAccountStorageService.getSavedAccounts();
-    debugPrint('🚀 [INIT] Saved accounts: ${savedAccounts.length}');
+    debugPrint('🚀 [BOOT] Total Saved accounts: ${savedAccounts.length}');
 
-    // Auto-login logic
+    // Session logic
+    debugPrint('🚀 [BOOT] Checking active session...');
     final lastActiveId =
         await MultiAccountStorageService.getLastActiveAccountId();
-    final session = Supabase.instance.client.auth.currentSession;
+    final session = client.auth.currentSession;
 
     if (session != null && !session.isExpired) {
-      // Already has a valid session (e.g. from Supabase internal storage)
       final userId = session.user.id;
+      debugPrint('✅ [BOOT] Valid session found for user: $userId');
       final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
         userId,
       );
       initialRoute = hasAcceptedTerms ? '/main' : '/legal-acceptance';
-    } else if (lastActiveId != null) {
-      // Try to recover session from secure storage
+    } else if (lastActiveId != null && lastActiveId.isNotEmpty) {
+      debugPrint(
+        '🚀 [BOOT] No current session, attempting recovery for: $lastActiveId',
+      );
       try {
         final sessionJson = await MultiAccountStorageService.getSession(
           lastActiveId,
         );
         if (sessionJson != null) {
-          await Supabase.instance.client.auth.recoverSession(sessionJson);
+          await client.auth.recoverSession(sessionJson);
+          debugPrint('✅ [BOOT] Session recovered successfully');
           final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
             lastActiveId,
           );
           initialRoute = hasAcceptedTerms ? '/main' : '/legal-acceptance';
         } else {
+          debugPrint('🚀 [BOOT] No session JSON found for recovery');
           initialRoute = '/onboarding';
         }
       } catch (e) {
-        debugPrint('⚠️ [INIT] Session recovery failed: $e');
-        initialRoute = '/onboarding';
-      }
-    } else if (savedAccounts.length > 1) {
-      // Multiple accounts - show chooser
-      initialRoute = '/profile-chooser';
-    } else if (savedAccounts.length == 1) {
-      // Exactly 1 account - pick it
-      final userId = savedAccounts.first['id'] as String;
-      final sessionJson = await MultiAccountStorageService.getSession(userId);
-      if (sessionJson != null) {
-        try {
-          await Supabase.instance.client.auth.recoverSession(sessionJson);
-          final hasAcceptedTerms = await LocalStorageService.hasAcceptedTerms(
-            userId,
-          );
-          initialRoute = hasAcceptedTerms ? '/main' : '/legal-acceptance';
-        } catch (e) {
-          initialRoute = '/onboarding';
-        }
-      } else {
+        debugPrint('⚠️ [BOOT] Session recovery failed: $e');
         initialRoute = '/onboarding';
       }
     } else {
+      debugPrint(
+        '🚀 [BOOT] No session and no last active ID, going to onboarding',
+      );
       initialRoute = '/onboarding';
     }
 
-    debugPrint('🚀 [INIT] Finalizing with route: $initialRoute');
-    return {'initialRoute': initialRoute};
+    debugPrint('🚀 [BOOT] Finalizing boot with route: $initialRoute');
+    return {'initialRoute': initialRoute, 'accounts': savedAccounts};
   } catch (e, stack) {
-    debugPrint('❌ [INIT] CRITICAL FAILURE: $e');
-    debugPrint('$stack');
-    return {'initialRoute': '/onboarding', 'error': e.toString()};
+    debugPrint('❌ [BOOT] CRITICAL FAILURE: $e');
+    debugPrint('❌ [BOOT] STACKTRACE: $stack');
+    return {
+      'initialRoute': '/onboarding',
+      'accounts': [],
+      'error': e.toString(),
+    };
   }
 }
 
 void main() async {
-  final initializationFuture = _initializeApp();
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+  debugPrint('🚩 [BOOT] --- APP STARTING ---');
+  WidgetsFlutterBinding.ensureInitialized();
+
+  debugPrint('🚀 [BOOT] Phase 1: Global Infrastructure (Blocking)');
+  bool isInfraReady = false;
+
+  // Initialize Supabase (Critical)
+  bool isSupabaseReady = false;
+  try {
+    debugPrint('🚀 [BOOT] Initializing Supabase...');
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    );
+    debugPrint('✅ [BOOT] Supabase Initialized Successfully');
+    isSupabaseReady = true;
+  } catch (e) {
+    if (e.toString().contains('already been initialized')) {
+      debugPrint('ℹ️ [BOOT] Supabase already initialized');
+      isSupabaseReady = true;
+    } else {
+      debugPrint('❌ [BOOT] Supabase Initialization Failed: $e');
+    }
+  }
+
+  isInfraReady = isSupabaseReady;
+
+  final initializationFuture = isInfraReady
+      ? _initializeApp()
+      : Future.value({
+          'initialRoute': '/onboarding',
+          'error':
+              'Infrastructure initialization failed. Please check your internet connection and Supabase configuration.',
+        });
+
+  debugPrint('🚀 [BOOT] Calling runApp...');
   runApp(BooferApp(initializationFuture: initializationFuture));
 }
 
@@ -171,30 +221,49 @@ class BooferApp extends StatefulWidget {
 }
 
 class _BooferAppState extends State<BooferApp> {
+  late final ErrorHandler _errorHandler;
+  late final DatabaseManager _databaseManager;
+  late final ChatService _chatService;
+
+  late Future<Map<String, dynamic>> _initFuture;
+
   @override
   void initState() {
     super.initState();
+    debugPrint('🚀 [APP] initState triggered');
+    _initFuture = widget.initializationFuture;
+    _errorHandler = ErrorHandler();
+    _databaseManager = DatabaseManager.instance;
+    _chatService = ChatService(
+      database: _databaseManager,
+      errorHandler: _errorHandler,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint('🚀 [APP] Post-frame callback: Initializing DeepLinkService');
       DeepLinkService.instance.initialize();
+    });
+  }
+
+  void _retryInit() {
+    debugPrint('🔄 [APP] Retrying initialization...');
+    setState(() {
+      _initFuture = _initializeApp();
     });
   }
 
   @override
   void dispose() {
+    debugPrint('🚀 [APP] dispose triggered');
     DeepLinkService.instance.dispose();
     ReceiveShareService.instance.dispose();
+    _chatService.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final errorHandler = ErrorHandler();
-    final databaseManager = DatabaseManager.instance;
-    final chatService = ChatService(
-      database: databaseManager,
-      errorHandler: errorHandler,
-    );
-
+    debugPrint('🚀 [APP] build triggered');
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
@@ -208,8 +277,8 @@ class _BooferAppState extends State<BooferApp> {
         ChangeNotifierProvider(create: (_) => FollowProvider()),
         ChangeNotifierProvider(
           create: (_) => ChatProvider(
-            chatService: chatService,
-            errorHandler: errorHandler,
+            chatService: _chatService,
+            errorHandler: _errorHandler,
           ),
         ),
         ChangeNotifierProvider(create: (_) => ArchiveSettingsProvider()),
@@ -221,102 +290,156 @@ class _BooferAppState extends State<BooferApp> {
           return MaterialApp(
             navigatorKey: BooferApp.navigatorKey,
             title: 'Boofer',
-            theme: themeProvider.lightTheme,
+            debugShowCheckedModeBanner: false,
+            themeMode: themeProvider.themeMode == AppThemeMode.system
+                ? ThemeMode.system
+                : (themeProvider.themeMode == AppThemeMode.dark
+                      ? ThemeMode.dark
+                      : ThemeMode.light),
             darkTheme: themeProvider.darkTheme,
-            themeMode: themeProvider.isDarkMode
-                ? ThemeMode.dark
-                : ThemeMode.light,
-            locale: context.watch<LocaleProvider>().locale,
+            theme: themeProvider.lightTheme,
+            locale: Provider.of<LocaleProvider>(context).locale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: FutureBuilder<Map<String, dynamic>>(
-              future: widget.initializationFuture,
+              future: _initFuture,
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return _buildErrorScreen(
-                    'FutureBuilder error: ${snapshot.error}',
-                  );
-                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SplashScreen();
-                }
-                final data = snapshot.data ?? {};
-                if (data.containsKey('error')) {
-                  return _buildErrorScreen('Init error: ${data['error']}');
+                  // Use a clean, themed scaffold instead of a full splash widget
+                  // with a logo to avoid "double splash" effect.
+                  return const Scaffold(backgroundColor: Color(0xFF0F172A));
                 }
 
-                final route = data['initialRoute'] ?? '/onboarding';
-                switch (route) {
+                if (snapshot.hasError ||
+                    (snapshot.data != null &&
+                        snapshot.data!['error'] != null)) {
+                  return _ErrorScreen(
+                    message: snapshot.data?['error'] ?? 'Unknown Error',
+                    onRetry: _retryInit,
+                  );
+                }
+
+                final initialRoute =
+                    snapshot.data?['initialRoute'] ?? '/onboarding';
+                final List<Map<String, dynamic>> initialAccounts =
+                    List<Map<String, dynamic>>.from(
+                      snapshot.data?['accounts'] ?? [],
+                    );
+
+                // Return appropriate initial screen
+                switch (initialRoute) {
                   case '/main':
                     return const MainScreen();
-                  case '/profile-chooser':
-                    return const ProfileChooserScreen();
                   case '/legal-acceptance':
                     return const LegalAcceptanceScreen();
+                  case '/welcome':
+                    // Map empty data for welcome screen if accessed without draft
+                    return const WelcomeScreen(draftData: {});
+                  case '/onboarding':
                   default:
-                    return const OnboardingScreen();
+                    return OnboardingScreen(initialAccounts: initialAccounts);
                 }
               },
             ),
-            routes: {
-              '/onboarding': (context) => const OnboardingScreen(),
-              '/main': (context) => const MainScreen(),
-              '/chat': (context) {
-                final args = ModalRoute.of(context)?.settings.arguments;
-                if (args is Friend) {
-                  return FriendChatScreen(
-                    recipientId: args.id,
-                    recipientName: args.name,
-                    recipientHandle: args.handle,
-                    recipientAvatar: args.avatar,
-                    recipientProfilePicture: args.profilePicture,
+            onGenerateRoute: (settings) {
+              if (settings.name == '/profile') {
+                // Support both String (userId) and Friend/User objects
+                if (settings.arguments is String) {
+                  return MaterialPageRoute(
+                    builder: (context) =>
+                        UserProfileScreen(userId: settings.arguments as String),
                   );
-                } else if (args is Map<String, dynamic>) {
-                  return FriendChatScreen(
-                    recipientId: args['recipientId'],
-                    recipientName: args['recipientName'],
-                    recipientHandle: args['recipientHandle'],
-                    recipientAvatar: args['recipientAvatar'],
-                    recipientProfilePicture: args['recipientProfilePicture'],
-                    initialText: args['initialText'],
+                } else if (settings.arguments is Friend) {
+                  return MaterialPageRoute(
+                    builder: (context) => UserProfileScreen(
+                      userId: (settings.arguments as Friend).id,
+                    ),
+                  );
+                } else if (settings.arguments is User) {
+                  return MaterialPageRoute(
+                    builder: (context) => UserProfileScreen(
+                      userId: (settings.arguments as User).id,
+                    ),
                   );
                 }
-                return const MainScreen();
-              },
-              '/profile': (context) {
-                final userId =
-                    ModalRoute.of(context)?.settings.arguments as String?;
-                return userId != null
-                    ? UserProfileScreen(userId: userId)
-                    : const MainScreen();
-              },
-              '/welcome': (context) {
-                final data =
-                    ModalRoute.of(context)?.settings.arguments
-                        as Map<String, dynamic>?;
-                return data != null
-                    ? WelcomeScreen(draftData: data)
-                    : const OnboardingScreen();
-              },
-              '/notification-settings': (context) =>
-                  const NotificationSettingsScreen(),
-              '/appearance-settings': (context) =>
-                  const AppearanceSettingsScreen(),
-              '/customization-settings': (context) =>
-                  const CustomizationSettingsScreen(),
-              '/legal-acceptance': (context) => const LegalAcceptanceScreen(),
-              '/profile-chooser': (context) => const ProfileChooserScreen(),
+              }
+
+              if (settings.name == '/chat') {
+                final args = settings.arguments;
+                String? rId, rName, rHandle, rAvatar, rPic, vNum;
+
+                if (args is Map<String, dynamic>) {
+                  rId = args['recipientId'] ?? args['friend']?.id;
+                  rName = args['recipientName'] ?? args['friend']?.name;
+                  rHandle = args['recipientHandle'] ?? args['friend']?.handle;
+                  rAvatar = args['recipientAvatar'] ?? args['friend']?.avatar;
+                  rPic =
+                      args['recipientProfilePicture'] ??
+                      args['friend']?.profilePicture;
+                  vNum = args['virtualNumber'] ?? args['friend']?.virtualNumber;
+                } else if (args is Friend) {
+                  rId = args.id;
+                  rName = args.name;
+                  rHandle = args.handle;
+                  rAvatar = args.avatar;
+                  rPic = args.profilePicture;
+                  vNum = args.virtualNumber;
+                } else if (args is User) {
+                  rId = args.id;
+                  rName = args.fullName;
+                  rHandle = args.handle;
+                  rAvatar = args.avatar;
+                  rPic = args.profilePicture;
+                  vNum = args.virtualNumber;
+                }
+
+                if (rId != null) {
+                  return MaterialPageRoute(
+                    builder: (context) => FriendChatScreen(
+                      recipientId: rId!,
+                      recipientName: rName ?? 'User',
+                      recipientHandle: rHandle,
+                      recipientAvatar: rAvatar,
+                      recipientProfilePicture: rPic,
+                      virtualNumber: vNum,
+                    ),
+                  );
+                }
+              }
+
+              if (settings.name == '/notification-settings') {
+                return MaterialPageRoute(
+                  builder: (context) => const NotificationSettingsScreen(),
+                );
+              }
+              if (settings.name == '/appearance-settings') {
+                return MaterialPageRoute(
+                  builder: (context) => const AppearanceSettingsScreen(),
+                );
+              }
+              if (settings.name == '/customization-settings') {
+                return MaterialPageRoute(
+                  builder: (context) => const CustomizationSettingsScreen(),
+                );
+              }
+              return null;
             },
-            debugShowCheckedModeBanner: false,
           );
         },
       ),
     );
   }
+}
 
-  Widget _buildErrorScreen(String message) {
+class _ErrorScreen extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorScreen({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF1A1A1A),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -325,12 +448,12 @@ class _BooferAppState extends State<BooferApp> {
             children: [
               const Icon(
                 Icons.error_outline,
-                color: Colors.redAccent,
                 size: 64,
+                color: Colors.redAccent,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text(
-                'Oops! Initialization Failed',
+                'Oops! Boofer couldn\'t connect',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -342,14 +465,25 @@ class _BooferAppState extends State<BooferApp> {
                 message,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withAlpha(180),
                   fontSize: 14,
                 ),
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => main(),
-                child: const Text('Try Again'),
+                onPressed: onRetry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Retry Connection'),
               ),
             ],
           ),
