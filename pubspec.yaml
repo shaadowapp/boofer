@@ -29,6 +29,7 @@ dependencies:
   get_it: ^7.7.0
   uuid: ^4.5.2
   # Removed Google Sign-In as requested
+  shorebird_code_push: ^1.0.0
 
   http: ^1.1.0
   crypto: ^3.0.3
@@ -64,3 +65,4 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/images/logo/
+    - shorebird.yaml

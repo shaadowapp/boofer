@@ -36,6 +36,7 @@ import 'screens/appearance_settings_screen.dart';
 import 'screens/customization_settings_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'services/code_push_service.dart';
 
 /// The initialization logic for the application.
 /// This handles services that depend on Supabase and Firebase being ready.
@@ -242,6 +243,9 @@ class _BooferAppState extends State<BooferApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       debugPrint('🚀 [APP] Post-frame callback: Initializing DeepLinkService');
       DeepLinkService.instance.initialize();
+
+      // Check for code push updates (Shorebird Shadow Manager)
+      CodePushService.instance.checkForUpdates(context);
     });
   }
 
