@@ -17,7 +17,6 @@ class ApiClient {
   final http.Client _httpClient = http.Client();
   
   String? _baseUrl;
-  String? _apiKey;
   Map<String, String> _defaultHeaders = {};
   
   static const Duration _defaultTimeout = Duration(seconds: 30);
@@ -30,7 +29,6 @@ class ApiClient {
     Map<String, String>? defaultHeaders,
   }) {
     _baseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-    _apiKey = apiKey;
     _defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',

@@ -177,6 +177,20 @@ void main() async {
   debugPrint('🚀 [BOOT] Phase 1: Global Infrastructure (Blocking)');
   bool isInfraReady = false;
 
+  // Validate Supabase configuration
+  try {
+    debugPrint('🔒 [BOOT] Validating Supabase configuration...');
+    SupabaseConfig.validate();
+    debugPrint('✅ [BOOT] Supabase configuration validated');
+  } catch (e) {
+    debugPrint('❌ [BOOT] Supabase configuration validation failed: $e');
+    // In production, this should prevent app startup
+    if (kReleaseMode) {
+      throw Exception('App configuration error. Please contact support.');
+    }
+    rethrow;
+  }
+
   // Initialize Supabase (Critical)
   bool isSupabaseReady = false;
   try {
@@ -246,7 +260,52 @@ class _BooferAppState extends State<BooferApp> {
 
       // Check for code push updates (Shorebird Shadow Manager)
       CodePushService.instance.checkForUpdates(context);
+
+      // Perform database health check
+      _performDatabaseHealthCheck();
     });
+  }
+
+  /// Perform periodic database health check
+  Future<void> _performDatabaseHealthCheck() async {
+    try {
+      // Check if we should run health check (once per 24 hours)
+      final lastCheckStr = await LocalStorageService.getString(
+        'last_db_health_check',
+      );
+      final now = DateTime.now();
+
+      if (lastCheckStr != null) {
+        final lastCheck = DateTime.parse(lastCheckStr);
+        final hoursSinceLastCheck = now.difference(lastCheck).inHours;
+
+        if (hoursSinceLastCheck < 24) {
+          debugPrint(
+            '⏭️ [DB_HEALTH] Skipping health check (last check: $hoursSinceLastCheck hours ago)',
+          );
+          return;
+        }
+      }
+
+      debugPrint('🏥 [DB_HEALTH] Starting periodic health check...');
+      final results = await _databaseManager.performHealthCheck();
+
+      // Store last check timestamp
+      await LocalStorageService.setString(
+        'last_db_health_check',
+        now.toIso8601String(),
+      );
+
+      final allPassed = results.values.every((v) => v == true);
+      if (allPassed) {
+        debugPrint('✅ [DB_HEALTH] All checks passed');
+      } else {
+        debugPrint('⚠️ [DB_HEALTH] Some checks failed: $results');
+      }
+    } catch (e) {
+      debugPrint('⚠️ [DB_HEALTH] Health check failed (non-critical): $e');
+      // Don't block app startup on health check failure
+    }
   }
 
   void _retryInit() {

@@ -352,6 +352,7 @@ class SupabaseService {
     MessageType type = MessageType.text,
     Message? messageObject,
     bool? forceUnencrypted, // Optional: force unencrypted for testing
+    String? knownTimer, // Optional: pass known timer to skip extra DB roundtrip
   }) async {
     try {
       debugPrint('📤 Attempting to send message...');
@@ -379,9 +380,6 @@ class SupabaseService {
 
       final messageData = message.toJson();
 
-      // Parallelize preparation tasks for better speed
-      final timerFuture = getConversationTimer(receiverId!);
-
       // Initialize E2EE if needed
       if (forceUnencrypted != true) {
         if (!VirgilE2EEService.instance.isInitialized) {
@@ -389,13 +387,18 @@ class SupabaseService {
         }
       }
 
-      // Fetch keys in parallel
+      // Fetch keys (and maybe timer) in parallel
       final recipientKeysFuture = forceUnencrypted == true
           ? Future.value(null)
-          : VirgilKeyService().getRecipientKeys(receiverId);
+          : VirgilKeyService().getRecipientKeys(receiverId!);
       final senderKeysFuture = forceUnencrypted == true
           ? Future.value(null)
           : VirgilKeyService().getRecipientKeys(senderId!);
+
+      // Skip the DB round-trip if the caller already knows the timer
+      final timerFuture = (knownTimer != null)
+          ? Future.value(knownTimer)
+          : getConversationTimer(receiverId!);
 
       // Wait for all pre-requisites
       final results = await Future.wait([

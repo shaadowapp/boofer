@@ -79,6 +79,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     _initializeChat();
   }
 
+  @override
   void dispose() {
     // Clear presence for this conversation
     if (mounted) {
@@ -1196,6 +1197,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         receiverId: widget.recipientId,
         text: text.trim(),
         messageObject: message.copyWith(status: initialStatus),
+        knownTimer: _ephemeralTimer, // Skip extra DB round-trip for timer
       );
 
       if (result != null) {

@@ -8,6 +8,7 @@ import '../widgets/unified_friend_card.dart'; // Import UnifiedFriendCard
 import '../providers/follow_provider.dart';
 import 'user_profile_screen.dart'; // Import UserProfileScreen
 import 'manage_friends_screen.dart';
+import '../core/constants.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -42,6 +43,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       avatar: data['avatar'],
       virtualNumber: data['virtual_number'],
       isVerified: data['is_verified'] == true || data['is_verified'] == 1,
+      isCompany: data['is_company'] == true || data['is_company'] == 1,
+      age: data['age'] as int?,
+      followerCount: (data['follower_count'] as num?)?.toInt() ?? 0,
+      followingCount: (data['following_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -60,7 +65,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     List<User> currentUsers = [];
 
     if (mounted && cachedUsersData.isNotEmpty) {
-      currentUsers = cachedUsersData.map((data) => _mapToUser(data)).toList();
+      currentUsers = cachedUsersData
+          .where((data) {
+            final id = data['id']?.toString() ?? '';
+            final handle = (data['handle'] ?? '').toString().toLowerCase();
+            return !AppConstants.officialIds.contains(id) && handle != 'boofer';
+          })
+          .map((data) => _mapToUser(data))
+          .toList();
 
       // Update local state and FollowProvider with cached data
       final followProvider = Provider.of<FollowProvider>(
@@ -131,6 +143,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
       if (mounted) {
         final freshUsers = freshUsersData
+            .where((data) {
+              final id = data['id']?.toString() ?? '';
+              final handle = (data['handle'] ?? '').toString().toLowerCase();
+              return !AppConstants.officialIds.contains(id) &&
+                  handle != 'boofer';
+            })
             .map((data) => _mapToUser(data))
             .toList();
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart'; // To access the navigator key
 
 class CodePushService {
   static final CodePushService instance = CodePushService._internal();
@@ -18,22 +17,20 @@ class CodePushService {
       debugPrint('🔍 [CodePush] Checking for updates...');
 
       // 1. Check Shorebird for new code
-      final isUpdateAvailable = await _updater.isNewPatchAvailableForDownload();
-      debugPrint(
-        '🔍 [CodePush] Update available via Shorebird: $isUpdateAvailable',
-      );
+      final status = await _updater.checkForUpdate();
+      debugPrint('🔍 [CodePush] Update status: $status');
 
-      if (isUpdateAvailable) {
-        // 2. Download the patch silently in the background
-        debugPrint('下载 [CodePush] Downloading patch...');
-        await _updater.downloadPatch();
-        debugPrint('✅ [CodePush] Patch downloaded');
+      if (status == UpdateStatus.outdated) {
+        // 2. Download and apply the patch
+        debugPrint('下载 [CodePush] Downloading and applying patch...');
+        await _updater.update();
+        debugPrint('✅ [CodePush] Patch downloaded and applied');
 
         // 3. Consult Supabase: Is this a "Critical" fix?
         final res = await Supabase.instance.client
             .from('config')
             .select()
-            .order('created_at', descending: true)
+            .order('created_at', ascending: false)
             .limit(1)
             .single();
 

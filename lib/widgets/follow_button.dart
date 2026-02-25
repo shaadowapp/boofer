@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../providers/follow_provider.dart';
 import '../providers/appearance_provider.dart';
 import '../models/user_model.dart';
+import '../core/constants.dart';
 
 /// Follow button widget (Instagram style)
 class FollowButton extends StatefulWidget {
@@ -172,9 +172,26 @@ class _FollowButtonState extends State<FollowButton> {
   ) async {
     if (_isProcessing) return;
 
+    // Prevent unfollowing the @boofer official account
+    if (isFollowing &&
+        (widget.user.id == AppConstants.booferId ||
+            widget.user.handle.toLowerCase() == 'boofer' ||
+            AppConstants.officialIds.contains(widget.user.id))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You cannot unfollow the official Boofer account.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isProcessing = true;
     });
+
+    // Capture messenger before any async gap
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       bool success = false;
@@ -193,7 +210,7 @@ class _FollowButtonState extends State<FollowButton> {
       if (success) {
         widget.onStatusChanged?.call();
         if (mounted && message.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text(message),
               duration: const Duration(seconds: 2),

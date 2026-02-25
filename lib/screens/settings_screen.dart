@@ -10,6 +10,8 @@ import 'dart:async';
 // Background services removed
 import 'help_screen.dart';
 import 'about_screen.dart';
+import 'send_feedback_screen.dart';
+import 'report_bug_screen.dart';
 
 import 'archived_chats_screen.dart';
 import 'archive_settings_screen.dart';
@@ -368,13 +370,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: 'Share your thoughts',
                         icon: Icons.feedback_outlined,
                         color: Colors.deepOrange,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Feedback feature coming soon'),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SendFeedbackScreen(),
+                          ),
+                        ),
+                      ),
+                      _buildColorfulTile(
+                        context,
+                        title: 'Report Bug',
+                        subtitle: 'Help us fix issues',
+                        icon: Icons.bug_report_outlined,
+                        color: Colors.red,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReportBugScreen(),
+                          ),
+                        ),
                       ),
                       _buildColorfulTile(
                         context,

@@ -95,13 +95,37 @@ firebase_rules_temp_testing.js
 # build_release.bat
 # build_release_optimized.bat
 
+# Production build scripts with credentials (NEVER COMMIT!)
+build_production.bat
+build_production.sh
+*_production.*
+run_dev.bat
+run_dev.sh
+
 # Moltbook credentials
 .moltbook_credentials.json
 moltbook_register.json
+
 # Environment files
 .env*
+!.env.example
+!.env.production.example
+.env.production
 
-# Android signing
+# Android signing - CRITICAL: Never commit these!
 key.properties
 *.jks
 *.keystore
+upload-keystore.jks
+boofer-release.jks
+
+# Temporary and log files
+*.log
+*.txt
+*.pid
+*.bak
+*.backup
+*.old
+analyze_output.*
+flutter_*.log
+.progress.txt

@@ -260,24 +260,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildActionRow(),
                   const SizedBox(height: 32),
 
-                  if (_currentUser!.interests.isNotEmpty) ...[
-                    _buildSectionTitle('Interests'),
-                    const SizedBox(height: 12),
-                    _buildChipCloud(
-                      _currentUser!.interests,
-                      const Color(0xFF845EF7),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  if (!_currentUser!.isCompany) ...[
+                    if (_currentUser!.interests.isNotEmpty) ...[
+                      _buildSectionTitle('Interests'),
+                      const SizedBox(height: 12),
+                      _buildChipCloud(
+                        _currentUser!.interests,
+                        const Color(0xFF845EF7),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
-                  if (_currentUser!.hobbies.isNotEmpty) ...[
-                    _buildSectionTitle('Hobbies'),
-                    const SizedBox(height: 12),
-                    _buildChipCloud(
-                      _currentUser!.hobbies,
-                      const Color(0xFFFF6B6B),
-                    ),
-                    const SizedBox(height: 24),
+                    if (_currentUser!.hobbies.isNotEmpty) ...[
+                      _buildSectionTitle('Hobbies'),
+                      const SizedBox(height: 12),
+                      _buildChipCloud(
+                        _currentUser!.hobbies,
+                        const Color(0xFFFF6B6B),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ],
 
                   _buildSectionTitle('Network Stats'),
@@ -439,25 +441,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FollowingScreen(
-                      userId: _currentUser!.id,
-                      userName: _currentUser!.fullName,
+            if (!_currentUser!.isCompany) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => FollowingScreen(
+                        userId: _currentUser!.id,
+                        userName: _currentUser!.fullName,
+                      ),
                     ),
                   ),
-                ),
-                child: _StatBox(
-                  label: 'Following',
-                  value: '${stats?.followingCount ?? 0}',
-                  icon: Icons.person_add_alt_1_outlined,
+                  child: _StatBox(
+                    label: 'Following',
+                    value: '${stats?.followingCount ?? 0}',
+                    icon: Icons.person_add_alt_1_outlined,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         );
       },

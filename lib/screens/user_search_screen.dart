@@ -21,7 +21,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   List<User> _searchResults = [];
   List<User> _suggestedUsers = [];
   List<User> _trendingUsers = [];
-  List<User> _recentSearches = [];
 
   bool _loading = false;
   bool _hasSearched = false;
@@ -98,7 +97,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       setState(() {
         _suggestedUsers = filteredUsers.take(halfPoint).toList();
         _trendingUsers = filteredUsers.skip(halfPoint).toList();
-        _recentSearches = [];
         _loading = false;
       });
 
@@ -111,7 +109,6 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       setState(() {
         _suggestedUsers = [];
         _trendingUsers = [];
-        _recentSearches = [];
         _loading = false;
       });
     }

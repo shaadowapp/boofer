@@ -96,7 +96,9 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                 tooltip: 'Message',
               )
             else if (widget.showActionButton &&
-                _currentUserId != widget.user.id)
+                _currentUserId != widget.user.id &&
+                widget.user.id != AppConstants.booferId &&
+                widget.user.handle.toLowerCase() != 'boofer')
               FollowButton(
                 user: widget.user,
                 compact: true,
@@ -169,6 +171,36 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                 ),
               ),
             ),
+          // Crown / company badge
+          if (widget.user.isCompany)
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: const Color(
+                    0xFF845EF7,
+                  ), // deep purple — contrasts with the gold crown
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.surface,
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF845EF7).withOpacity(0.4),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Text('👑', style: TextStyle(fontSize: 10)),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -204,10 +236,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                     ? Colors.green
                     : theme.colorScheme.primary,
               ),
-              if (widget.user.isCompany) ...[
-                const SizedBox(width: 4),
-                const BooferBadge(letter: 'OFFICIAL'),
-              ],
+              // OFFICIAL badge removed — company identity shown via crown on avatar
             ],
           ],
         ),
@@ -222,15 +251,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                   fontSize: 14,
                 ),
               ),
-              if (!widget.user.isCompany && widget.user.age != null) ...[
-                Text(
-                  ' • ${widget.user.age} yrs',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.4),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              // Age is now only shown on the profile screen, not in the card
             ],
           ),
         ],
@@ -260,7 +281,8 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              if (widget.user.id != AppConstants.booferId) ...[
+              if (widget.user.id != AppConstants.booferId &&
+                  !widget.user.isCompany) ...[
                 const SizedBox(width: 8),
                 Text(
                   '• ${widget.user.followerCount} followers',

@@ -260,24 +260,26 @@ class ChatService {
       }
 
       // 3. Update local database if status/metadata changed after sending
-      await _database.insert('messages', {
-        'id': messageToSave.id,
-        'text': message.text, // ALWAYS keep local plaintext for sender
-        'sender_id': messageToSave.senderId,
-        'receiver_id': messageToSave.receiverId,
-        'conversation_id': messageToSave.conversationId,
-        'timestamp': messageToSave.timestamp.toIso8601String(),
-        'is_offline': messageToSave.isOffline ? 1 : 0,
-        'status': messageToSave.status.name,
-        'type': messageToSave.type.name,
-        'message_hash': messageToSave.messageHash,
-        'updated_at': DateTime.now().toIso8601String(),
-        'created_at': messageToSave.timestamp.toIso8601String(),
-        'is_encrypted': messageToSave.isEncrypted ? 1 : 0,
-        'encrypted_content': messageToSave.encryptedContent != null
-            ? jsonEncode(messageToSave.encryptedContent)
-            : null,
-        'encryption_version': messageToSave.encryptionVersion,
+      await _database.insert(
+        'messages',
+        {
+          'id': messageToSave.id,
+          'text': message.text, // ALWAYS keep local plaintext for sender
+          'sender_id': messageToSave.senderId,
+          'receiver_id': messageToSave.receiverId,
+          'conversation_id': messageToSave.conversationId,
+          'timestamp': messageToSave.timestamp.toIso8601String(),
+          'is_offline': messageToSave.isOffline ? 1 : 0,
+          'status': messageToSave.status.name,
+          'type': messageToSave.type.name,
+          'message_hash': messageToSave.messageHash,
+          'updated_at': DateTime.now().toIso8601String(),
+          'created_at': messageToSave.timestamp.toIso8601String(),
+          'is_encrypted': messageToSave.isEncrypted ? 1 : 0,
+          'encrypted_content': messageToSave.encryptedContent != null
+              ? jsonEncode(messageToSave.encryptedContent)
+              : null,
+          'encryption_version': messageToSave.encryptionVersion,
         'metadata': messageToSave.metadata != null
             ? jsonEncode(messageToSave.metadata)
             : null,

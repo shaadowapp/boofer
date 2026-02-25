@@ -5,6 +5,7 @@ import '../services/follow_service.dart';
 import '../services/user_service.dart';
 import '../widgets/unified_friend_card.dart';
 import '../providers/follow_provider.dart';
+import '../core/constants.dart';
 
 class ManageFriendsScreen extends StatefulWidget {
   const ManageFriendsScreen({super.key});
@@ -52,8 +53,21 @@ class _ManageFriendsScreenState extends State<ManageFriendsScreen>
 
       if (mounted) {
         setState(() {
-          _followers = results[0];
-          _following = results[1];
+          // Hide boofer and all official accounts from follower/following lists
+          _followers = results[0]
+              .where(
+                (u) =>
+                    !AppConstants.officialIds.contains(u.id) &&
+                    u.handle.toLowerCase() != 'boofer',
+              )
+              .toList();
+          _following = results[1]
+              .where(
+                (u) =>
+                    !AppConstants.officialIds.contains(u.id) &&
+                    u.handle.toLowerCase() != 'boofer',
+              )
+              .toList();
           _isLoading = false;
         });
 

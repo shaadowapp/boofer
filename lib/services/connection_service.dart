@@ -106,14 +106,18 @@ class ConnectionService {
       final requestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(1000)}';
       final now = DateTime.now().toIso8601String();
 
-      await _database.insert('connection_requests', {
-        'id': requestId,
-        'from_user_id': fromUserId,
-        'to_user_id': toUserId,
-        'message': message,
-        'status': ConnectionRequestStatus.pending.name,
-        'sent_at': now,
-      });
+      await _database.insert(
+        'connection_requests',
+        {
+          'id': requestId,
+          'from_user_id': fromUserId,
+          'to_user_id': toUserId,
+          'message': message,
+          'status': ConnectionRequestStatus.pending.name,
+          'sent_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
       await _loadConnectionRequests(toUserId);
       return true;
@@ -157,42 +161,60 @@ class ConnectionService {
   /// Accept connection request
   Future<bool> acceptConnectionRequest(String requestId) async {
     try {
-      final now = DateTime.now().toIso8601String();
-      
-      await _database.update(
-        'connection_requests',
-        {
-          'status': ConnectionRequestStatus.accepted.name,
-          'responded_at': now,
-        },
-        where: 'id = ?',
-        whereArgs: [requestId],
-      );
+      return await _database.transaction((txn) async {
+        final now = DateTime.now().toIso8601String();
+        
+        // 1. Update connection request status
+        await txn.update(
+          'connection_requests',
+          {
+            'status': ConnectionRequestStatus.accepted.name,
+            'responded_at': now,
+          },
+          where: 'id = ?',
+          whereArgs: [requestId],
+        );
 
-      // Add to friends table
-      final request = await _getConnectionRequest(requestId);
-      if (request != null) {
-        // Add to friends table
-        await _database.insert('friends', {
-          'user_id': request.toUserId,
-          'friend_id': request.fromUserId,
-          'status': 'accepted',
-          'created_at': now,
-          'updated_at': now,
-        });
+        // 2. Get request details within transaction
+        final results = await txn.rawQuery(
+          'SELECT * FROM connection_requests WHERE id = ?',
+          [requestId],
+        );
+        
+        if (results.isEmpty) return false;
+        
+        final request = ConnectionRequest.fromJson(results.first);
 
-        await _database.insert('friends', {
-          'user_id': request.fromUserId,
-          'friend_id': request.toUserId,
-          'status': 'accepted',
-          'created_at': now,
-          'updated_at': now,
-        });
+        // 3. Add bidirectional friend relationships with conflict resolution
+        await txn.insert(
+          'friends',
+          {
+            'user_id': request.toUserId,
+            'friend_id': request.fromUserId,
+            'status': 'accepted',
+            'created_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
 
+        await txn.insert(
+          'friends',
+          {
+            'user_id': request.fromUserId,
+            'friend_id': request.toUserId,
+            'status': 'accepted',
+            'created_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        // 4. Reload connection requests after transaction
         await _loadConnectionRequests(request.toUserId);
-      }
 
-      return true;
+        return true;
+      });
     } catch (e, stackTrace) {
       _errorHandler.handleError(AppError.service(
         message: 'Failed to accept connection request: $e',

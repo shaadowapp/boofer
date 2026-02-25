@@ -364,19 +364,25 @@ class ChatProvider with ChangeNotifier {
         );
       }
 
-      // 3. Ensure Boofer exists
+      // 3. Ensure Boofer tile exists (use real data from v_chat_lobby when available)
+      // The welcome-message trigger guarantees boofer always has a message row,
+      // so v_chat_lobby should return it with the correct unread_count.
+      // We only add a fallback if somehow it’s missing (e.g. the trigger hasn’t fired yet).
       if (!friendsList.any((f) => f.id == AppConstants.booferId)) {
-        debugPrint('🚀 [LOBBY] Adding Boofer tile');
+        debugPrint(
+          '🚀 [LOBBY] Boofer not in lobby yet — adding placeholder tile',
+        );
         friendsList.add(
           Friend(
             id: AppConstants.booferId,
             name: 'Boofer',
             handle: 'boofer',
             virtualNumber: 'BOOFER-001',
-            avatar: '🛸',
-            lastMessage: 'Welcome to Boofer! 🛸',
+            avatar: '🛣️',
+            lastMessage: 'Welcome to Boofer! 🛣️',
             lastMessageTime: DateTime.now().subtract(const Duration(days: 300)),
-            unreadCount: 0,
+            unreadCount:
+                0, // safe fallback — real count comes from v_chat_lobby
             isOnline: true,
             isArchived: false,
           ),

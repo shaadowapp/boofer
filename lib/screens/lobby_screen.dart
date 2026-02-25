@@ -5,7 +5,6 @@ import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/archive_settings_provider.dart';
 import '../services/user_service.dart';
-import '../services/supabase_service.dart';
 import '../utils/svg_icons.dart';
 import '../l10n/app_localizations.dart';
 import 'archived_chats_screen.dart';
@@ -22,7 +21,6 @@ class LobbyScreen extends StatefulWidget {
 }
 
 class _LobbyScreenState extends State<LobbyScreen> {
-  String? _userNumber;
   String? _currentUserId;
 
   @override
@@ -57,11 +55,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
         const Duration(seconds: 5),
       );
       debugPrint('✅ [LOBBY_UI] User number loaded: $number');
-      if (mounted) {
-        setState(() {
-          _userNumber = number;
-        });
-      }
     } catch (e) {
       debugPrint('⚠️ [LOBBY_UI] Could not load user number: $e');
     }
@@ -613,8 +606,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
           size: 14,
           color: Colors.orange,
         );
-      default:
-        return const SizedBox.shrink();
     }
   }
 
@@ -957,91 +948,4 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
-  /// Quick toggle read/unread status for testing (double-tap)
-  void _quickToggleReadStatus(Friend friend, ChatProvider chatProvider) async {
-    try {
-      if (friend.unreadCount > 0) {
-        final success = await chatProvider.markAsRead(friend.id);
-        if (success) {
-          _showSnackBar('✓ Marked "${friend.name}" as read', Colors.green);
-        } else {
-          _showSnackBar('✗ Failed to mark as read', Colors.red);
-        }
-      } else {
-        final success = await chatProvider.markAsUnread(friend.id);
-        if (success) {
-          _showSnackBar('✓ Marked "${friend.name}" as unread', Colors.blue);
-        } else {
-          _showSnackBar('✗ Failed to mark as unread', Colors.red);
-        }
-      }
-    } catch (e) {
-      _showSnackBar('Error: $e', Colors.red);
-    }
-  }
-
-  /// Test method: Mark all chats as read
-  void _testMarkAllAsRead(ChatProvider chatProvider) async {
-    int count = 0;
-    for (final friend in chatProvider.activeChats) {
-      if (friend.unreadCount > 0) {
-        await chatProvider.markAsRead(friend.id);
-        count++;
-      }
-    }
-    _showSnackBar('✓ Marked $count chats as read', Colors.green);
-  }
-
-  /// Test method: Mark all chats as unread
-  void _testMarkAllAsUnread(ChatProvider chatProvider) async {
-    int count = 0;
-    for (final friend in chatProvider.activeChats) {
-      await chatProvider.markAsUnread(friend.id);
-      count++;
-    }
-    _showSnackBar('✓ Marked $count chats as unread', Colors.orange);
-  }
-
-  void _showProfileDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your Virtual Number:',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _userNumber ?? 'Not set',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Privacy-first messaging with Boofer',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Use Supabase for logout
-              await SupabaseService.instance.signOut();
-              Navigator.pushReplacementNamed(context, '/onboarding');
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-  }
 }

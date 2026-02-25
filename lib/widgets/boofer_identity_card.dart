@@ -60,22 +60,70 @@ class BooferIdentityCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 80,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: theme.colorScheme.onSurface.withOpacity(0.1),
+                      Stack(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: user.isCompany
+                                  ? const Color(0xFFFFD700).withOpacity(0.08)
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                      0.05,
+                                    ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: user.isCompany
+                                    ? const Color(0xFFFFD700).withOpacity(0.35)
+                                    : theme.colorScheme.onSurface.withOpacity(
+                                        0.1,
+                                      ),
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                user.isCompany ? '🏢' : (user.avatar ?? '👤'),
+                                style: const TextStyle(fontSize: 44),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            user.isCompany ? '🏢' : (user.avatar ?? '👤'),
-                            style: const TextStyle(fontSize: 44),
-                          ),
-                        ),
+                          if (user.isCompany)
+                            Positioned(
+                              right: 3,
+                              bottom: 3,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF845EF7,
+                                  ), // deep purple — contrasts with gold crown
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isDark
+                                        ? const Color(0xFF1E1E30)
+                                        : theme.colorScheme.surface,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF845EF7,
+                                      ).withOpacity(0.5),
+                                      blurRadius: 5,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    '👑',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(width: 20),
                       Expanded(

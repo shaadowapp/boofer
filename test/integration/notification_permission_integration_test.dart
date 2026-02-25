@@ -10,6 +10,39 @@ import 'package:boofer/models/onboarding_data.dart';
 
 import '../test_helpers.dart';
 
+// Helper method to complete the full onboarding flow
+Future<void> completeOnboardingFlow(WidgetTester tester) async {
+  // Step 1: Registration
+  final nameField = find.byType(TextFormField);
+  await tester.enterText(nameField, 'Integration Test User');
+  await tester.pump();
+
+  final termsCheckbox = find.byType(Checkbox);
+  await tester.tap(termsCheckbox);
+  await tester.pump();
+
+  final registerButton = find.text('Register');
+  await tester.tap(registerButton);
+  await tester.pumpAndSettle();
+
+  // Step 2: PIN Setup
+  final pinFields = find.byType(TextFormField);
+  await tester.enterText(pinFields.first, '1234');
+  await tester.pump();
+  await tester.enterText(pinFields.last, '1234');
+  await tester.pump();
+
+  final continueButton = find.text('Continue');
+  await tester.tap(continueButton);
+  await tester.pumpAndSettle();
+
+  // Step 3: Complete Setup
+  await tester.pump(const Duration(seconds: 1)); // Wait for virtual number generation
+  final completeButton = find.text('Complete Setup');
+  await tester.tap(completeButton);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -286,37 +319,4 @@ void main() {
       expect(find.byType(MainScreen), findsOneWidget);
     });
   });
-
-  // Helper method to complete the full onboarding flow
-  Future<void> completeOnboardingFlow(WidgetTester tester) async {
-    // Step 1: Registration
-    final nameField = find.byType(TextFormField);
-    await tester.enterText(nameField, 'Integration Test User');
-    await tester.pump();
-
-    final termsCheckbox = find.byType(Checkbox);
-    await tester.tap(termsCheckbox);
-    await tester.pump();
-
-    final registerButton = find.text('Register');
-    await tester.tap(registerButton);
-    await tester.pumpAndSettle();
-
-    // Step 2: PIN Setup
-    final pinFields = find.byType(TextFormField);
-    await tester.enterText(pinFields.first, '1234');
-    await tester.pump();
-    await tester.enterText(pinFields.last, '1234');
-    await tester.pump();
-
-    final continueButton = find.text('Continue');
-    await tester.tap(continueButton);
-    await tester.pumpAndSettle();
-
-    // Step 3: Complete Setup
-    await tester.pump(const Duration(seconds: 1)); // Wait for virtual number generation
-    final completeButton = find.text('Complete Setup');
-    await tester.tap(completeButton);
-    await tester.pumpAndSettle();
-  }
 }

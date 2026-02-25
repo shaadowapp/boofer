@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:collection';
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_manager.dart';
 import '../core/models/app_error.dart';
 import '../core/error/error_handler.dart';
 import '../models/user_model.dart';
 import 'local_storage_service.dart';
-import 'virtual_number_service.dart';
 import 'profile_picture_service.dart';
 
 /// Privacy-focused user service for local user management
@@ -27,11 +27,22 @@ class UserService {
     required ErrorHandler errorHandler,
   }) : _database = database,
        _errorHandler = errorHandler;
-  final Map<String, User> _cache = {};
+  
+  // LRU cache with size limit to prevent memory leaks
+  static const int _maxCacheSize = 1000;
+  final LinkedHashMap<String, User> _cache = LinkedHashMap();
   final StreamController<List<User>> _usersController =
       StreamController<List<User>>.broadcast();
 
   Stream<List<User>> get usersStream => _usersController.stream;
+
+  /// Add user to cache with LRU eviction
+  void _addToCache(String id, User user) {
+    if (_cache.length >= _maxCacheSize) {
+      _cache.remove(_cache.keys.first); // Remove oldest entry
+    }
+    _cache[id] = user;
+  }
 
   // Static methods for backward compatibility
   static Future<String?> getUserEmail() async {
@@ -98,60 +109,6 @@ class UserService {
     );
   }
   */
-
-  /// Generate handle from display name
-  static String? _generateHandleFromName(String displayName) {
-    if (displayName.isEmpty) return null;
-
-    // Remove special characters and spaces, convert to lowercase
-    String handle = displayName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_]'), '')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-
-    // Ensure it's not empty and has reasonable length
-    if (handle.isEmpty || handle.length < 3) return null;
-    if (handle.length > 20) handle = handle.substring(0, 20);
-
-    return handle;
-  }
-
-  /// Generate handle from email
-  static String _generateHandleFromEmail(String email) {
-    String handle = email
-        .split('@')
-        .first
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_]'), '')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-
-    if (handle.isEmpty) handle = 'user';
-    if (handle.length > 20) handle = handle.substring(0, 20);
-
-    return handle;
-  }
-
-  /// Ensure handle is unique by appending numbers if needed
-  static Future<String> _ensureUniqueHandle(String baseHandle) async {
-    String handle = baseHandle;
-    int counter = 1;
-
-    while (!(await instance.isHandleAvailable(handle))) {
-      handle = '${baseHandle}_$counter';
-      counter++;
-
-      // Prevent infinite loop
-      if (counter > 999) {
-        handle =
-            '${baseHandle}_${DateTime.now().millisecondsSinceEpoch % 10000}';
-        break;
-      }
-    }
-
-    return handle;
-  }
 
   /// Generate a unique numeric user ID with current date
   /// Format: YYYYMMDDHHMMSS + 4-digit random number
@@ -257,7 +214,7 @@ class UserService {
         whereArgs: [user.id],
       );
 
-      _cache[user.id] = updatedUser;
+      _addToCache(user.id, updatedUser);
       await loadUsers(); // Refresh the stream
 
       return updatedUser;
@@ -283,7 +240,7 @@ class UserService {
       // Update cache
       _cache.clear();
       for (final user in users) {
-        _cache[user.id] = user;
+        _addToCache(user.id, user);
       }
 
       _usersController.add(users);
@@ -313,7 +270,7 @@ class UserService {
 
       if (results.isNotEmpty) {
         final user = User.fromJson(results.first);
-        _cache[id] = user;
+        _addToCache(id, user);
         return user;
       }
 
@@ -340,7 +297,7 @@ class UserService {
 
       if (results.isNotEmpty) {
         final user = User.fromJson(results.first);
-        _cache[user.id] = user;
+        _addToCache(user.id, user);
         return user;
       }
 
@@ -367,7 +324,7 @@ class UserService {
 
       if (results.isNotEmpty) {
         final user = User.fromJson(results.first);
-        _cache[user.id] = user;
+        _addToCache(user.id, user);
         return user;
       }
 
@@ -396,7 +353,7 @@ class UserService {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      _cache[user.id] = user;
+      _addToCache(user.id, user);
       await loadUsers(); // Refresh the stream
       return true;
     } catch (e, stackTrace) {

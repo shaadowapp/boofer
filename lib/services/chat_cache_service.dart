@@ -104,22 +104,26 @@ class ChatCacheService {
 
       // Insert new cache
       for (final friend in friends) {
-        await _database.insert('cached_friends', {
-          'user_id': userId,
-          'friend_id': friend.id,
-          'name': friend.name,
-          'handle': friend.handle,
-          'virtual_number': friend.virtualNumber,
-          'avatar': friend.avatar,
-          'last_message': friend.lastMessage,
-          'last_message_time': friend.lastMessageTime.toIso8601String(),
-          'unread_count': friend.unreadCount,
-          'is_online': friend.isOnline ? 1 : 0,
-          'is_archived': friend.isArchived ? 1 : 0,
-          'is_verified': friend.isVerified ? 1 : 0,
-          'is_mutual': friend.isMutual ? 1 : 0,
-          'cached_at': DateTime.now().toIso8601String(),
-        });
+        await _database.insert(
+          'cached_friends',
+          {
+            'user_id': userId,
+            'friend_id': friend.id,
+            'name': friend.name,
+            'handle': friend.handle,
+            'virtual_number': friend.virtualNumber,
+            'avatar': friend.avatar,
+            'last_message': friend.lastMessage,
+            'last_message_time': friend.lastMessageTime.toIso8601String(),
+            'unread_count': friend.unreadCount,
+            'is_online': friend.isOnline ? 1 : 0,
+            'is_archived': friend.isArchived ? 1 : 0,
+            'is_verified': friend.isVerified ? 1 : 0,
+            'is_mutual': friend.isMutual ? 1 : 0,
+            'cached_at': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
 
       // Update last sync timestamp
@@ -190,14 +194,18 @@ class ChatCacheService {
 
       // Insert new cache
       for (final entry in conversations.entries) {
-        await _database.insert('cached_conversations', {
-          'user_id': userId,
-          'friend_id': entry.key,
-          'last_message': entry.value['lastMessage'],
-          'last_message_time': entry.value['lastMessageTime'],
-          'unread_count': entry.value['unreadCount'] ?? 0,
-          'cached_at': DateTime.now().toIso8601String(),
-        });
+        await _database.insert(
+          'cached_conversations',
+          {
+            'user_id': userId,
+            'friend_id': entry.key,
+            'last_message': entry.value['lastMessage'],
+            'last_message_time': entry.value['lastMessageTime'],
+            'unread_count': entry.value['unreadCount'] ?? 0,
+            'cached_at': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
 
       // Update last sync timestamp
@@ -241,6 +249,54 @@ class ChatCacheService {
       _errorHandler.handleError(
         AppError.database(
           message: 'Failed to clear cache: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+    }
+  }
+
+  /// Clean up old cached data (older than specified days)
+  Future<void> cleanupOldCache({int maxAgeDays = 7}) async {
+    try {
+      final cutoffDate = DateTime.now()
+          .subtract(Duration(days: maxAgeDays))
+          .toIso8601String();
+      
+      final friendsDeleted = await _database.delete(
+        'cached_friends',
+        where: 'cached_at < ?',
+        whereArgs: [cutoffDate],
+      );
+      
+      final conversationsDeleted = await _database.delete(
+        'cached_conversations',
+        where: 'cached_at < ?',
+        whereArgs: [cutoffDate],
+      );
+      
+      final discoverDeleted = await _database.delete(
+        'cached_discover_users',
+        where: 'cached_at < ?',
+        whereArgs: [cutoffDate],
+      );
+      
+      final startChatDeleted = await _database.delete(
+        'cached_start_chat_users',
+        where: 'cached_at < ?',
+        whereArgs: [cutoffDate],
+      );
+
+      final totalDeleted = friendsDeleted + conversationsDeleted + 
+                          discoverDeleted + startChatDeleted;
+
+      if (totalDeleted > 0) {
+        debugPrint('🧹 Cleaned up $totalDeleted old cache entries (older than $maxAgeDays days)');
+      }
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to cleanup old cache: $e',
           stackTrace: stackTrace,
           originalException: e is Exception ? e : Exception(e.toString()),
         ),

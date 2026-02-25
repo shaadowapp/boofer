@@ -18,7 +18,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 11;
+  static const int _databaseVersion = 12;
 
   /// Get database instance
   Future<Database> get database async {
@@ -32,13 +32,19 @@ class DatabaseManager {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final databasePath = path.join(documentsDirectory.path, _databaseName);
 
-      return await openDatabase(
+      final db = await openDatabase(
         databasePath,
         version: _databaseVersion,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
       );
+
+      // Run health check after database initialization
+      debugPrint('🏥 [DB] Running post-initialization health check...');
+      await _runPostInitHealthCheck(db);
+
+      return db;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.database(
@@ -48,6 +54,24 @@ class DatabaseManager {
         ),
       );
       rethrow;
+    }
+  }
+
+  /// Run health check after database initialization or migration
+  Future<void> _runPostInitHealthCheck(Database db) async {
+    try {
+      // Quick integrity check only (don't run full health check to avoid blocking)
+      final result = await db.rawQuery('PRAGMA integrity_check');
+      if (result.isNotEmpty) {
+        final status = result.first['integrity_check'] as String?;
+        if (status == 'ok') {
+          debugPrint('✅ [DB] Post-init integrity check passed');
+        } else {
+          debugPrint('⚠️ [DB] Post-init integrity check failed: $status');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [DB] Post-init health check failed (non-critical): $e');
     }
   }
 
@@ -260,10 +284,9 @@ class DatabaseManager {
     ''');
 
     // Create indexes for better performance
-    batch.execute(
-      'CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)',
-    );
+    batch.execute('CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)');
     batch.execute('CREATE INDEX idx_messages_sender_id ON messages(sender_id)');
+    batch.execute('CREATE INDEX idx_messages_receiver_id ON messages(receiver_id)');
     batch.execute('CREATE INDEX idx_messages_timestamp ON messages(timestamp)');
     batch.execute('CREATE INDEX idx_messages_status ON messages(status)');
     batch.execute('CREATE INDEX idx_messages_hash ON messages(message_hash)');
@@ -530,6 +553,13 @@ class DatabaseManager {
         if (!e.toString().contains('duplicate column name')) rethrow;
       }
     }
+
+    if (oldVersion < 12) {
+      // Add missing index on messages.receiver_id for better query performance
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id)',
+      );
+    }
   }
 
   /// Execute a query with error handling
@@ -671,6 +701,7 @@ class DatabaseManager {
     try {
       final db = await database;
       await db.execute('VACUUM');
+      debugPrint('✅ Database vacuumed successfully');
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.database(
@@ -680,6 +711,175 @@ class DatabaseManager {
         ),
       );
     }
+  }
+
+  /// Check database integrity
+  Future<bool> checkIntegrity() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('PRAGMA integrity_check');
+      
+      if (result.isNotEmpty) {
+        final status = result.first['integrity_check'] as String?;
+        final isOk = status == 'ok';
+        
+        if (isOk) {
+          debugPrint('✅ Database integrity check passed');
+        } else {
+          debugPrint('⚠️ Database integrity check failed: $status');
+          _errorHandler.handleError(
+            AppError.database(
+              message: 'Database integrity check failed: $status',
+              stackTrace: StackTrace.current,
+              originalException: Exception('Integrity check failed'),
+            ),
+          );
+        }
+        
+        return isOk;
+      }
+      
+      return false;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to check database integrity: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return false;
+    }
+  }
+
+  /// Verify foreign key constraints
+  Future<bool> checkForeignKeys() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('PRAGMA foreign_key_check');
+      
+      if (result.isEmpty) {
+        debugPrint('✅ Foreign key constraints are valid');
+        return true;
+      } else {
+        debugPrint('⚠️ Foreign key constraint violations found: ${result.length}');
+        for (final violation in result) {
+          debugPrint('  - Table: ${violation['table']}, Row: ${violation['rowid']}');
+        }
+        
+        _errorHandler.handleError(
+          AppError.database(
+            message: 'Foreign key constraint violations found',
+            stackTrace: StackTrace.current,
+            context: {'violations': result},
+            originalException: Exception('Foreign key check failed'),
+          ),
+        );
+        
+        return false;
+      }
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to check foreign keys: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return false;
+    }
+  }
+
+  /// Get database statistics
+  Future<Map<String, dynamic>> getDatabaseStats() async {
+    try {
+      final db = await database;
+      
+      // Get table counts
+      final tables = [
+        'users',
+        'messages',
+        'friends',
+        'connection_requests',
+        'cached_friends',
+        'cached_conversations',
+      ];
+      
+      final stats = <String, dynamic>{};
+      
+      for (final table in tables) {
+        try {
+          final result = await db.rawQuery('SELECT COUNT(*) as count FROM $table');
+          stats[table] = result.first['count'];
+        } catch (e) {
+          stats[table] = 'error';
+        }
+      }
+      
+      // Get database size
+      stats['database_size_bytes'] = await getDatabaseSize();
+      stats['database_size_mb'] = (stats['database_size_bytes'] as int) / (1024 * 1024);
+      
+      // Get page count and page size
+      final pageCountResult = await db.rawQuery('PRAGMA page_count');
+      final pageSizeResult = await db.rawQuery('PRAGMA page_size');
+      
+      stats['page_count'] = pageCountResult.first['page_count'];
+      stats['page_size'] = pageSizeResult.first['page_size'];
+      
+      debugPrint('📊 Database Stats: $stats');
+      
+      return stats;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get database stats: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return {};
+    }
+  }
+
+  /// Perform comprehensive database health check
+  Future<Map<String, bool>> performHealthCheck() async {
+    debugPrint('🏥 Starting database health check...');
+    
+    final results = <String, bool>{};
+    
+    // Check integrity
+    results['integrity'] = await checkIntegrity();
+    
+    // Check foreign keys
+    results['foreign_keys'] = await checkForeignKeys();
+    
+    // Check if database is accessible
+    try {
+      await database;
+      results['accessible'] = true;
+    } catch (e) {
+      results['accessible'] = false;
+      debugPrint('❌ Database is not accessible: $e');
+    }
+    
+    // Get stats (non-critical)
+    try {
+      await getDatabaseStats();
+      results['stats_available'] = true;
+    } catch (e) {
+      results['stats_available'] = false;
+    }
+    
+    final allPassed = results.values.every((v) => v == true);
+    
+    if (allPassed) {
+      debugPrint('✅ Database health check passed');
+    } else {
+      debugPrint('⚠️ Database health check found issues: $results');
+    }
+    
+    return results;
   }
 
   /// Close database connection

@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 class LocationService {
   static Future<String?> getCityStateFromIP() async {
     try {
-      // Using ip-api.com (free for non-commercial, no API key needed)
+      // Using ipapi.co (HTTPS, free tier available)
       final response = await http
-          .get(Uri.parse('http://ip-api.com/json'))
+          .get(Uri.parse('https://ipapi.co/json'))
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {

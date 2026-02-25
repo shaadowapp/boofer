@@ -1204,22 +1204,66 @@ class _ProfileHeroCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 85,
-                      height: 105,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.onSurface.withOpacity(0.1),
+                    Stack(
+                      children: [
+                        Container(
+                          width: 85,
+                          height: 105,
+                          decoration: BoxDecoration(
+                            color: user.isCompany
+                                ? const Color(0xFFFFD700).withOpacity(0.08)
+                                : theme.colorScheme.onSurface.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: user.isCompany
+                                  ? const Color(0xFFFFD700).withOpacity(0.35)
+                                  : theme.colorScheme.onSurface.withOpacity(
+                                      0.1,
+                                    ),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              user.isCompany ? '🏢' : (user.avatar ?? '👤'),
+                              style: const TextStyle(fontSize: 44),
+                            ),
+                          ),
                         ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          user.isCompany ? '🏢' : (user.avatar ?? '👤'),
-                          style: const TextStyle(fontSize: 44),
-                        ),
-                      ),
+                        if (user.isCompany)
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF845EF7,
+                                ), // deep purple — contrasts with gold crown
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.colorScheme.surface,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF845EF7,
+                                    ).withOpacity(0.5),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  '👑',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(width: 20),
                     Expanded(

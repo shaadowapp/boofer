@@ -93,8 +93,24 @@ class ErrorHandler {
   }
 
   void _reportToCrashlytics(AppError error) {
-    // TODO: Implement crash reporting service integration
-    // Example: FirebaseCrashlytics.instance.recordError(...)
+    // Production crash reporting
+    // TODO: Uncomment when Firebase Crashlytics is configured
+    // FirebaseCrashlytics.instance.recordError(
+    //   error.originalException,
+    //   error.stackTrace,
+    //   reason: error.message,
+    //   fatal: error.severity == ErrorSeverity.critical,
+    // );
+    
+    // For now, log to console in release mode for debugging
+    if (kReleaseMode) {
+      developer.log(
+        'CRITICAL ERROR: ${error.message}',
+        name: 'CrashReport',
+        error: error.originalException,
+        stackTrace: error.stackTrace,
+      );
+    }
   }
 
   void dispose() {

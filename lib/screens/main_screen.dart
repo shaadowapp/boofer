@@ -1407,9 +1407,10 @@ class _MainScreenState extends State<MainScreen> {
     // Handle wrap-around distance
     if (distance > 1.5) distance = (3 - distance).abs();
 
-    final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
-    final double scale = 1.0 + (0.2 * selectionFactor);
-    final double opacity = isSelected ? 1.0 : selectionFactor;
+    // Scale and opacity could be used for animation effects
+    // final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
+    // final double scale = 1.0 + (0.2 * selectionFactor);
+    // final double opacity = isSelected ? 1.0 : selectionFactor;
 
     return Expanded(
       child: GestureDetector(
