@@ -43,7 +43,8 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _loadingAccountId = account['id'] as String);
     try {
       final auth = context.read<AuthStateProvider>();
-      await auth.checkAuthState();
+      // Use switchAccount instead of checkAuthState to recover the saved session
+      await auth.switchAccount(account['id'] as String);
 
       if (!mounted) return;
 
@@ -66,20 +67,15 @@ class _LoginScreenState extends State<LoginScreen>
           Navigator.pushReplacementNamed(context, '/legal-acceptance');
         }
       } else {
-        // Session expired — show a friendly error
+        // This part should technically be unreachable if switchAccount succeeds,
+        // but keeping it as a fallback in case switchAccount sets unauthenticated state.
         if (mounted) {
           _showSessionExpiredDialog(account);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login failed: $e'),
-            backgroundColor: const Color(0xFFFF6B6B),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showSessionExpiredDialog(account);
       }
     } finally {
       if (mounted) setState(() => _loadingAccountId = null);

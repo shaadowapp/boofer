@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import '../models/app_error.dart';
+import '../../services/bug_report_service.dart';
 
 /// Global error handler for the application
 class ErrorHandler {
@@ -9,9 +10,10 @@ class ErrorHandler {
   factory ErrorHandler() => _instance;
   ErrorHandler._internal();
 
-  final StreamController<AppError> _errorController = StreamController<AppError>.broadcast();
+  final StreamController<AppError> _errorController =
+      StreamController<AppError>.broadcast();
   final List<AppError> _errorHistory = [];
-  
+
   Stream<AppError> get errorStream => _errorController.stream;
   List<AppError> get errorHistory => List.unmodifiable(_errorHistory);
 
@@ -19,7 +21,7 @@ class ErrorHandler {
   void handleError(AppError error) {
     _errorHistory.add(error);
     _errorController.add(error);
-    
+
     // Log to console in debug mode
     if (kDebugMode) {
       developer.log(
@@ -30,7 +32,10 @@ class ErrorHandler {
         level: _getLogLevel(error.severity),
       );
     }
-    
+
+    // Auto-report bugs to Supabase
+    BugReportService.instance.reportError(error);
+
     // In production, send to crash reporting service
     if (kReleaseMode && error.severity == ErrorSeverity.critical) {
       _reportToCrashlytics(error);
@@ -55,7 +60,7 @@ class ErrorHandler {
       context: context,
       originalException: exception,
     );
-    
+
     handleError(error);
   }
 
@@ -101,7 +106,7 @@ class ErrorHandler {
     //   reason: error.message,
     //   fatal: error.severity == ErrorSeverity.critical,
     // );
-    
+
     // For now, log to console in release mode for debugging
     if (kReleaseMode) {
       developer.log(

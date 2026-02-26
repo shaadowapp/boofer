@@ -73,7 +73,8 @@ Future<Map<String, dynamic>> _initializeApp() async {
     try {
       await ProfilePictureService.instance.initialize().timeout(
         const Duration(seconds: 5),
-        onTimeout: () => debugPrint('⚠️ [BOOT] ProfilePictureService init timeout'),
+        onTimeout: () =>
+            debugPrint('⚠️ [BOOT] ProfilePictureService init timeout'),
       );
       debugPrint('✅ [BOOT] ProfilePictureService Initialized');
     } catch (e) {
@@ -208,14 +209,15 @@ Future<Map<String, dynamic>> _performInfrastructureSetup() async {
       url: SupabaseConfig.url,
       anonKey: SupabaseConfig.anonKey,
     );
-    
+
     debugPrint('✅ [BOOT] Infrahstucture Ready');
     return await _initializeApp();
   } catch (e) {
     debugPrint('❌ [BOOT] Infrastructure failure: $e');
     return {
       'initialRoute': '/onboarding',
-      'error': 'Configuration Error: $e\n\nEnsure you built with --dart-define flags for Supabase.',
+      'error':
+          'Configuration Error: $e\n\nEnsure you built with --dart-define flags for Supabase.',
     };
   }
 }
@@ -350,6 +352,10 @@ class _BooferAppState extends State<BooferApp> {
             navigatorKey: BooferApp.navigatorKey,
             title: 'Boofer',
             debugShowCheckedModeBanner: false,
+            routes: {
+              '/onboarding': (context) => const OnboardingScreen(),
+              '/main': (context) => const MainScreen(),
+            },
             themeMode: themeProvider.themeMode == AppThemeMode.system
                 ? ThemeMode.system
                 : (themeProvider.themeMode == AppThemeMode.dark

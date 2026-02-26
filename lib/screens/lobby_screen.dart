@@ -14,6 +14,8 @@ import '../core/constants.dart';
 import 'user_search_screen.dart';
 import '../widgets/skeleton_chat_tile.dart';
 import '../services/code_push_service.dart';
+import 'package:flutter/services.dart';
+import 'user_profile_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -150,7 +152,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               );
             },
           ),
-          
+
           Expanded(
             child: Consumer2<ChatProvider, ArchiveSettingsProvider>(
               builder: (context, chatProvider, archiveSettings, child) {
@@ -904,6 +906,42 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   _showDeleteConfirmation(friend, chatProvider, l10n);
                 },
               ),
+
+              const Divider(height: 32),
+
+              _buildChatOption(
+                context,
+                icon: Icons.person_outline,
+                title: 'View Profile',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserProfileScreen(
+                        userId: friend.id,
+                        userName: friend.name,
+                        userHandle: friend.handle,
+                        userAvatar: friend.avatar,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              _buildChatOption(
+                context,
+                icon: Icons.share_rounded,
+                title: 'Share Profile Link',
+                onTap: () {
+                  Navigator.pop(context);
+                  final link = 'https://booferapp.github.io/@${friend.handle}';
+                  Clipboard.setData(ClipboardData(text: link));
+                  _showSnackBar('Profile link copied!', Colors.blue);
+                },
+              ),
+
+              const SizedBox(height: 12),
             ],
           ),
         ),

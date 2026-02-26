@@ -672,7 +672,7 @@ class ChatProvider with ChangeNotifier {
           _updateFriendsOnlineStatus();
         })
         .subscribe((status, error) async {
-          if (status == 'SUBSCRIBED') {
+          if (status == RealtimeSubscribeStatus.subscribed) {
             await _presenceChannel!.track({
               'user_id': userId,
               'online_at': DateTime.now().toIso8601String(),

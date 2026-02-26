@@ -14,8 +14,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
+  final String? userName;
+  final String? userHandle;
+  final String? userAvatar;
 
-  const UserProfileScreen({super.key, required this.userId});
+  const UserProfileScreen({
+    super.key,
+    required this.userId,
+    this.userName,
+    this.userHandle,
+    this.userAvatar,
+  });
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -30,12 +39,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _initializePlaceholder();
     _loadProfile();
+  }
+
+  void _initializePlaceholder() {
+    if (widget.userName != null || widget.userHandle != null || widget.userAvatar != null) {
+      _profileUser = User(
+        id: widget.userId,
+        fullName: widget.userName ?? 'Loading...',
+        handle: widget.userHandle ?? '...',
+        avatar: widget.userAvatar ?? '👤',
+        bio: '',
+        email: '',
+        isDiscoverable: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      _isLoading = false;
+    }
   }
 
   Future<void> _loadProfile() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (_profileUser == null) {
+      setState(() => _isLoading = true);
+    }
     try {
       final currentUser = await UserService.getCurrentUser();
       final currentUserId = currentUser?.id ?? '';

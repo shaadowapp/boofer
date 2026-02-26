@@ -190,7 +190,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
     try {
       final auth = context.read<AuthStateProvider>();
-      await auth.checkAuthState();
+      // Use switchAccount instead of checkAuthState to recover the saved session
+      await auth.switchAccount(account['id'] as String);
 
       if (!mounted) return;
 
@@ -221,14 +222,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       } else {
         setState(() {
           _loginError =
-              'Session expired. Please create a new account from Settings.';
+              'Session expired. Please pick your account again or login with a different one.';
           _isLoggingIn = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _loginError = 'Login failed. Please try again.';
+          _loginError = 'Session expired. Redirecting...';
           _isLoggingIn = false;
         });
       }

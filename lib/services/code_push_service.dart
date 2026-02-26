@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notification_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class CodePushService {
   static final CodePushService instance = CodePushService._internal();
@@ -14,7 +15,9 @@ class CodePushService {
 
   // Track status for UI
   final ValueNotifier<bool> isUpdateReady = ValueNotifier<bool>(false);
-  final ValueNotifier<UpdateStatus> updateStatus = ValueNotifier<UpdateStatus>(UpdateStatus.upToDate);
+  final ValueNotifier<UpdateStatus> updateStatus = ValueNotifier<UpdateStatus>(
+    UpdateStatus.upToDate,
+  );
   final ValueNotifier<int?> currentPatch = ValueNotifier<int?>(null);
   final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
 
@@ -26,7 +29,9 @@ class CodePushService {
     try {
       final patch = await _updater.readCurrentPatch();
       currentPatch.value = patch?.number;
-      debugPrint('🔍 [CodePush] Current Patch Level: ${currentPatch.value ?? "Base"}');
+      debugPrint(
+        '🔍 [CodePush] Current Patch Level: ${currentPatch.value ?? "Base"}',
+      );
     } catch (e) {
       debugPrint('⚠️ [CodePush] Failed to read patch info: $e');
     }
@@ -37,37 +42,45 @@ class CodePushService {
     _isChecking = true;
 
     try {
-      debugPrint('🔍 [CodePush] Starting deep update check...');
+      debugPrint('🔍 [CodePush] Starting manual update scan...');
       lastError.value = null;
-      
+
       // 1. Sync current state
       await syncPatchInfo();
 
       final available = await _updater.isAvailable;
       if (!available) {
-        debugPrint('⚠️ [CodePush] Shorebird engine not available in this build (Debug/Profile mode?)');
+        debugPrint(
+          '⚠️ [CodePush] Shorebird engine not detected. (Check if running in RELEASE mode)',
+        );
         updateStatus.value = UpdateStatus.unavailable;
+        lastError.value =
+            "Shorebird engine not detected. Updates only work in RELEASE builds.";
         return;
       }
 
       // 2. Check Shorebird for new code
-      debugPrint('📡 [CodePush] Requesting Shorebird servers for version 1.0.0+6...');
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVer = "${packageInfo.version}+${packageInfo.buildNumber}";
+      debugPrint('📡 [CodePush] App Version: $currentVer');
+      debugPrint('📡 [CodePush] Querying Shorebird for updates...');
+
       final status = await _updater.checkForUpdate();
-      debugPrint('🔍 [CodePush] Shorebird check result: $status');
+      debugPrint('🔍 [CodePush] Check result: $status');
       updateStatus.value = status;
 
       if (status == UpdateStatus.outdated) {
-        // ... rest of the code ...
         // Ensure we can show notifications
         await NotificationService.instance.checkPermission();
 
-        // Notify user that download is starting
-        debugPrint('🔍 [CodePush] New update detected. Starting download...');
+        debugPrint(
+          '📥 [CodePush] New update detected. Starting background download...',
+        );
 
         await NotificationService.instance.showProgressNotification(
           id: _notificationId,
-          title: 'Updating Boofer',
-          body: 'Downloading latest features and fixes...',
+          title: 'Boofer is Updating',
+          body: 'Downloading critical security and feature fixes...',
           progress: 0,
           maxProgress: 100,
           indeterminate: true,
@@ -75,11 +88,11 @@ class CodePushService {
 
         // 3. Download and apply the patch (Wait for it)
         await _updater.update().timeout(const Duration(minutes: 5));
-        
+
         // Sync info AFTER update attempt to see what changed
         await syncPatchInfo();
-        
-        debugPrint('✅ [CodePush] Patch downloaded and applied (pending restart)');
+
+        debugPrint('✅ [CodePush] Patch successfully downloaded and staged.');
 
         // Mark update as ready for UI reflection
         isUpdateReady.value = true;
@@ -88,10 +101,12 @@ class CodePushService {
         // 4. Update notification to indicate readiness
         await NotificationService.instance.showSystemNotification(
           title: 'Update Ready ✨',
-          body: 'The latest version of Boofer is ready. Restart now to apply.',
+          body:
+              'The newest fixes have been applied. Restart Boofer to see changes.',
           payload: 'restart_required',
         );
-        // ... (Supabase part unchanged) ...
+
+        // 5. Check Supabase for force-restart config
         try {
           final res = await Supabase.instance.client
               .from('config')
@@ -102,25 +117,31 @@ class CodePushService {
 
           if (res != null) {
             final bool forceRestart = res['force_restart'] ?? false;
-            final String patchNotes = res['patch_notes'] ?? 'We\'ve improved Boofer with some background fixes.';
+            final String patchNotes =
+                res['patch_notes'] ??
+                'We\'ve improved Boofer with some stability fixes.';
 
             if (forceRestart && context.mounted) {
               _showUpdateDialog(context, patchNotes);
             }
           }
         } catch (e) {
-          debugPrint('⚠️ [CodePush] Supabase config check failed: $e');
+          debugPrint(
+            '⚠️ [CodePush] Supabase config check failed (Non-critical): $e',
+          );
         }
       } else if (status == UpdateStatus.upToDate) {
-        debugPrint('✅ [CodePush] App is already on the latest patch.');
-      } else if (status == UpdateStatus.unavailable) {
-        debugPrint('⚠️ [CodePush] Shorebird check unavailable.');
+        debugPrint(
+          '✅ [CodePush] No new updates found. You are on the latest patch.',
+        );
+      } else if (status == UpdateStatus.restartRequired) {
+        debugPrint(
+          '🔁 [CodePush] Update already downloaded. Waiting for restart.',
+        );
       }
     } catch (e) {
-      debugPrint('❌ [CodePush] Critical Error during update check: $e');
-      lastError.value = e.toString().contains('SocketException') 
-          ? "No internet or Shorebird servers unreachable." 
-          : "Unexpected Error: $e";
+      debugPrint('❌ [CodePush] Update Check Failed: $e');
+      lastError.value = "Check failed: ${e.toString()}";
     } finally {
       await NotificationService.instance.cancelNotification(_notificationId);
       _isChecking = false;

@@ -8,6 +8,8 @@ import '../services/notification_service.dart';
 import '../services/unified_storage_service.dart';
 import 'dart:async';
 // Background services removed
+import '../core/error/error_handler.dart';
+import '../core/models/app_error.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 import 'send_feedback_screen.dart';
@@ -992,6 +994,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     rootNavigator: true,
                   ).pop(); // Close loading dialog
+
+                  ErrorHandler().handleException(
+                    e is Exception ? e : Exception(e.toString()),
+                    message: 'Sign out failed: ${e.toString()}',
+                    severity: ErrorSeverity.high,
+                    category: ErrorCategory.authentication,
+                  );
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

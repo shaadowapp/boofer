@@ -41,7 +41,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       await CodePushService.instance.syncPatchInfo();
-      
+
       if (!mounted) return;
       setState(() {
         _currentVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
@@ -103,6 +103,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildShorebirdWarning(),
             _buildStatusHeader(),
             const SizedBox(height: 30),
             _buildVersionInfoCard(),
@@ -124,6 +125,55 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildShorebirdWarning() {
+    return FutureBuilder<bool>(
+      future: CodePushService.instance.isShorebirdAvailable,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting)
+          return const SizedBox.shrink();
+        final available = snapshot.data ?? false;
+        if (available) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Shorebird Not Detected',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
+                    Text(
+                      'Update engine is only active in Release mode. If you are testing, build a release APK/Bundle.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -12,7 +12,7 @@ class AppearanceProvider extends ChangeNotifier {
   Color _accentColor = const Color(0xFF3B82F6);
   String _selectedWallpaper = 'none';
   double _appFontSize = 16.0; // Font size for app UI
-  double _bubbleFontSize = 16.0; // Font size for chat bubbles
+  double _bubbleFontSize = 14.0; // Font size for chat bubbles (2nd dot default)
   double _cornerRadius = 16.0; // UI Corner radius
   NavBarStyle _navBarStyle = NavBarStyle.modern; // Navigation bar style
 
@@ -80,7 +80,7 @@ class AppearanceProvider extends ChangeNotifier {
     _accentColor = Color(accentColorValue ?? 0xFF3B82F6);
     _selectedWallpaper = wallpaper ?? 'none';
     _appFontSize = appFontSizeValue ?? 16.0;
-    _bubbleFontSize = bubbleFontSizeValue ?? 16.0;
+    _bubbleFontSize = bubbleFontSizeValue ?? 14.0;
     _cornerRadius = cornerRadiusValue ?? 16.0;
 
     _navBarStyle = NavBarStyle.values.firstWhere(
@@ -429,12 +429,12 @@ class AppearanceProvider extends ChangeNotifier {
     _accentColor = const Color(0xFF3B82F6);
     _selectedWallpaper = 'none';
     _appFontSize = 16.0;
-    _bubbleFontSize = 16.0;
+    _bubbleFontSize = 14.0;
 
     await UnifiedStorageService.setInt('accent_color', 0xFF3B82F6);
     await UnifiedStorageService.setString('chat_wallpaper', 'none');
     await UnifiedStorageService.setDouble('app_font_size', 16.0);
-    await UnifiedStorageService.setDouble('bubble_font_size', 16.0);
+    await UnifiedStorageService.setDouble('bubble_font_size', 14.0);
 
     _themeProvider?.updateAccentColor(_accentColor);
     _themeProvider?.updateFontSize(_appFontSize);

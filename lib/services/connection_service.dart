@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:sqflite/sqflite.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../core/models/app_error.dart';
