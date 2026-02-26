@@ -51,11 +51,26 @@
             </intent-filter>
             
             <!-- Custom URI Scheme boofer:// -->
-            <intent-filter android:label="boofer_share">
+            <intent-filter android:label="boofer_deeplink">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="boofer" />
+            </intent-filter>
+
+            <!-- Android App Links (https://booferapp.github.io) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="booferapp.github.io" />
+                <data android:scheme="https" android:host="booferapp.github.io" />
+                
+                <!-- Path patterns for Profiles: /@handle -->
+                <data android:pathPrefix="/@" />
+                
+                <!-- Path patterns for Chats: /chat/@handle or /chat/virtualNumber -->
+                <data android:pathPrefix="/chat/" />
             </intent-filter>
 
             <!-- Receive Shared Text -->

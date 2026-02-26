@@ -49,28 +49,42 @@ Future<Map<String, dynamic>> _initializeApp() async {
     final client = Supabase.instance.client;
     debugPrint('🚀 [BOOT] Supabase client obtained: ${client.hashCode}');
 
-    // Early Share Check
+    // Early Share Check (Fire and forget, but with safety)
     debugPrint('🚀 [BOOT] Checking for initial share...');
     ReceiveShareService.instance
         .checkInitialShare()
+        .timeout(const Duration(seconds: 3))
         .then((_) {
           debugPrint('✅ [BOOT] Share check completed');
         })
         .catchError((e) {
-          debugPrint('⚠️ [BOOT] Share capture failed: $e');
+          debugPrint('⚠️ [BOOT] Share check timed out or failed: $e');
         });
 
-    // Await core services
+    // Await core services with timeouts
     debugPrint('🚀 [BOOT] Initializing NotificationService...');
-    await NotificationService.instance.initialize();
+    await NotificationService.instance.initialize().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => debugPrint('⚠️ [BOOT] NotificationService init timeout'),
+    );
     debugPrint('✅ [BOOT] NotificationService Initialized');
 
     debugPrint('🚀 [BOOT] Initializing ProfilePictureService...');
-    await ProfilePictureService.instance.initialize();
-    debugPrint('✅ [BOOT] ProfilePictureService Initialized');
+    try {
+      await ProfilePictureService.instance.initialize().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => debugPrint('⚠️ [BOOT] ProfilePictureService init timeout'),
+      );
+      debugPrint('✅ [BOOT] ProfilePictureService Initialized');
+    } catch (e) {
+      debugPrint('⚠️ [BOOT] ProfilePictureService initialization failed: $e');
+    }
 
     debugPrint('🚀 [BOOT] Phase 3: SupabaseService initialization');
-    await SupabaseService.instance.initialize();
+    await SupabaseService.instance.initialize().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => debugPrint('⚠️ [BOOT] SupabaseService init timeout'),
+    );
     debugPrint('✅ [BOOT] SupabaseService Initialized');
 
     debugPrint('🚀 [BOOT] Phase 4: Route Determination');
@@ -168,60 +182,42 @@ Future<Map<String, dynamic>> _initializeApp() async {
 }
 
 void main() async {
-  if (kReleaseMode) {
-    debugPrint = (String? message, {int? wrapWidth}) {};
-  }
+  // if (kReleaseMode) {
+  //   debugPrint = (String? message, {int? wrapWidth}) {};
+  // }
   debugPrint('🚩 [BOOT] --- APP STARTING ---');
   WidgetsFlutterBinding.ensureInitialized();
 
   debugPrint('🚀 [BOOT] Phase 1: Global Infrastructure (Blocking)');
   bool isInfraReady = false;
 
-  // Validate Supabase configuration
+  // Move validation and Supabase setup into a guarded future to avoid black screen on crash
+  final initializationFuture = _performInfrastructureSetup();
+
+  debugPrint('🚀 [BOOT] Calling runApp...');
+  runApp(BooferApp(initializationFuture: initializationFuture));
+}
+
+Future<Map<String, dynamic>> _performInfrastructureSetup() async {
   try {
     debugPrint('🔒 [BOOT] Validating Supabase configuration...');
     SupabaseConfig.validate();
-    debugPrint('✅ [BOOT] Supabase configuration validated');
-  } catch (e) {
-    debugPrint('❌ [BOOT] Supabase configuration validation failed: $e');
-    // In production, this should prevent app startup
-    if (kReleaseMode) {
-      throw Exception('App configuration error. Please contact support.');
-    }
-    rethrow;
-  }
 
-  // Initialize Supabase (Critical)
-  bool isSupabaseReady = false;
-  try {
     debugPrint('🚀 [BOOT] Initializing Supabase...');
     await Supabase.initialize(
       url: SupabaseConfig.url,
       anonKey: SupabaseConfig.anonKey,
     );
-    debugPrint('✅ [BOOT] Supabase Initialized Successfully');
-    isSupabaseReady = true;
+    
+    debugPrint('✅ [BOOT] Infrahstucture Ready');
+    return await _initializeApp();
   } catch (e) {
-    if (e.toString().contains('already been initialized')) {
-      debugPrint('ℹ️ [BOOT] Supabase already initialized');
-      isSupabaseReady = true;
-    } else {
-      debugPrint('❌ [BOOT] Supabase Initialization Failed: $e');
-    }
+    debugPrint('❌ [BOOT] Infrastructure failure: $e');
+    return {
+      'initialRoute': '/onboarding',
+      'error': 'Configuration Error: $e\n\nEnsure you built with --dart-define flags for Supabase.',
+    };
   }
-
-  isInfraReady = isSupabaseReady;
-
-  final initializationFuture = isInfraReady
-      ? _initializeApp()
-      : Future.value({
-          'initialRoute': '/onboarding',
-          'error':
-              'Infrastructure initialization failed. Please check your internet connection and Supabase configuration.',
-        });
-
-  debugPrint('🚀 [BOOT] Calling runApp...');
-  runApp(BooferApp(initializationFuture: initializationFuture));
 }
 
 class BooferApp extends StatefulWidget {
@@ -256,7 +252,7 @@ class _BooferAppState extends State<BooferApp> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       debugPrint('🚀 [APP] Post-frame callback: Initializing DeepLinkService');
-      DeepLinkService.instance.initialize();
+      DeepLinkService.instance.init(BooferApp.navigatorKey);
 
       // Check for code push updates (Shorebird Shadow Manager)
       CodePushService.instance.checkForUpdates(context);
@@ -318,7 +314,7 @@ class _BooferAppState extends State<BooferApp> {
   @override
   void dispose() {
     debugPrint('🚀 [APP] dispose triggered');
-    DeepLinkService.instance.dispose();
+    // DeepLinkService handles its own lifecycle
     ReceiveShareService.instance.dispose();
     _chatService.dispose();
     super.dispose();
@@ -368,9 +364,26 @@ class _BooferAppState extends State<BooferApp> {
               future: _initFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  // Use a clean, themed scaffold instead of a full splash widget
-                  // with a logo to avoid "double splash" effect.
-                  return const Scaffold(backgroundColor: Color(0xFF0F172A));
+                  return const Scaffold(
+                    backgroundColor: Color(0xFF0F172A),
+                    body: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Colors.cyanAccent),
+                          SizedBox(height: 24),
+                          Text(
+                            'Initializing Boofer OS...',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
 
                 if (snapshot.hasError ||

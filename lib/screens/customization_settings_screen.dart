@@ -1,9 +1,12 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../utils/svg_icons.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
+import '../services/code_push_service.dart';
+import 'software_update_screen.dart';
 
 class CustomizationSettingsScreen extends StatefulWidget {
   const CustomizationSettingsScreen({super.key});

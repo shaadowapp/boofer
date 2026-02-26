@@ -20,6 +20,7 @@ import 'following_screen.dart';
 import 'share_profile_screen.dart';
 import '../providers/follow_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/skeleton_profile_header.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -122,8 +123,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_isLoading && _currentUser == null) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        body: Center(
-          child: CircularProgressIndicator(color: theme.colorScheme.primary),
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          systemOverlayStyle: isDark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
+          title: Text(
+            'MY IDENTITY',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 2,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const SizedBox(height: 110),
+              const SkeletonProfileHeader(),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       );
     }

@@ -6,6 +6,7 @@ import '../services/user_service.dart';
 import '../widgets/unified_friend_card.dart';
 import '../providers/follow_provider.dart';
 import '../core/constants.dart';
+import '../widgets/skeleton_user_card.dart';
 
 class ManageFriendsScreen extends StatefulWidget {
   const ManageFriendsScreen({super.key});
@@ -124,7 +125,19 @@ class _ManageFriendsScreenState extends State<ManageFriendsScreen>
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? TabBarView(
+              controller: _tabController,
+              children: [
+                ListView.builder(
+                  itemCount: 8,
+                  itemBuilder: (context, index) => const SkeletonUserCard(),
+                ),
+                ListView.builder(
+                  itemCount: 8,
+                  itemBuilder: (context, index) => const SkeletonUserCard(),
+                ),
+              ],
+            )
           : TabBarView(
               controller: _tabController,
               children: [

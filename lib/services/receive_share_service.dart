@@ -89,6 +89,13 @@ class ReceiveShareService {
     for (var item in media) {
       debugPrint("📄 Item: ${item.type} - Path: ${item.path}");
 
+      // 🛡️ SECURITY: Ignore Boofer's own deep links so DeepLinkService can handle them
+      if (item.path.contains('booferapp.github.io') || 
+          item.path.startsWith('boofer://')) {
+        debugPrint("🚫 ReceiveShareService: Ignoring Boofer Deep Link path: ${item.path}");
+        continue;
+      }
+
       if (item.type == SharedMediaType.text ||
           item.type == SharedMediaType.url) {
         sharedText = (sharedText == null)

@@ -304,67 +304,6 @@ class Friend {
   }
 
   static List<Friend> getDemoFriends() {
-    return [
-      Friend(
-        id: '1',
-        name: 'Alex Johnson',
-        handle: 'alex_nyc',
-        virtualNumber: '555-123-4567',
-        lastMessage: 'Hey! How are you doing?',
-        lastMessageTime: DateTime.now().subtract(const Duration(minutes: 5)),
-        unreadCount: 2,
-        isOnline: true,
-      ),
-      Friend(
-        id: '2',
-        name: 'Sarah Wilson',
-        handle: 'sarah_coffee',
-        virtualNumber: '555-234-5678',
-        lastMessage: 'Thanks for the help earlier 👍',
-        lastMessageTime: DateTime.now().subtract(const Duration(hours: 1)),
-        unreadCount: 0,
-        isOnline: true,
-      ),
-      Friend(
-        id: '3',
-        name: 'Mike Chen',
-        handle: 'mike_tech',
-        virtualNumber: '555-345-6789',
-        lastMessage: 'See you tomorrow!',
-        lastMessageTime: DateTime.now().subtract(const Duration(hours: 3)),
-        unreadCount: 1,
-        isOnline: false,
-      ),
-      Friend(
-        id: '4',
-        name: 'Emma Davis',
-        handle: 'emma_artist',
-        virtualNumber: '555-456-7890',
-        lastMessage: 'The meeting went great 🎉',
-        lastMessageTime: DateTime.now().subtract(const Duration(days: 1)),
-        unreadCount: 0,
-        isOnline: false,
-      ),
-      Friend(
-        id: '5',
-        name: 'James Brown',
-        handle: 'james_music',
-        virtualNumber: '555-567-8901',
-        lastMessage: 'Can you send me the files?',
-        lastMessageTime: DateTime.now().subtract(const Duration(days: 2)),
-        unreadCount: 3,
-        isOnline: true,
-      ),
-      Friend(
-        id: '6',
-        name: 'Lisa Garcia',
-        handle: 'lisa_travel',
-        virtualNumber: '555-678-9012',
-        lastMessage: 'Happy birthday! 🎂',
-        lastMessageTime: DateTime.now().subtract(const Duration(days: 3)),
-        unreadCount: 0,
-        isOnline: false,
-      ),
-    ];
+    return [];
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
@@ -26,22 +27,29 @@ class AboutScreen extends StatelessWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // App Information
-                _buildSectionContainer(
-                  context,
-                  title: 'App Information',
-                  icon: Icons.info_outline,
-                  color: Colors.blue,
-                  children: [
-                    _buildInfoTile(context, 'Version', '1.1.2'),
-                    _buildInfoTile(context, 'Build', '2026.02'),
-                    _buildInfoTile(context, 'Release Date', 'February 2026'),
-                    _buildInfoTile(context, 'Engine', 'Flutter 3.24 (Stable)'),
-                    _buildInfoTile(
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    final version = snapshot.data?.version ?? '1.0.0';
+                    final build = snapshot.data?.buildNumber ?? '6';
+                    return _buildSectionContainer(
                       context,
-                      'Identity',
-                      'Virtual Number System',
-                    ),
-                  ],
+                      title: 'App Information',
+                      icon: Icons.info_outline,
+                      color: Colors.blue,
+                      children: [
+                        _buildInfoTile(context, 'Version', version),
+                        _buildInfoTile(context, 'Build', build),
+                        _buildInfoTile(context, 'Release Date', 'February 2026'),
+                        _buildInfoTile(context, 'Engine', 'Shorebird Engine'),
+                        _buildInfoTile(
+                          context,
+                          'Identity',
+                          'Virtual Number System',
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 24),

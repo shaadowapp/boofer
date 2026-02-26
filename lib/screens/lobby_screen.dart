@@ -12,6 +12,8 @@ import 'friend_chat_screen.dart';
 import '../widgets/user_avatar.dart';
 import '../core/constants.dart';
 import 'user_search_screen.dart';
+import '../widgets/skeleton_chat_tile.dart';
+import '../services/code_push_service.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -87,142 +89,215 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
 
     return Scaffold(
-      body: Consumer2<ChatProvider, ArchiveSettingsProvider>(
-        builder: (context, chatProvider, archiveSettings, child) {
-          final activeChats = chatProvider.activeChats;
-          final archivedChats = chatProvider.archivedChats;
-
-          debugPrint('🚀 [LOBBY_UI] UI CONSUMER REBUILD');
-          debugPrint(
-            '🚀 [LOBBY_UI] Provider State: friendsLoaded=${chatProvider.friendsLoaded}, isLoadingFromNetwork=${chatProvider.isLoadingFromNetwork}',
-          );
-          debugPrint(
-            '🚀 [LOBBY_UI] Data State: activeChats=${activeChats.length}, archivedChats=${archivedChats.length}',
-          );
-
-          // 1. Initial Loading State (Before cache or network returned anything)
-          if (!chatProvider.friendsLoaded && activeChats.isEmpty) {
-            debugPrint(
-              '🚀 [LOBBY_UI] Showing initial CircularProgressIndicator',
-            );
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // 2. Empty State (Loaded but no chats found)
-          if (activeChats.isEmpty) {
-            debugPrint('🚀 [LOBBY_UI] Showing "No chats yet" state');
-            return RefreshIndicator(
-              onRefresh: () async {
-                await chatProvider.refreshFriends();
-              },
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SvgIcons.sized(
-                              SvgIcons.peopleOutline,
-                              64,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No chats yet',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withOpacity(0.5),
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Start connecting with people',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withOpacity(0.5),
-                                  ),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const UserSearchScreen(),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.explore_outlined),
-                              label: const Text('Explore Users'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
-                            ),
-                          ],
+      body: Column(
+        children: [
+          // RESTART REQUIRED BANNER (Real feedback)
+          ValueListenableBuilder<bool>(
+            valueListenable: CodePushService.instance.isUpdateReady,
+            builder: (context, isReady, child) {
+              if (!isReady) return const SizedBox.shrink();
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 16,
+                ),
+                color: Colors.orange.shade800,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Update downloaded! Restart Boofer to apply.',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              await chatProvider.refreshFriends();
+                    TextButton(
+                      onPressed: () {
+                        // In a real app, use Restart.restartApp()
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Please close and reopen the app manually.',
+                            ),
+                          ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      child: const Text(
+                        'RESTART',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
             },
-            child: ListView.separated(
-              itemCount: _calculateTotalItems(
-                activeChats,
-                archivedChats,
-                archiveSettings,
-              ),
-              separatorBuilder: (context, index) => Divider(
-                height: 0,
-                thickness: 0.5,
-                indent:
-                    74, // align with text start (16 padding + 56 avatar + 2)
-                endIndent: 0,
-                color: Theme.of(context).dividerColor.withOpacity(0.15),
-              ),
-              itemBuilder: (context, index) {
-                return _buildListItem(
-                  context,
-                  index,
-                  activeChats,
-                  archivedChats,
-                  archiveSettings,
-                  chatProvider,
-                  l10n,
+          ),
+          
+          Expanded(
+            child: Consumer2<ChatProvider, ArchiveSettingsProvider>(
+              builder: (context, chatProvider, archiveSettings, child) {
+                final activeChats = chatProvider.activeChats;
+                final archivedChats = chatProvider.archivedChats;
+
+                debugPrint('🚀 [LOBBY_UI] UI CONSUMER REBUILD');
+                debugPrint(
+                  '🚀 [LOBBY_UI] Provider State: friendsLoaded=${chatProvider.friendsLoaded}, isLoadingFromNetwork=${chatProvider.isLoadingFromNetwork}',
+                );
+                debugPrint(
+                  '🚀 [LOBBY_UI] Data State: activeChats=${activeChats.length}, archivedChats=${archivedChats.length}',
+                );
+
+                // 1. Initial Loading State (Before cache or network returned anything)
+                if (!chatProvider.friendsLoaded && activeChats.isEmpty) {
+                  debugPrint('🚀 [LOBBY_UI] Showing skeleton loading');
+                  return ListView.builder(
+                    itemCount: 8,
+                    itemBuilder: (context, index) => const SkeletonChatTile(),
+                  );
+                }
+
+                // 2. Empty State (Loaded but no chats found)
+                if (activeChats.isEmpty) {
+                  debugPrint('🚀 [LOBBY_UI] Showing "No chats yet" state');
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      await chatProvider.refreshFriends();
+                    },
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgIcons.sized(
+                                    SvgIcons.peopleOutline,
+                                    64,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No chats yet',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.5),
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Start connecting with people',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.5),
+                                        ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const UserSearchScreen(),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.explore_outlined),
+                                    label: const Text('Explore Users'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(30),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await chatProvider.refreshFriends();
+                  },
+                  child: ListView.separated(
+                    itemCount: _calculateTotalItems(
+                      activeChats,
+                      archivedChats,
+                      archiveSettings,
+                    ),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 0,
+                      thickness: 0.5,
+                      indent:
+                          74, // align with text start (16 padding + 56 avatar + 2)
+                      endIndent: 0,
+                      color: Theme.of(context).dividerColor.withOpacity(0.15),
+                    ),
+                    itemBuilder: (context, index) {
+                      return _buildListItem(
+                        context,
+                        index,
+                        activeChats,
+                        archivedChats,
+                        archiveSettings,
+                        chatProvider,
+                        l10n,
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -947,5 +1022,4 @@ class _LobbyScreenState extends State<LobbyScreen> {
       );
     }
   }
-
 }

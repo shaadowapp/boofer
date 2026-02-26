@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notification_service.dart';
 
 class CodePushService {
   static final CodePushService instance = CodePushService._internal();
@@ -8,46 +10,119 @@ class CodePushService {
 
   final _updater = ShorebirdUpdater();
   bool _isChecking = false;
+  static const int _notificationId = 888;
+
+  // Track status for UI
+  final ValueNotifier<bool> isUpdateReady = ValueNotifier<bool>(false);
+  final ValueNotifier<UpdateStatus> updateStatus = ValueNotifier<UpdateStatus>(UpdateStatus.upToDate);
+  final ValueNotifier<int?> currentPatch = ValueNotifier<int?>(null);
+  final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
+
+  /// Returns true if the app is running with Shorebird engine (Release mode)
+  Future<bool> get isShorebirdAvailable async => _updater.isAvailable;
+
+  /// Refreshes the current patch number logic
+  Future<void> syncPatchInfo() async {
+    try {
+      final patch = await _updater.readCurrentPatch();
+      currentPatch.value = patch?.number;
+      debugPrint('🔍 [CodePush] Current Patch Level: ${currentPatch.value ?? "Base"}');
+    } catch (e) {
+      debugPrint('⚠️ [CodePush] Failed to read patch info: $e');
+    }
+  }
 
   Future<void> checkForUpdates(BuildContext context) async {
     if (_isChecking) return;
     _isChecking = true;
 
     try {
-      debugPrint('🔍 [CodePush] Checking for updates...');
+      debugPrint('🔍 [CodePush] Starting deep update check...');
+      lastError.value = null;
+      
+      // 1. Sync current state
+      await syncPatchInfo();
 
-      // 1. Check Shorebird for new code
+      final available = await _updater.isAvailable;
+      if (!available) {
+        debugPrint('⚠️ [CodePush] Shorebird engine not available in this build (Debug/Profile mode?)');
+        updateStatus.value = UpdateStatus.unavailable;
+        return;
+      }
+
+      // 2. Check Shorebird for new code
+      debugPrint('📡 [CodePush] Requesting Shorebird servers for version 1.0.0+6...');
       final status = await _updater.checkForUpdate();
-      debugPrint('🔍 [CodePush] Update status: $status');
+      debugPrint('🔍 [CodePush] Shorebird check result: $status');
+      updateStatus.value = status;
 
       if (status == UpdateStatus.outdated) {
-        // 2. Download and apply the patch
-        debugPrint('下载 [CodePush] Downloading and applying patch...');
-        await _updater.update();
-        debugPrint('✅ [CodePush] Patch downloaded and applied');
+        // ... rest of the code ...
+        // Ensure we can show notifications
+        await NotificationService.instance.checkPermission();
 
-        // 3. Consult Supabase: Is this a "Critical" fix?
-        final res = await Supabase.instance.client
-            .from('config')
-            .select()
-            .order('created_at', ascending: false)
-            .limit(1)
-            .single();
+        // Notify user that download is starting
+        debugPrint('🔍 [CodePush] New update detected. Starting download...');
 
-        final bool forceRestart = res['force_restart'] ?? false;
-        final String patchNotes =
-            res['patch_notes'] ??
-            'We\'ve improved Boofer with some background fixes.';
+        await NotificationService.instance.showProgressNotification(
+          id: _notificationId,
+          title: 'Updating Boofer',
+          body: 'Downloading latest features and fixes...',
+          progress: 0,
+          maxProgress: 100,
+          indeterminate: true,
+        );
 
-        if (forceRestart) {
-          _showUpdateDialog(context, patchNotes);
-        } else {
-          debugPrint('ℹ️ [CodePush] Patch will be applied on next restart');
+        // 3. Download and apply the patch (Wait for it)
+        await _updater.update().timeout(const Duration(minutes: 5));
+        
+        // Sync info AFTER update attempt to see what changed
+        await syncPatchInfo();
+        
+        debugPrint('✅ [CodePush] Patch downloaded and applied (pending restart)');
+
+        // Mark update as ready for UI reflection
+        isUpdateReady.value = true;
+        updateStatus.value = UpdateStatus.restartRequired;
+
+        // 4. Update notification to indicate readiness
+        await NotificationService.instance.showSystemNotification(
+          title: 'Update Ready ✨',
+          body: 'The latest version of Boofer is ready. Restart now to apply.',
+          payload: 'restart_required',
+        );
+        // ... (Supabase part unchanged) ...
+        try {
+          final res = await Supabase.instance.client
+              .from('config')
+              .select()
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+
+          if (res != null) {
+            final bool forceRestart = res['force_restart'] ?? false;
+            final String patchNotes = res['patch_notes'] ?? 'We\'ve improved Boofer with some background fixes.';
+
+            if (forceRestart && context.mounted) {
+              _showUpdateDialog(context, patchNotes);
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ [CodePush] Supabase config check failed: $e');
         }
+      } else if (status == UpdateStatus.upToDate) {
+        debugPrint('✅ [CodePush] App is already on the latest patch.');
+      } else if (status == UpdateStatus.unavailable) {
+        debugPrint('⚠️ [CodePush] Shorebird check unavailable.');
       }
     } catch (e) {
-      debugPrint('❌ [CodePush] Error during update check: $e');
+      debugPrint('❌ [CodePush] Critical Error during update check: $e');
+      lastError.value = e.toString().contains('SocketException') 
+          ? "No internet or Shorebird servers unreachable." 
+          : "Unexpected Error: $e";
     } finally {
+      await NotificationService.instance.cancelNotification(_notificationId);
       _isChecking = false;
     }
   }
@@ -57,113 +132,113 @@ class CodePushService {
       context: context,
       barrierDismissible: false,
       barrierLabel: 'Update Required',
-      barrierColor: Colors.black.withOpacity(0.8),
+      barrierColor: Colors.black.withOpacity(0.85),
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (context, anim1, anim2) {
         return WillPopScope(
           onWillPop: () async => false,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Center(
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: const Color(0xFF334155),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blueAccent.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.system_update_alt_rounded,
-                            color: Colors.blueAccent,
-                            size: 40,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Midnight Patch Available',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          patchNotes,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
-                            height: 1.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 30),
-                        ElevatedButton(
-                          onPressed: () {
-                            // Tip: Install 'restart_app' package and call 'Restart.restartApp()'
-                            // to automatically apply the Shorebird patch.
-                            debugPrint('🚀 [CodePush] User triggered restart');
-                            // Close the app or restart it.
-                            // For now, we'll suggest a restart or use a package like 'restart_app'.
-                            // The simplest way to apply a Shorebird patch is a cold start.
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Update Now',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'App will restart to apply changes',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          child: Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              );
-            },
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueAccent.withOpacity(0.2),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.cyanAccent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.rocket_launch_rounded,
+                        color: Colors.cyanAccent,
+                        size: 44,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Universal Patch Live',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      patchNotes,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          debugPrint('🚀 [CodePush] Restarting app...');
+                          exit(0);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.cyanAccent.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 8,
+                          shadowColor: Colors.cyanAccent.withOpacity(0.4),
+                        ),
+                        child: const Text(
+                          'RESTART NOW',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'New code is ready. Instantly apply the fix.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },

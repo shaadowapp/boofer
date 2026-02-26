@@ -14,6 +14,7 @@ class NotificationChannels {
   static const String mentions = 'mentions';
   static const String reactions = 'reactions';
   static const String general = 'general';
+  static const String updates = 'updates';
 
   // Channel configurations
   static const List<AndroidNotificationChannel> channels = [
@@ -61,6 +62,13 @@ class NotificationChannels {
       'General',
       description: 'General system notifications',
       importance: Importance.defaultImportance,
+    ),
+    AndroidNotificationChannel(
+      updates,
+      'App Updates',
+      description: 'Progress and status for software updates',
+      importance: Importance.low, // Lower importance for background downloads
+      showBadge: false,
     ),
   ];
 }
@@ -264,6 +272,47 @@ class NotificationService {
       'data': data,
       'timestamp': DateTime.now().toIso8601String(),
     });
+  }
+
+  /// Show a notification with a progress bar (useful for downloads)
+  Future<void> showProgressNotification({
+    required int id,
+    required String title,
+    required String body,
+    required int progress,
+    required int maxProgress,
+    bool indeterminate = false,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    final androidDetails = AndroidNotificationDetails(
+      NotificationChannels.updates,
+      'App Updates',
+      channelDescription: 'Progress and status for software updates',
+      importance: Importance.low,
+      priority: Priority.low,
+      onlyAlertOnce: true,
+      showProgress: true,
+      maxProgress: maxProgress,
+      progress: progress,
+      indeterminate: indeterminate,
+      ongoing: true, // User cannot swipe it away while downloading
+      autoCancel: false,
+    );
+
+    final details = NotificationDetails(android: androidDetails);
+
+    await _notificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
+  }
+
+  /// Cancel a specific notification
+  Future<void> cancelNotification(int id) async {
+    await _notificationsPlugin.cancel(id: id);
   }
 
   /// Optimized for messages

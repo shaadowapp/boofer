@@ -9,6 +9,7 @@ import '../providers/follow_provider.dart';
 import 'user_profile_screen.dart'; // Import UserProfileScreen
 import 'manage_friends_screen.dart';
 import '../core/constants.dart';
+import '../widgets/skeleton_user_card.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -262,7 +263,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         centerTitle: false,
       ),
       body: _isLoading && _users.isEmpty
-          ? const Center(child: CircularProgressIndicator())
+          ? ListView.builder(
+              itemCount: 8,
+              itemBuilder: (context, index) => const SkeletonUserCard(),
+            )
           : _users.isEmpty
           ? Center(
               child: Column(

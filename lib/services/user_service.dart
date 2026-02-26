@@ -314,6 +314,33 @@ class UserService {
     }
   }
 
+  /// Get user by virtual number
+  Future<User?> getUserByVirtualNumber(String number) async {
+    try {
+      final results = await _database.query(
+        'SELECT * FROM users WHERE virtual_number = ?',
+        [number],
+      );
+
+      if (results.isNotEmpty) {
+        final user = User.fromJson(results.first);
+        _addToCache(user.id, user);
+        return user;
+      }
+
+      return null;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        AppError.database(
+          message: 'Failed to get user by virtual number: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+      return null;
+    }
+  }
+
   /// Get user by email
   Future<User?> getUserByEmail(String email) async {
     try {

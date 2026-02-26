@@ -21,6 +21,7 @@ import 'network_usage_screen.dart';
 import 'blocked_users_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import 'updates_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -341,6 +342,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: Icons.cleaning_services_outlined,
                         color: Colors.amber,
                         onTap: () => _showClearCacheDialog(context),
+                      ),
+                    ],
+                  ),
+
+                // App Updates Section
+                if (_matchesSearch('updates patch version check download'))
+                  _buildSettingsSection(
+                    context,
+                    title: 'App Updates',
+                    children: [
+                      _buildColorfulTile(
+                        context,
+                        title: 'Updates',
+                        subtitle: 'Check for app updates',
+                        icon: Icons.system_update_outlined,
+                        color: Colors.purple,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const UpdatesScreen(),
+                          ),
+                        ),
                       ),
                     ],
                   ),
