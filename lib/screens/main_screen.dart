@@ -44,12 +44,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1; // Start with chat (middle tab)
   bool _hasCheckedNotifications = false;
-  final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
-  List<User> _filteredUsers = [];
-  List<User> _allUsers = []; // Store current user for profile picture
-  StreamSubscription<String?>?
-  _profilePictureSubscription; // Listen to profile picture changes
+  StreamSubscription<String?>? _profilePictureSubscription; // Listen to profile picture changes
   String? _currentAvatar; // Store emoji avatar
   String? _currentAvatarColor; // Store emoji avatar color
   final int _baseIndex = 999999;
@@ -61,7 +56,6 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const ProfileScreen(), // Index 0
     const LobbyScreen(), // Index 1
-    const CallsScreen(), // Index 2
   ];
 
   @override
@@ -101,7 +95,6 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _holdTimer?.cancel();
     _pageController.dispose();
-    _searchController.dispose();
     _profilePictureSubscription?.cancel();
     super.dispose();
   }
@@ -343,33 +336,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _performSearch(String query) {
-    final trimmedQuery = query.toLowerCase().trim();
-
-    setState(() {
-      _isSearching = trimmedQuery.isNotEmpty;
-
-      if (trimmedQuery.isEmpty) {
-        _filteredUsers = _allUsers;
-      } else {
-        _filteredUsers = _allUsers.where((user) {
-          return user.fullName.toLowerCase().contains(trimmedQuery) ||
-              user.handle.toLowerCase().contains(trimmedQuery) ||
-              (user.virtualNumber?.toLowerCase().contains(trimmedQuery) ??
-                  false);
-        }).toList();
-      }
-    });
-  }
-
-  void _clearSearch() {
-    _searchController.clear();
-    setState(() {
-      _isSearching = false;
-      _filteredUsers = _allUsers;
-    });
-  }
-
   void _onAddPressed() async {
     switch (_currentIndex) {
       case 0:
@@ -406,395 +372,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  String _getSearchPlaceholder() {
-    switch (_currentIndex) {
-      case 0:
-        return 'Search profile...';
-      case 1:
-        return 'Search chats...';
-      case 2:
-        return 'Search contacts...';
-      default:
-        return 'Search...';
-    }
-  }
-
-  bool _checkArchiveTrigger(String searchText) {
-    final archiveSettings = Provider.of<ArchiveSettingsProvider>(
-      context,
-      listen: false,
-    );
-    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-
-    // Get the trigger and ensure it's not empty
-    final trigger = archiveSettings.archiveSearchTrigger.trim();
-    if (trigger.isEmpty) {
-      return false; // Don't trigger if the trigger string is empty
-    }
-
-    // Only check trigger if archive button is hidden and there are archived chats
-    if (archiveSettings.archiveButtonPosition == ArchiveButtonPosition.hidden &&
-        chatProvider.archivedChats.isNotEmpty &&
-        searchText.trim().toLowerCase() == trigger.toLowerCase()) {
-      // Clear search field and navigate to archived chats
-      _searchController.clear();
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ArchivedChatsScreen()),
-      );
-      return true;
-    }
-    return false;
-  }
-
-  Widget _buildSearchResults() {
-    if (_filteredUsers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No users found',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _filteredUsers.length,
-      itemBuilder: (context, index) {
-        final user = _filteredUsers[index];
-        return _buildUserTile(user);
-      },
-    );
-  }
-
-  Widget _buildUserTile(User user) {
-    return InkWell(
-      onTap: () => _onUserTap(user),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withOpacity(0.1),
-                  backgroundImage:
-                      user.profilePicture != null &&
-                          user.profilePicture!.startsWith('http')
-                      ? NetworkImage(user.profilePicture!)
-                      : null,
-                  child: user.avatar != null && user.avatar!.isNotEmpty
-                      ? Text(user.avatar!, style: const TextStyle(fontSize: 24))
-                      : (user.profilePicture == null ||
-                                !user.profilePicture!.startsWith('http')
-                            ? Text(
-                                user.fullName.isNotEmpty
-                                    ? user.fullName
-                                          .split(' ')
-                                          .map((e) => e.isNotEmpty ? e[0] : '')
-                                          .take(2)
-                                          .join()
-                                          .toUpperCase()
-                                    : user.handle.isNotEmpty
-                                    ? user.handle[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              )
-                            : null),
-                ),
-                if (user.status == UserStatus.online)
-                  Positioned(
-                    bottom: 2,
-                    right: 2,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(width: 16),
-
-            // User Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          user.fullName,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (_currentIndex == 1) // Chat tab
-                        Text(
-                          _formatTime(user.lastSeen ?? user.updatedAt),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.6),
-                              ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _currentIndex ==
-                                  1 // Chat tab
-                              ? '@${user.handle}'
-                              : user.virtualNumber ?? '@${user.handle}',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.7),
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (_currentIndex == 2) // Calls tab
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: SvgIcons.sized(
-                                SvgIcons.voiceCall,
-                                20,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              onPressed: () => _makeCall(user, false),
-                            ),
-                            IconButton(
-                              icon: SvgIcons.sized(
-                                SvgIcons.videoCall,
-                                20,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              onPressed: () => _makeCall(user, true),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _onUserTap(User user) {
-    // Clear search first
-    _clearSearch();
-
-    if (_currentIndex == 1) {
-      // Chat tab
-      // Navigate to chat screen with user
-      Navigator.pushNamed(context, '/chat', arguments: user);
-    } else if (_currentIndex == 2) {
-      // Calls tab
-      // Show call options
-      _showCallOptions(user);
-    }
-  }
-
-  void _showCallOptions(User user) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // User info
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withOpacity(0.1),
-                  backgroundImage:
-                      (user.profilePicture != null &&
-                          user.profilePicture!.startsWith('http'))
-                      ? NetworkImage(user.profilePicture!)
-                      : null,
-                  child: user.profilePicture == null
-                      ? Text(
-                          user.fullName
-                              .split(' ')
-                              .map((e) => e.isNotEmpty ? e[0] : '')
-                              .take(2)
-                              .join()
-                              .toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.fullName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        user.virtualNumber ?? '@${user.handle}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Call options
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _makeCall(user, false);
-                    },
-                    icon: SvgIcons.sized(
-                      SvgIcons.voiceCall,
-                      20,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    label: const Text('Voice Call'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _makeCall(user, true);
-                    },
-                    icon: SvgIcons.sized(
-                      SvgIcons.videoCall,
-                      20,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    label: const Text('Video Call'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _makeCall(User user, bool isVideo) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${isVideo ? 'Video' : 'Voice'} calling ${user.fullName}...',
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    } else {
-      return '${time.day}/${time.month}';
-    }
-  }
 
   Widget _buildProfileIcon(bool isActive, String? profilePictureUrl) {
     const size = 24.0;
@@ -906,7 +483,7 @@ class _MainScreenState extends State<MainScreen> {
       appBar: _currentIndex == 0
           ? null
           : PreferredSize(
-              preferredSize: const Size.fromHeight(kToolbarHeight + 52),
+              preferredSize: const Size.fromHeight(kToolbarHeight),
               child: Container(
                 color: Theme.of(context).appBarTheme.backgroundColor,
                 child: SafeArea(
@@ -972,98 +549,12 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                       ),
-                      // ── Search bar ──
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                        child: SizedBox(
-                          height: 38,
-                          child: TextField(
-                            controller: _searchController,
-                            textAlignVertical: TextAlignVertical.center,
-                            decoration: InputDecoration(
-                              hintText: _getSearchPlaceholder(),
-                              hintStyle: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.50),
-                                fontSize: 14,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.50),
-                                size: 20,
-                              ),
-                              prefixIconConstraints: const BoxConstraints(
-                                minWidth: 40,
-                                minHeight: 38,
-                              ),
-                              suffixIcon: _searchController.text.isNotEmpty
-                                  ? GestureDetector(
-                                      onTap: _clearSearch,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 10,
-                                        ),
-                                        child: Icon(
-                                          Icons.close_rounded,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurface
-                                              .withValues(alpha: 0.55),
-                                          size: 18,
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                              suffixIconConstraints: const BoxConstraints(
-                                minWidth: 36,
-                                minHeight: 36,
-                              ),
-                              filled: true,
-                              fillColor:
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Colors.white.withValues(alpha: 0.09)
-                                  : Colors.black.withValues(alpha: 0.07),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(9),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(9),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(9),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: EdgeInsets.zero,
-                              isDense: true,
-                            ),
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: 14,
-                            ),
-                            onChanged: (v) => setState(() {}),
-                            onSubmitted: (v) {
-                              if (v.isNotEmpty) {
-                                if (_checkArchiveTrigger(v)) return;
-                                _performSearch(v);
-                              }
-                            },
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ),
             ),
-      body: _isSearching
-          ? _buildSearchResults()
-          : PageView.builder(
+      body: PageView.builder(
               controller: _pageController,
               onPageChanged: _onPageChanged,
               physics: const BouncingScrollPhysics(
@@ -1080,9 +571,7 @@ class _MainScreenState extends State<MainScreen> {
           return _buildNavBar(context, appearance.navBarStyle);
         },
       ),
-      floatingActionButton: (_currentIndex == 0 || _currentIndex == 1)
-          ? null
-          : _getFloatingActionButton(),
+      floatingActionButton: null,
     );
   }
 
@@ -1145,21 +634,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
           label: 'Chats',
         ),
-        BottomNavigationBarItem(
-          icon: SvgIcons.call(
-            filled: false,
-            context: context,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-          activeIcon: SvgIcons.call(
-            filled: true,
-            context: context,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          label: 'Calls',
-        ),
       ],
     );
   }
@@ -1215,17 +689,6 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 label: 'Chats',
               ),
-              _buildModernNavItem(
-                index: 2,
-                icon: SvgIcons.call(
-                  filled: _currentIndex == 2,
-                  context: context,
-                  color: _currentIndex == 2
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                label: 'Calls',
-              ),
             ],
           ),
         ),
@@ -1260,7 +723,6 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 _buildIOSNavItem(0, 'You', isProfile: true),
                 _buildIOSNavItem(1, 'Chats'),
-                _buildIOSNavItem(2, 'Calls'),
               ],
             ),
           ),
@@ -1337,7 +799,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildLiquidNavBar() {
     final theme = Theme.of(context);
     final width = MediaQuery.of(context).size.width;
-    final itemWidth = width / 3;
+    final itemWidth = width / 2;
 
     return RepaintBoundary(
       child: AnimatedBuilder(
@@ -1346,7 +808,7 @@ class _MainScreenState extends State<MainScreen> {
           final double page = _pageController.hasClients
               ? (_pageController.page ?? _baseIndex.toDouble())
               : (_baseIndex + _currentIndex).toDouble();
-          final double normalizedPage = page % 3;
+          final double normalizedPage = page % 2;
 
           return Container(
             height: 80,
@@ -1378,7 +840,6 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     _buildLiquidNavItem(0, 'You', isProfile: true),
                     _buildLiquidNavItem(1, 'Chats'),
-                    _buildLiquidNavItem(2, 'Calls'),
                   ],
                 ),
               ],
@@ -1504,7 +965,6 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   _buildBubbleNavItem(0, 'You', isProfile: true),
                   _buildBubbleNavItem(1, 'Chats'),
-                  _buildBubbleNavItem(2, 'Calls'),
                 ],
               ),
             ),
@@ -1687,7 +1147,6 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           _buildGenZNavItem(0, 'You', isProfile: true),
           _buildGenZNavItem(1, 'Chats'),
-          _buildGenZNavItem(2, 'Calls'),
         ],
       ),
     );

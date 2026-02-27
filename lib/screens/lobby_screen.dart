@@ -26,6 +26,8 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   String? _currentUserId;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -152,6 +154,52 @@ class _LobbyScreenState extends State<LobbyScreen> {
               );
             },
           ),
+          
+          // LOCAL SEARCH BAR (Saves Bandwidth)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              height: 42,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim().toLowerCase();
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search chats...',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    fontSize: 14,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty 
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
 
           Expanded(
             child: Consumer2<ChatProvider, ArchiveSettingsProvider>(
@@ -159,12 +207,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 final activeChats = chatProvider.activeChats;
                 final archivedChats = chatProvider.archivedChats;
 
+                // Apply local search filtering
+                final filteredActiveChats = _searchQuery.isEmpty 
+                    ? activeChats 
+                    : activeChats.where((friend) {
+                        final searchLower = _searchQuery.toLowerCase();
+                        final numericSearch = _searchQuery.replaceAll(RegExp(r'\D'), '');
+                        
+                        return friend.name.toLowerCase().contains(searchLower) ||
+                               friend.handle.toLowerCase().contains(searchLower) ||
+                               (numericSearch.isNotEmpty && friend.virtualNumber.contains(numericSearch));
+                      }).toList();
+
                 debugPrint('🚀 [LOBBY_UI] UI CONSUMER REBUILD');
                 debugPrint(
                   '🚀 [LOBBY_UI] Provider State: friendsLoaded=${chatProvider.friendsLoaded}, isLoadingFromNetwork=${chatProvider.isLoadingFromNetwork}',
                 );
                 debugPrint(
-                  '🚀 [LOBBY_UI] Data State: activeChats=${activeChats.length}, archivedChats=${archivedChats.length}',
+                  '🚀 [LOBBY_UI] Data State: activeChats=${activeChats.length} (filtered: ${filteredActiveChats.length}), archivedChats=${archivedChats.length}',
                 );
 
                 // 1. Initial Loading State (Before cache or network returned anything)
@@ -177,8 +237,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 }
 
                 // 2. Empty State (Loaded but no chats found)
-                if (activeChats.isEmpty) {
-                  debugPrint('🚀 [LOBBY_UI] Showing "No chats yet" state');
+                if (filteredActiveChats.isEmpty) {
+                  debugPrint('🚀 [LOBBY_UI] Showing "No results" state');
                   return RefreshIndicator(
                     onRefresh: () async {
                       await chatProvider.refreshFriends();
@@ -196,7 +256,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   SvgIcons.sized(
-                                    SvgIcons.peopleOutline,
+                                    _searchQuery.isEmpty ? SvgIcons.peopleOutline : SvgIcons.searchOff,
                                     64,
                                     color: Theme.of(
                                       context,
@@ -204,7 +264,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No chats yet',
+                                    _searchQuery.isEmpty ? 'No chats yet' : 'No matches found',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
@@ -217,7 +277,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Start connecting with people',
+                                    _searchQuery.isEmpty 
+                                        ? 'Start connecting with people'
+                                        : 'Try searching for something else',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
@@ -228,33 +290,35 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                               .withOpacity(0.5),
                                         ),
                                   ),
-                                  const SizedBox(height: 24),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const UserSearchScreen(),
+                                  if (_searchQuery.isEmpty) ...[
+                                    const SizedBox(height: 24),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const UserSearchScreen(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.explore_outlined),
+                                      label: const Text('Explore Users'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 14,
                                         ),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.explore_outlined),
-                                    label: const Text('Explore Users'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(30),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(30),
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -271,7 +335,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   },
                   child: ListView.separated(
                     itemCount: _calculateTotalItems(
-                      activeChats,
+                      filteredActiveChats,
                       archivedChats,
                       archiveSettings,
                     ),
@@ -287,7 +351,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       return _buildListItem(
                         context,
                         index,
-                        activeChats,
+                        filteredActiveChats,
                         archivedChats,
                         archiveSettings,
                         chatProvider,

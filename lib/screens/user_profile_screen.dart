@@ -11,6 +11,7 @@ import '../core/constants.dart';
 import 'friend_chat_screen.dart';
 import '../widgets/profile_share_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/screenshot_mode.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -68,6 +69,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       final currentUser = await UserService.getCurrentUser();
       final currentUserId = currentUser?.id ?? '';
+
+      if (ScreenshotMode.isEnabled && (widget.userId == currentUserId || widget.userId == 'me' || widget.userId == 'boofer_user')) {
+        if (mounted) {
+          setState(() {
+            _profileUser = ScreenshotMode.dummyCurrentProfile;
+            _isOwnProfile = true;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
 
       // Use the new SQL join method to get profile + relationship
       final userData = await _supabaseService.getUserAndRelationship(

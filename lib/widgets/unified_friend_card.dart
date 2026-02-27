@@ -269,7 +269,8 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
         ],
         if (widget.showHandle &&
             !widget.showBio &&
-            widget.user.virtualNumber != null) ...[
+            widget.user.virtualNumber != null &&
+            widget.user.virtualNumber!.isNotEmpty) ...[
           const SizedBox(height: 2),
           Row(
             children: [

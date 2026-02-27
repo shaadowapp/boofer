@@ -222,10 +222,14 @@ class SupabaseService {
   /// Get user profile by Virtual Number
   Future<app_user.User?> getUserByVirtualNumber(String virtualNumber) async {
     try {
+      // Clean query (strip non-digits) for bigint compatibility
+      final cleanNumber = virtualNumber.replaceAll(RegExp(r'\D'), '');
+      if (cleanNumber.isEmpty) return null;
+
       final response = await _supabase
           .from('profiles')
           .select()
-          .eq('virtual_number', virtualNumber)
+          .eq('virtual_number', cleanNumber)
           .maybeSingle();
 
       if (response == null) return null;
@@ -279,12 +283,20 @@ class SupabaseService {
       }
 
       // Search with JOIN to get follow status
+      // We clean the query for virtual_number search (strip non-digits)
+      final numericQuery = query.replaceAll(RegExp(r'\D'), '');
+
+      // Use double quotes for values to handle special characters (spaces, parens, etc)
+      var orFilter = 'handle.ilike."%$query%",full_name.ilike."%$query%"';
+      if (numericQuery.isNotEmpty) {
+        // Add numeric search for virtual_number_text (generated column)
+        orFilter += ',virtual_number_text.ilike."%$numericQuery%"';
+      }
+
       final response = await _supabase
           .from('profiles')
           .select('*, follows!following_id(follower_id)')
-          .or(
-            'handle.ilike.%$query%,virtual_number.ilike.%$query%,full_name.ilike.%$query%',
-          )
+          .or(orFilter)
           .eq('is_discoverable', true)
           .neq('id', currentUserId)
           .limit(20);

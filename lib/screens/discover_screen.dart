@@ -10,6 +10,7 @@ import 'user_profile_screen.dart'; // Import UserProfileScreen
 import 'manage_friends_screen.dart';
 import '../core/constants.dart';
 import '../widgets/skeleton_user_card.dart';
+import '../utils/screenshot_mode.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -42,7 +43,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       updatedAt: DateTime.now(), // Placeholder
       profilePicture: data['profile_picture'],
       avatar: data['avatar'],
-      virtualNumber: data['virtual_number'],
+      virtualNumber: data['virtual_number']?.toString(),
       isVerified: data['is_verified'] == true || data['is_verified'] == 1,
       isCompany: data['is_company'] == true || data['is_company'] == 1,
       age: data['age'] as int?,
@@ -53,6 +54,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<void> _loadUsers({bool forceRefresh = false}) async {
     final currentUser = await UserService.getCurrentUser();
+
+    if (ScreenshotMode.isEnabled) {
+      if (mounted) {
+        setState(() {
+          _users = ScreenshotMode.dummyDiscoverUsers;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     if (currentUser == null) {
       if (mounted) setState(() => _isLoading = false);
       return;

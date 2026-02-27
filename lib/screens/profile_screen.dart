@@ -21,6 +21,7 @@ import 'share_profile_screen.dart';
 import '../providers/follow_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/skeleton_profile_header.dart';
+import '../utils/screenshot_mode.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -61,6 +62,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
+    
+    if (ScreenshotMode.isEnabled) {
+      if (mounted) {
+        setState(() {
+          _currentUser = ScreenshotMode.dummyCurrentProfile;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
       User? user = await UserService.getCurrentUser();
       if (user == null) {

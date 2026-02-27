@@ -190,7 +190,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   debugPrint('🚀 [BOOT] Phase 1: Global Infrastructure (Blocking)');
-  bool isInfraReady = false;
 
   // Move validation and Supabase setup into a guarded future to avoid black screen on crash
   final initializationFuture = _performInfrastructureSetup();

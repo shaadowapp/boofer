@@ -15,6 +15,7 @@ import '../services/supabase_service.dart';
 import '../services/notification_service.dart';
 import '../core/constants.dart';
 import '../services/chat_cache_service.dart';
+import '../utils/screenshot_mode.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
@@ -422,6 +423,7 @@ class ChatProvider with ChangeNotifier {
 
   // Chat management methods
   List<Friend> get activeChats {
+    if (ScreenshotMode.isEnabled) return ScreenshotMode.dummyActiveChats;
     final active = _friends.where((friend) => !friend.isArchived).toList();
     active.sort((a, b) {
       // Sort pinned chats first
@@ -440,6 +442,7 @@ class ChatProvider with ChangeNotifier {
   }
 
   List<Friend> get archivedChats {
+    if (ScreenshotMode.isEnabled) return ScreenshotMode.dummyArchivedChats;
     return _archivedFriends;
   }
 

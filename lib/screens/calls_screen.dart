@@ -7,68 +7,29 @@ class CallsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      appBar: AppBar(
+        title: const Text('Calls'),
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.call_end_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: Colors.orange),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Note: These are dummy call logs. The call screen is currently under development.',
-                    style: TextStyle(
-                      color: Colors.orange.shade800,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 16),
+            Text(
+              'No call history found',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          _buildCallTile(
-            context: context,
-            name: 'Alex Johnson',
-            time: '2 minutes ago',
-            type: CallType.incoming,
-            isVideo: false,
-          ),
-          _buildCallTile(
-            context: context,
-            name: 'Sarah Wilson',
-            time: '1 hour ago',
-            type: CallType.outgoing,
-            isVideo: true,
-          ),
-          _buildCallTile(
-            context: context,
-            name: 'Mike Chen',
-            time: 'Yesterday',
-            type: CallType.missed,
-            isVideo: false,
-          ),
-          _buildCallTile(
-            context: context,
-            name: 'Emma Davis',
-            time: '2 days ago',
-            type: CallType.outgoing,
-            isVideo: true,
-          ),
-          _buildCallTile(
-            context: context,
-            name: 'James Brown',
-            time: '3 days ago',
-            type: CallType.incoming,
-            isVideo: false,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -27,6 +27,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   String? _currentUserId;
   String? _currentUserHandle;
   Timer? _debounceTimer;
+  String _lastSearchQuery = '';
 
   @override
   void initState() {
@@ -116,10 +117,19 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
   void _onSearchChanged() {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (_searchController.text.trim().isNotEmpty) {
-        _performSearch(_searchController.text.trim());
-      } else {
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      final query = _searchController.text.trim();
+      
+      // Industry Best Practices for Bandwidth Saving:
+      // 1. Minimum query length (2 characters) for better responsiveness
+      // 2. Local duplicate check (don't search if query hasn't changed)
+      // 3. Debounce (400ms) to balance UX and bandwidth
+      
+      if (query.length >= 2 && query != _lastSearchQuery) {
+        _lastSearchQuery = query;
+        _performSearch(query);
+      } else if (query.isEmpty) {
+        _lastSearchQuery = '';
         setState(() {
           _searchResults = [];
           _hasSearched = false;
@@ -216,6 +226,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               height: 38,
               child: TextField(
                 controller: _searchController,
+                onChanged: (value) {
+                  // Immediate UI update for the clear icon
+                  setState(() {});
+                  _onSearchChanged();
+                },
                 autofocus: false,
                 textAlignVertical: TextAlignVertical.center,
                 decoration: InputDecoration(
