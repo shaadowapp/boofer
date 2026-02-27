@@ -862,11 +862,11 @@ class _MainScreenState extends State<MainScreen> {
     final double page = _pageController.hasClients
         ? (_pageController.page ?? _baseIndex.toDouble())
         : (_baseIndex + _currentIndex).toDouble();
-    final double normalizedPage = page % 3;
+    final double normalizedPage = page % _screens.length;
     double distance = (index - normalizedPage).abs();
 
     // Handle wrap-around distance
-    if (distance > 1.5) distance = (3 - distance).abs();
+    if (distance > _screens.length / 2) distance = (_screens.length - distance).abs();
 
     // Scale and opacity could be used for animation effects
     // final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
@@ -986,10 +986,10 @@ class _MainScreenState extends State<MainScreen> {
     final double page = _pageController.hasClients
         ? (_pageController.page ?? _baseIndex.toDouble())
         : (_baseIndex + _currentIndex).toDouble();
-    final double normalizedPage = page % 3;
+    final double normalizedPage = page % _screens.length;
     double distance = (index - normalizedPage).abs();
-    // Handle wrapping distance for Profile <-> Home
-    if (distance > 1.5) distance = (3 - distance).abs();
+    // Handle wrapping distance
+    if (distance > _screens.length / 2) distance = (_screens.length - distance).abs();
 
     final double selectionFactor = (1.0 - distance.clamp(0.0, 1.0));
     final double scale = 1.0 + (0.2 * selectionFactor);
