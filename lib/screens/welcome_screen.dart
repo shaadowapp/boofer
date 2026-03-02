@@ -7,6 +7,7 @@ import '../services/user_service.dart';
 import 'main_screen.dart';
 import '../models/user_model.dart';
 import '../widgets/boofer_identity_card.dart';
+import '../services/location_service.dart';
 
 /// Animated welcome screen shown as a 'gate' after data collection.
 /// Users see their draft profile (Aadhaar style) and can edit it
@@ -28,6 +29,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   bool _isSaving = false;
   String? _error;
+  Future<String?>? _locationFuture;
 
   @override
   void initState() {
@@ -46,6 +48,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutQuart));
 
     _ctrl.forward();
+
+    // Prefetch location to speed up the confirmation process
+    _locationFuture = LocationService.getCityStateFromIP();
   }
 
   @override
@@ -62,6 +67,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     try {
       final authProvider = context.read<AuthStateProvider>();
+      // Use prefetched location if available
+      String? location;
+      if (_locationFuture != null) {
+        location = await _locationFuture;
+      }
+
       await authProvider.createAnonymousUser(
         fullName: _localData['fullName'],
         handle: _localData['handle'],
@@ -73,6 +84,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         interests: _localData['interests'],
         hobbies: _localData['hobbies'],
         guardianId: _localData['guardianId'],
+        prefetchedLocation: location,
       );
 
       if (!mounted) return;

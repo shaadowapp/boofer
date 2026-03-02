@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import '../services/unified_storage_service.dart';
 import '../services/code_push_service.dart';
+import 'changelogs_screen.dart';
 
 class UpdatesScreen extends StatefulWidget {
   const UpdatesScreen({super.key});
@@ -201,12 +202,18 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
         ),
         const SizedBox(height: 20),
         Text(
-          _isChecking ? 'Checking for updates...' : 'System is up to date',
+          _isChecking
+              ? 'Checking for updates...'
+              : CodePushService.instance.isUpdateReady.value
+                  ? 'Update is ready!'
+                  : 'System is up to date',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         if (!_isChecking)
           Text(
-            'Last checked: Just now',
+            CodePushService.instance.isUpdateReady.value
+                ? 'High-speed update downloaded & staged'
+                : 'Version: $_currentVersion',
             style: TextStyle(
               color: colorScheme.onSurface.withOpacity(0.5),
               fontSize: 13,
@@ -349,19 +356,39 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
             ).colorScheme.surfaceContainerHighest.withOpacity(0.4),
             borderRadius: BorderRadius.circular(24),
           ),
-          child: SwitchListTile(
-            value: _autoUpdate,
-            onChanged: (value) async {
-              setState(() => _autoUpdate = value);
-              await UnifiedStorageService.setBool('auto_update_enabled', value);
-            },
-            title: const Text('Automatic Background Updates'),
-            subtitle: const Text(
-              'Installs critical fixes and improvements automatically',
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
+          child: Column(
+            children: [
+              SwitchListTile(
+                value: _autoUpdate,
+                onChanged: (value) async {
+                  setState(() => _autoUpdate = value);
+                  await UnifiedStorageService.setBool(
+                      'auto_update_enabled', value);
+                },
+                title: const Text('Automatic Fast Downloads'),
+                subtitle: const Text(
+                  'Always downloads critical security and feature fixes in under 30s',
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ChangelogsScreen(),
+                  ),
+                ),
+                title: const Text('View Changelogs'),
+                subtitle: const Text('What\'s new in this version'),
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ],
           ),
         ),
       ],

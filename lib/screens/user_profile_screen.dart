@@ -45,7 +45,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   void _initializePlaceholder() {
-    if (widget.userName != null || widget.userHandle != null || widget.userAvatar != null) {
+    if (widget.userName != null ||
+        widget.userHandle != null ||
+        widget.userAvatar != null) {
       _profileUser = User(
         id: widget.userId,
         fullName: widget.userName ?? 'Loading...',
@@ -70,7 +72,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final currentUser = await UserService.getCurrentUser();
       final currentUserId = currentUser?.id ?? '';
 
-      if (ScreenshotMode.isEnabled && (widget.userId == currentUserId || widget.userId == 'me' || widget.userId == 'boofer_user')) {
+      if (ScreenshotMode.isEnabled &&
+          (widget.userId == currentUserId ||
+              widget.userId == 'me' ||
+              widget.userId == 'boofer_user')) {
         if (mounted) {
           setState(() {
             _profileUser = ScreenshotMode.dummyCurrentProfile;
@@ -216,9 +221,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        systemOverlayStyle: isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back_ios_new,
@@ -244,7 +248,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               },
               itemBuilder: (context) => [
                 if (widget.userId != AppConstants.booferId &&
-                    _profileUser?.handle != 'boofer')
+                    _profileUser?.handle != 'boofer' &&
+                    _profileUser?.handle != '_boofer_system_')
                   const PopupMenuItem(
                     value: 'block',
                     child: Row(
@@ -326,7 +331,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       children: [
                         _buildActionRow(),
                         const SizedBox(height: 32),
-
                         if (!_profileUser!.isCompany) ...[
                           if (_profileUser!.interests.isNotEmpty) ...[
                             _buildSectionTitle('Interests'),
@@ -337,7 +341,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                             const SizedBox(height: 24),
                           ],
-
                           if (_profileUser!.hobbies.isNotEmpty) ...[
                             _buildSectionTitle('Hobbies'),
                             const SizedBox(height: 12),
@@ -348,7 +351,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const SizedBox(height: 24),
                           ],
                         ],
-
                         if (_profileUser!.id != AppConstants.booferId) ...[
                           _buildSectionTitle('Network Stats'),
                           const SizedBox(height: 16),
@@ -490,33 +492,36 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             if (widget.userId != AppConstants.booferId)
               Expanded(child: FollowButton(user: _profileUser!)),
-            if (isFriend || widget.userId == AppConstants.booferId) ...[
-              if (widget.userId != AppConstants.booferId)
+            if (isFriend ||
+                (widget.userId == AppConstants.booferId &&
+                    !(_profileUser?.isCompany ?? false))) ...[
+              if (widget.userId != AppConstants.booferId) ...[
                 const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: _openChat,
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurface.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: theme.colorScheme.onSurface.withOpacity(0.1),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _openChat,
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.onSurface.withOpacity(0.1),
+                        ),
                       ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Secure Message',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w700,
+                      child: Center(
+                        child: Text(
+                          'Secure Message',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ],
         );
@@ -702,7 +707,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-
                       _buildEditTextField(
                         'Full Name',
                         nameCtrl,
@@ -781,7 +785,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         const Color(0xFF845EF7),
                         setModalState,
                       ),
-
                       const SizedBox(height: 32),
                       _buildModalSectionTitle(
                         'Hobbies (Max 5)',

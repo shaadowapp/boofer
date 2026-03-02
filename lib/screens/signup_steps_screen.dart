@@ -22,7 +22,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   int _step = 0;
 
   // Step 1 – Age & Gender (important)
-  int _age = 21;
+  int _age = 0; // Changed from 21 to 0 to track interaction
   String? _gender;
 
   // Step 2 – Interests (optional)
@@ -68,9 +68,24 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   }
 
   void _nextStep() {
+    // Validation for Step 0 (Age & Gender)
+    if (_step == 0) {
+      if (_age == 0) {
+        setState(() => _errorMsg = 'Please select your age');
+        return;
+      }
+      if (_gender == null) {
+        setState(() => _errorMsg = 'Please select your gender');
+        return;
+      }
+    }
+
     if (_step < _totalSteps - 1) {
       _slideController.reset();
-      setState(() => _step++);
+      setState(() {
+        _step++;
+        _errorMsg = null;
+      });
       _slideController.forward();
     }
   }
@@ -327,7 +342,31 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.cyanAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, color: Colors.cyanAccent, size: 14),
+              SizedBox(width: 8),
+              Text(
+                'Required for verification',
+                style: TextStyle(
+                  color: Colors.cyanAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
 
         // Age slider
         _SectionLabel(label: 'Your Age', emoji: '🎂'),
@@ -349,10 +388,13 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                   diameterRatio: 1.2,
                   physics: const FixedExtentScrollPhysics(),
                   controller: FixedExtentScrollController(
-                    initialItem: _age - 18,
+                    initialItem: _age > 0 ? _age - 18 : 2, // Default to 20 if 0
                   ),
                   onSelectedItemChanged: (index) {
-                    setState(() => _age = index + 18);
+                    setState(() {
+                      _age = index + 18;
+                      _errorMsg = null;
+                    });
                     HapticFeedback.selectionClick();
                   },
                   childDelegate: ListWheelChildBuilderDelegate(
@@ -409,7 +451,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         const SizedBox(height: 28),
 
         // Gender chips
-        _SectionLabel(label: 'Your Gender', emoji: '✨'),
+        _SectionLabel(label: 'Your Gender *', emoji: '✨'),
         const SizedBox(height: 14),
         Wrap(
           spacing: 10,
@@ -641,9 +683,8 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 15,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w400,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w400,
                     ),
                   ),
                   if (isSelected) ...[

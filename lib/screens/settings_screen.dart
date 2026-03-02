@@ -14,6 +14,8 @@ import 'help_screen.dart';
 import 'about_screen.dart';
 import 'send_feedback_screen.dart';
 import 'report_bug_screen.dart';
+import 'onboarding_screen.dart';
+import '../main.dart';
 
 import 'archived_chats_screen.dart';
 import 'archive_settings_screen.dart';
@@ -24,6 +26,7 @@ import 'blocked_users_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'updates_screen.dart';
+import 'changelogs_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -357,13 +360,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildColorfulTile(
                         context,
                         title: 'Updates',
-                        subtitle: 'Check for app updates',
+                        subtitle: 'Check for patches & releases',
                         icon: Icons.system_update_outlined,
                         color: Colors.purple,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const UpdatesScreen(),
+                          ),
+                        ),
+                      ),
+                      _buildColorfulTile(
+                        context,
+                        title: 'Latest Highlights',
+                        subtitle: 'What\'s new in Boofer',
+                        icon: Icons.history_rounded,
+                        color: Colors.orange,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ChangelogsScreen(),
                           ),
                         ),
                       ),
@@ -962,7 +978,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               try {
                 // Use a local navigator reference before the async gap
-                final navigator = Navigator.of(context);
                 final rootNavigator = Navigator.of(
                   context,
                   rootNavigator: true,
@@ -975,19 +990,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // 1. Pop the loading dialog using the root navigator
                   rootNavigator.pop();
 
-                  // 2. Navigate to onboarding and clear stack
-                  navigator.pushNamedAndRemoveUntil(
-                    '/onboarding',
-                    (route) => false,
-                  );
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Signed out successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  // 2. Navigate to onboarding and clear stack using global navigator
+                  // This avoids "Could not find a generator for route /onboarding" errors
+                  if (BooferApp.navigatorKey.currentState != null) {
+                    BooferApp.navigatorKey.currentState!.pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  }
                 }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Signed out successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               } catch (e) {
                 if (context.mounted) {
                   Navigator.of(

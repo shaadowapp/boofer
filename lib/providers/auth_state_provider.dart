@@ -7,7 +7,6 @@ import '../services/user_service.dart';
 import '../services/virtual_number_service.dart';
 import '../services/location_service.dart';
 import '../utils/random_data_generator.dart';
-import '../services/follow_service.dart';
 import '../services/multi_account_storage_service.dart';
 
 enum AuthenticationState {
@@ -55,9 +54,6 @@ class AuthStateProvider with ChangeNotifier {
           _currentUserId = profile.id;
           _setState(AuthenticationState.authenticated);
 
-          // Ensure following Boofer Official
-          FollowService.instance.ensureFollowingBoofer(profile.id);
-
           debugPrint('✅ User session restored successfully from Supabase');
           return;
         }
@@ -83,6 +79,7 @@ class AuthStateProvider with ChangeNotifier {
     List<String>? interests,
     List<String>? hobbies,
     String? guardianId,
+    String? prefetchedLocation,
   }) async {
     _setState(AuthenticationState.loading);
     _clearError();
@@ -97,15 +94,18 @@ class AuthStateProvider with ChangeNotifier {
       final finalBio = bio ?? RandomDataGenerator.generateBio();
       final demoVirtualNumber = RandomDataGenerator.generateVirtualNumber();
 
-      // 0.1 Fetch Location from IP (no permission required)
-      String? location;
-      try {
-        location = await LocationService.getCityStateFromIP();
-      } catch (e) {
-        debugPrint('⚠️ Location fetch failed: $e');
+      // Get location (prefetched or fresh)
+      String? location = prefetchedLocation;
+      if (location == null) {
+        try {
+          // Timeout quickly if not prefetched to avoid blocking UI too long
+          location = await LocationService.getCityStateFromIP()
+              .timeout(const Duration(seconds: 2));
+        } catch (e) {
+          debugPrint('⚠️ Fresh location fetch failed: $e');
+        }
       }
-
-      // 1. Try Supabase Auth with Metadata
+      // (This is the most critical path)
       final authUser = await _authService.signInAnonymously(
         data: {
           'full_name': finalFullName,
@@ -125,14 +125,55 @@ class AuthStateProvider with ChangeNotifier {
         throw Exception('Failed to sign in anonymously via Supabase');
       }
 
-      // Generate/Assign Virtual Number
+      // 2. Parallelize profile enrichment and setup
+      // We do virtual number assignment and profile creation in parallel
+      // and also start the 'follow' process.
       String? virtualNumber;
-      try {
-        virtualNumber = await VirtualNumberService()
-            .generateAndAssignVirtualNumber(authUser.id);
-      } catch (e) {
-        debugPrint('⚠️ VirtualNumberService failed: $e');
-      }
+
+      debugPrint('🚀 [AUTH] Running setup tasks in parallel...');
+
+      await Future.wait([
+        // Task A: Virtual Number Assignment
+        VirtualNumberService()
+            .generateAndAssignVirtualNumber(authUser.id)
+            .then((val) => virtualNumber = val)
+            .catchError((e) {
+          debugPrint('⚠️ VirtualNumberService failed: $e');
+          return null;
+        }),
+
+        // Task B: Profile Record Creation on Supabase
+        Future(() async {
+          final tempUser = User(
+            id: authUser.id,
+            email: '${authUser.id}@anonymous.boofer.local',
+            fullName: finalFullName,
+            handle: finalHandle,
+            bio: finalBio,
+            isDiscoverable: true,
+            status: UserStatus.online,
+            virtualNumber:
+                demoVirtualNumber, // Temporary, will be updated locally later
+            age: age,
+            gender: gender,
+            lookingFor: lookingFor,
+            interests: interests ?? [],
+            hobbies: hobbies ?? [],
+            avatar: avatar ?? RandomDataGenerator.generateAvatar(),
+            location: location,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            guardianId: guardianId,
+          );
+
+          try {
+            await _supabaseService.createUserProfile(tempUser);
+          } catch (e) {
+            debugPrint('⚠️ Failed to create Supabase profile: $e');
+          }
+        }),
+      ]);
+
       virtualNumber ??= demoVirtualNumber;
 
       newUser = User(
@@ -156,16 +197,6 @@ class AuthStateProvider with ChangeNotifier {
         guardianId: guardianId,
       );
 
-      // Try to create profile on Supabase
-      try {
-        debugPrint(
-          '🚀 [AUTH] Creating Supabase profile for ${newUser.id} (Guardian: ${newUser.guardianId})',
-        );
-        await _supabaseService.createUserProfile(newUser);
-      } catch (e) {
-        debugPrint('⚠️ Failed to create Supabase profile: $e');
-      }
-
       // 3. Save and Finish
       await UserService.setCurrentUser(newUser);
       _currentUserId = newUser.id;
@@ -183,9 +214,6 @@ class AuthStateProvider with ChangeNotifier {
         isPrimary: guardianId == null, // Primary if no guardian
       );
       await MultiAccountStorageService.setLastActiveAccountId(newUser.id);
-
-      // Ensure following Boofer Official
-      FollowService.instance.ensureFollowingBoofer(newUser.id);
     } catch (e) {
       debugPrint('❌ Anonymous auth failed: $e');
       _setError(e.toString().replaceAll('Exception: ', ''));
@@ -238,9 +266,6 @@ class AuthStateProvider with ChangeNotifier {
 
       _currentUserId = accountId;
       _setState(AuthenticationState.authenticated);
-
-      // Ensure following Boofer Official
-      FollowService.instance.ensureFollowingBoofer(accountId);
     } catch (e) {
       debugPrint('❌ Switch account failed: $e');
       _setError('Switch account failed: $e');

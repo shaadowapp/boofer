@@ -13,7 +13,6 @@ import '../services/follow_service.dart';
 import '../services/user_service.dart';
 import '../core/constants.dart';
 import '../widgets/message_bubble.dart';
-import '../widgets/friend_only_message_widget.dart';
 import '../core/database/database_manager.dart';
 import '../core/error/error_handler.dart';
 import '../providers/appearance_provider.dart';
@@ -25,6 +24,8 @@ import '../services/moderation_service.dart';
 import '../services/supabase_service.dart';
 import '../services/virgil_e2ee_service.dart';
 import '../services/virgil_key_service.dart';
+import '../services/local_storage_service.dart';
+import '../widgets/smart_maintenance.dart';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -61,7 +62,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   List<Message> _messages = [];
   List<dynamic> _chatItems = [];
   bool _loading = true;
-  bool _canChat = false;
   bool _isBlocked = false;
   bool _isMutual = false;
   bool _isFollowing = false;
@@ -122,27 +122,27 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       final results = await Future.wait([
         _followService
             .getFollowStatus(
-              currentUserId: currentUser.id,
-              targetUserId: widget.recipientId,
-            )
+          currentUserId: currentUser.id,
+          targetUserId: widget.recipientId,
+        )
             .catchError((e) {
-              debugPrint('Error checking follow status: $e');
-              return 'none';
-            }),
+          debugPrint('Error checking follow status: $e');
+          return 'none';
+        }),
         (widget.recipientId != currentUser.id)
             ? SupabaseService.instance
-                  .getUserProfile(widget.recipientId)
-                  .catchError((e) {
-                    debugPrint('Error fetching fresh profile: $e');
-                    return null;
-                  })
+                .getUserProfile(widget.recipientId)
+                .catchError((e) {
+                debugPrint('Error fetching fresh profile: $e');
+                return null;
+              })
             : Future.value(currentUser),
         SupabaseService.instance
             .getConversationTimer(widget.recipientId)
             .catchError((e) {
-              debugPrint('Error fetching timer: $e');
-              return 'off';
-            }),
+          debugPrint('Error fetching timer: $e');
+          return 'off';
+        }),
         VirgilKeyService().getRecipientKeys(currentUser.id),
         VirgilKeyService().getRecipientKeys(widget.recipientId),
         _loadMessages(conversationId),
@@ -162,34 +162,30 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       }
 
       final isBoofer = widget.recipientId == AppConstants.booferId;
-      final isMutual = finalStatus == 'mutual';
-      final isFollowing = finalStatus == 'following';
-      final canChat = isBoofer || finalStatus != 'none';
+      final isMutual = isBoofer || finalStatus == 'mutual';
+      final isFollowing = isBoofer || finalStatus == 'following' || isMutual;
+      final canChat = true; // Messaging possible without following
       const isBlocked = false;
 
       // Create recipient user object with fallback to widget params
-      final recipientUser =
-          freshRecipient ??
+      final recipientUser = freshRecipient ??
           User(
             id: widget.recipientId,
             email:
                 '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
             virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
-            handle:
-                widget.recipientHandle ??
+            handle: widget.recipientHandle ??
                 widget.recipientName.toLowerCase().replaceAll(' ', '_'),
             fullName: widget.recipientName,
             bio: 'User profile',
             isDiscoverable: true,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            profilePicture:
-                (widget.recipientAvatar != null &&
+            profilePicture: (widget.recipientAvatar != null &&
                     widget.recipientAvatar!.startsWith('http')
                 ? widget.recipientAvatar
                 : null),
-            avatar:
-                (widget.recipientAvatar != null &&
+            avatar: (widget.recipientAvatar != null &&
                     !widget.recipientAvatar!.startsWith('http')
                 ? widget.recipientAvatar
                 : null),
@@ -202,13 +198,17 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         setState(() {
           _currentUserId = currentUser.id;
           _conversationId = conversationId;
-          _canChat = canChat;
           _isMutual = isMutual;
           _isBlocked = isBlocked;
           _isFollowing = isFollowing || isMutual;
           _recipientUser = recipientUser;
           _ephemeralTimer = ephemeralTimer;
         });
+
+        // Mark Boofer welcome as seen locally
+        if (widget.recipientId == AppConstants.booferId) {
+          LocalStorageService.setSeenBooferWelcome(currentUser.id);
+        }
 
         // Initial cleanup
         _cleanupExpiredMessages();
@@ -217,8 +217,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (canChat && mounted) {
         // Update presence with this conversation ID
         context.read<ChatProvider>().updatePresenceWithConversationId(
-          conversationId,
-        );
+              conversationId,
+            );
 
         // Set up realtime listener BEFORE loading messages to avoid gaps
         _setupRealtimeListener(conversationId);
@@ -256,13 +256,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       debugPrint('📥 Loaded ${response.length} messages from database');
 
-      final rawMessages = (response as List)
-          .map((data) => Message.fromJson(data))
-          .where((m) {
-            final deletedFor = m.metadata?['deleted_for'] as List?;
-            return deletedFor == null || !deletedFor.contains(_currentUserId);
-          })
-          .toList();
+      final rawMessages =
+          (response as List).map((data) => Message.fromJson(data)).where((m) {
+        final deletedFor = m.metadata?['deleted_for'] as List?;
+        return deletedFor == null || !deletedFor.contains(_currentUserId);
+      }).toList();
 
       // Decrypt messages if they are encrypted
       final messages = await Future.wait(
@@ -466,8 +464,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           hours = 12;
         else if (_ephemeralTimer == '48_hours')
           hours = 48;
-        else if (_ephemeralTimer == '72_hours')
-          hours = 72;
+        else if (_ephemeralTimer == '72_hours') hours = 72;
 
         final deleteTime = message.timestamp.add(Duration(hours: hours));
         if (now.isAfter(deleteTime)) {
@@ -545,15 +542,14 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     if (message.senderId == _currentUserId) {
       if (message.encryptedContentSender != null) {
         try {
-          final ourKeys =
-              _myKeys ??
+          final ourKeys = _myKeys ??
               await VirgilKeyService().getRecipientKeys(_currentUserId!);
           if (ourKeys != null) {
-            final decrypted = await VirgilE2EEService.instance
-                .decryptThenVerify(
-                  message.encryptedContentSender!,
-                  ourKeys['signaturePublicKey'],
-                );
+            final decrypted =
+                await VirgilE2EEService.instance.decryptThenVerify(
+              message.encryptedContentSender!,
+              ourKeys['signaturePublicKey'],
+            );
             return message.copyWith(text: decrypted);
           }
         } catch (e) {
@@ -586,8 +582,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
 
     try {
-      final senderKeys =
-          _recipientKeys ??
+      final senderKeys = _recipientKeys ??
           await VirgilKeyService().getRecipientKeys(message.senderId);
       if (senderKeys == null) {
         debugPrint('⚠️ Virgil keys not found for sender ${message.senderId}');
@@ -627,7 +622,12 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   void _updateChatItems() {
     final items = <dynamic>[];
     if (_messages.isEmpty) {
-      _chatItems = [];
+      if (widget.recipientId == AppConstants.booferId) {
+        items.add('welcome_note');
+        _chatItems = items;
+      } else {
+        _chatItems = [];
+      }
       return;
     }
 
@@ -664,11 +664,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       extendBodyBehindAppBar: true,
       appBar: _buildModernAppBar(theme, isOfficial),
       body: appearance.getWallpaperWidget(
-        child: Column(
-          children: [
-            Expanded(child: _buildMessagesList()),
-            _buildModernInputArea(theme),
-          ],
+        child: SmartMaintenance(
+          featureName: 'Messaging',
+          check: (status) => status.isMessagingActive,
+          child: Column(
+            children: [
+              Expanded(child: _buildMessagesList()),
+              _buildModernInputArea(theme),
+            ],
+          ),
         ),
       ),
     );
@@ -705,8 +709,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   tag: 'avatar_${widget.recipientId}',
                   child: UserAvatar(
                     avatar: _recipientUser?.avatar ?? widget.recipientAvatar,
-                    profilePicture:
-                        _recipientUser?.profilePicture ??
+                    profilePicture: _recipientUser?.profilePicture ??
                         widget.recipientProfilePicture,
                     name: _recipientUser?.fullName ?? widget.recipientName,
                     radius: 20,
@@ -725,9 +728,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                           Flexible(
                             child: Text(
                               widget.recipientId == _currentUserId
-                                  ? 'You (${_recipientUser?.fullName ?? widget.recipientName})'
+                                  ? 'You'
                                   : (_recipientUser?.fullName ??
-                                        widget.recipientName),
+                                      widget.recipientName),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16, // Slightly smaller to fit better
@@ -755,21 +758,21 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                             !isAppOnline
                                 ? 'Waiting for network...'
                                 : (widget.recipientId == _currentUserId
-                                      ? 'Message yourself'
-                                      : (isRecipientOnline
-                                            ? 'Online'
-                                            : 'Offline')),
+                                    ? 'Message yourself'
+                                    : (isRecipientOnline
+                                        ? 'Online'
+                                        : 'Offline')),
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontSize: 10,
                               color: !isAppOnline
                                   ? Colors.orange
                                   : (widget.recipientId == _currentUserId
-                                        ? theme.colorScheme.onSurface
-                                              .withOpacity(0.6)
-                                        : (isRecipientOnline
-                                              ? Colors.green
-                                              : theme.colorScheme.onSurface
-                                                    .withOpacity(0.6))),
+                                      ? theme.colorScheme.onSurface
+                                          .withOpacity(0.6)
+                                      : (isRecipientOnline
+                                          ? Colors.green
+                                          : theme.colorScheme.onSurface
+                                              .withOpacity(0.6))),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -842,10 +845,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
   }
 
   Widget _buildModernInputArea(ThemeData theme) {
-    if (!_canChat) {
-      return _buildFriendOnlyScreen();
-    }
-
     if (_isBlocked) {
       return Container(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -876,6 +875,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         ModernChatInput(
           autofocus: true,
           initialText: widget.initialText,
+          hideWarning: widget.recipientId == _currentUserId, // Hide warning for self-chat
           onSendMessage: (text) {
             _handleSendMessage(text);
           },
@@ -884,28 +884,12 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     );
   }
 
-  Widget _buildFriendOnlyScreen() {
-    if (_recipientUser == null) {
-      return const Center(child: Text('User not found'));
-    }
-
-    return Center(
-      child: FriendOnlyMessageWidget(
-        user: _recipientUser!,
-        onFollowChanged: () {
-          // Refresh the chat state after follow status changes
-          _initializeChat();
-        },
-      ),
-    );
-  }
-
   Widget _buildMessagesList() {
     if (_loading && _messages.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_messages.isEmpty) {
+    if (_messages.isEmpty && widget.recipientId != AppConstants.booferId) {
       return _buildEmptyState();
     }
 
@@ -934,17 +918,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         if (item is Message) {
           final isMe = item.senderId == _currentUserId;
           final isLatestMe = item.id == latestMeMessageId;
-          final showStatus =
-              isMe &&
+          final showStatus = isMe &&
               (isLatestMe ||
                   item.status == MessageStatus.failed ||
                   item.status == MessageStatus.decryptionFailed ||
                   item.status == MessageStatus.pending);
 
           return Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               MessageBubble(
                 message: item,
@@ -956,11 +938,121 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               if (showStatus) _buildMessageStatus(item),
             ],
           );
+        } else if (item == 'welcome_note') {
+          return _buildWelcomeNote();
         } else if (item is DateTime) {
           return _buildDateHeader(item);
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+
+  Widget _buildWelcomeNote() {
+    final theme = Theme.of(context);
+    final isSelfChat = widget.recipientId == _currentUserId;
+    final userName = isSelfChat 
+        ? 'You' 
+        : (_recipientUser?.fullName ?? widget.recipientName);
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: theme.colorScheme.primary.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child:
+                  const Icon(Icons.rocket_launch, size: 32, color: Colors.blue),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Welcome to Boofer! 🚀',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildWelcomePoint(
+              Icons.lock_outline,
+              'Privacy First',
+              'Your chats are end-to-end encrypted. Only you and your friend can read them.',
+            ),
+            _buildWelcomePoint(
+              Icons.timer_outlined,
+              'Ephemeral Messages',
+              'You can set messages to auto-delete after a chosen time.',
+            ),
+            _buildWelcomePoint(
+              Icons.people_outline,
+              'Mutual Connections',
+              'You can only message someone once you mutually follow each other.',
+            ),
+            _buildWelcomePoint(
+              Icons.shield_outlined,
+              'Safety First',
+              'Harassment or harmful content will result in an immediate ban.',
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Enjoy connecting safely.\n— The Boofer Team 🛣️',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomePoint(IconData icon, String title, String description) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1002,8 +1094,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 12, bottom: 4),
       child: GestureDetector(
-        onTap:
-            message.status == MessageStatus.failed ||
+        onTap: message.status == MessageStatus.failed ||
                 message.status == MessageStatus.decryptionFailed
             ? () {
                 // Resend logic if available, or just re-add to queue
@@ -1074,16 +1165,18 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           Text(
             'No messages yet',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
+                  color: Theme.of(context).colorScheme.outline,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Start a conversation with ${widget.recipientName}',
+            widget.recipientId == _currentUserId
+                ? 'Start messaging yourself'
+                : 'Start a conversation with ${widget.recipientName}',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
+                  color: Theme.of(context).colorScheme.outline,
+                ),
           ),
         ],
       ),
@@ -1127,9 +1220,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (recipientPresence != null) {
         final isSameChat =
             recipientPresence['current_conversation_id'] == _conversationId;
-        initialStatus = isSameChat
-            ? MessageStatus.read
-            : MessageStatus.delivered;
+        initialStatus =
+            isSameChat ? MessageStatus.read : MessageStatus.delivered;
       }
 
       // Optimistic Update: Add message immediately with pending status
@@ -1147,7 +1239,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   'text': _replyToMessage!.text,
                   'sender_name': _replyToMessage!.senderId == _currentUserId
                       ? 'You'
-                      : widget.recipientName,
+                      : (widget.recipientId == _currentUserId
+                          ? 'You'
+                          : widget.recipientName),
                 },
               }
             : null,
@@ -1167,25 +1261,28 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       // When Supabase realtime fires, _decryptMessage looks up the sender's
       // plaintext from local DB. Without this, it finds nothing and shows [Encrypted].
       try {
-        await DatabaseManager.instance.insert('messages', {
-          'id': message.id,
-          'text': message.text, // Original plaintext
-          'sender_id': message.senderId,
-          'receiver_id': message.receiverId,
-          'conversation_id': message.conversationId,
-          'timestamp': message.timestamp.toIso8601String(),
-          'is_offline': 0,
-          'status': message.status.name,
-          'message_hash': message.messageHash,
-          'is_encrypted': 0,
-          'encrypted_content': null,
-          'encryption_version': null,
-          'created_at': message.timestamp.toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-          'metadata': message.metadata != null
-              ? jsonEncode(message.metadata)
-              : null,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await DatabaseManager.instance.insert(
+            'messages',
+            {
+              'id': message.id,
+              'text': message.text, // Original plaintext
+              'sender_id': message.senderId,
+              'receiver_id': message.receiverId,
+              'conversation_id': message.conversationId,
+              'timestamp': message.timestamp.toIso8601String(),
+              'is_offline': 0,
+              'status': message.status.name,
+              'message_hash': message.messageHash,
+              'is_encrypted': 0,
+              'encrypted_content': null,
+              'encryption_version': null,
+              'created_at': message.timestamp.toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+              'metadata': message.metadata != null
+                  ? jsonEncode(message.metadata)
+                  : null,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
         debugPrint('💾 Plaintext saved to local DB for sender recovery');
       } catch (e) {
         debugPrint('⚠️ Failed to save plaintext locally: $e');
@@ -1281,7 +1378,9 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                 Text(
                   _replyToMessage!.senderId == _currentUserId
                       ? 'Reply to yourself'
-                      : 'Reply to ${widget.recipientName}',
+                      : (widget.recipientId == _currentUserId
+                          ? 'Reply to yourself'
+                          : 'Reply to ${widget.recipientName}'),
                   style: TextStyle(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -1368,7 +1467,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('You are now following ${widget.recipientName}'),
+            content: Text(
+              widget.recipientId == _currentUserId
+                  ? 'You are now following yourself'
+                  : 'You are now following ${widget.recipientName}',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
@@ -1405,7 +1508,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${widget.recipientName} has been unblocked'),
+              content: Text(
+                widget.recipientId == _currentUserId
+                    ? 'You have been unblocked'
+                    : '${widget.recipientName} has been unblocked',
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -1421,7 +1528,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${widget.recipientName} has been blocked'),
+              content: Text(
+                widget.recipientId == _currentUserId
+                    ? 'You have been blocked'
+                    : '${widget.recipientName} has been blocked',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -1479,9 +1590,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               title: Text(
                 'After seen',
                 style: TextStyle(
-                  fontWeight: _ephemeralTimer == 'after_seen'
-                      ? FontWeight.bold
-                      : null,
+                  fontWeight:
+                      _ephemeralTimer == 'after_seen' ? FontWeight.bold : null,
                 ),
               ),
               trailing: _ephemeralTimer == 'after_seen'
@@ -1499,9 +1609,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               title: Text(
                 '12 hours (Default)',
                 style: TextStyle(
-                  fontWeight: _ephemeralTimer == '12_hours'
-                      ? FontWeight.bold
-                      : null,
+                  fontWeight:
+                      _ephemeralTimer == '12_hours' ? FontWeight.bold : null,
                 ),
               ),
               trailing: _ephemeralTimer == '12_hours'
@@ -1519,9 +1628,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               title: Text(
                 '24 hours',
                 style: TextStyle(
-                  fontWeight: _ephemeralTimer == '24_hours'
-                      ? FontWeight.bold
-                      : null,
+                  fontWeight:
+                      _ephemeralTimer == '24_hours' ? FontWeight.bold : null,
                 ),
               ),
               trailing: _ephemeralTimer == '24_hours'
@@ -1539,9 +1647,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               title: Text(
                 '48 hours',
                 style: TextStyle(
-                  fontWeight: _ephemeralTimer == '48_hours'
-                      ? FontWeight.bold
-                      : null,
+                  fontWeight:
+                      _ephemeralTimer == '48_hours' ? FontWeight.bold : null,
                 ),
               ),
               trailing: _ephemeralTimer == '48_hours'
@@ -1552,37 +1659,34 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ListTile(
               leading: Icon(
                 Icons.edit_calendar_outlined,
-                color:
-                    (![
-                      'after_seen',
-                      '12_hours',
-                      '24_hours',
-                      '48_hours',
-                    ].contains(_ephemeralTimer))
+                color: (![
+                  'after_seen',
+                  '12_hours',
+                  '24_hours',
+                  '48_hours',
+                ].contains(_ephemeralTimer))
                     ? Theme.of(context).colorScheme.primary
                     : null,
               ),
               title: Text(
                 'Custom (Max 72h)',
                 style: TextStyle(
-                  fontWeight:
-                      (![
-                        'after_seen',
-                        '12_hours',
-                        '24_hours',
-                        '48_hours',
-                      ].contains(_ephemeralTimer))
-                      ? FontWeight.bold
-                      : null,
-                ),
-              ),
-              subtitle:
-                  (![
+                  fontWeight: (![
                     'after_seen',
                     '12_hours',
                     '24_hours',
                     '48_hours',
                   ].contains(_ephemeralTimer))
+                      ? FontWeight.bold
+                      : null,
+                ),
+              ),
+              subtitle: (![
+                'after_seen',
+                '12_hours',
+                '24_hours',
+                '48_hours',
+              ].contains(_ephemeralTimer))
                   ? Text(_ephemeralTimer.replaceAll('_', ' '))
                   : null,
               onTap: () {
@@ -1730,8 +1834,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.primary.withOpacity(0.1),
-                    child:
-                        widget.recipientAvatar != null &&
+                    child: widget.recipientAvatar != null &&
                             widget.recipientAvatar!.startsWith('http')
                         ? ClipOval(
                             child: Image.network(
@@ -1741,15 +1844,15 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   Text(
-                                    widget.recipientName[0].toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                  ),
+                                widget.recipientName[0].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                ),
+                              ),
                             ),
                           )
                         : Text(
@@ -1770,29 +1873,33 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.recipientName,
-                          style: Theme.of(context).textTheme.titleMedium
+                          widget.recipientId == _currentUserId
+                              ? 'You'
+                              : widget.recipientName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         if (widget.recipientHandle != null)
                           Text(
                             '@${widget.recipientHandle}',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.6),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.6),
+                                    ),
                           )
                         else
                           Text(
                             'Tap to view profile',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.6),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.6),
+                                    ),
                           ),
                       ],
                     ),
@@ -1963,8 +2070,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     child: Text(
                       'Media & Files',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                 ],

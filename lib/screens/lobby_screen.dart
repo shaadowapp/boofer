@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/friend_model.dart';
@@ -16,6 +17,7 @@ import '../widgets/skeleton_chat_tile.dart';
 import '../services/code_push_service.dart';
 import 'package:flutter/services.dart';
 import 'user_profile_screen.dart';
+import 'support_chat_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -127,14 +129,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // In a real app, use Restart.restartApp()
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please close and reopen the app manually.',
-                            ),
-                          ),
-                        );
+                        debugPrint('🚀 [RESTART] Triggered from Lobby Banner');
+                        // Use exit(0) to ensure Shorebird marks the launch as clean
+                        // and applies any staged patches.
+                        exit(0);
                       },
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.white.withOpacity(0.2),
@@ -154,7 +152,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               );
             },
           ),
-          
+
           // LOCAL SEARCH BAR (Saves Bandwidth)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -170,27 +168,34 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search chats...',
                   hintStyle: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.5),
                     fontSize: 14,
                   ),
                   prefixIcon: Icon(
                     Icons.search_rounded,
                     size: 20,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.5),
                   ),
-                  suffixIcon: _searchQuery.isNotEmpty 
-                    ? IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
                   filled: true,
-                  fillColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                  fillColor:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -208,15 +213,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 final archivedChats = chatProvider.archivedChats;
 
                 // Apply local search filtering
-                final filteredActiveChats = _searchQuery.isEmpty 
-                    ? activeChats 
+                final filteredActiveChats = _searchQuery.isEmpty
+                    ? activeChats
                     : activeChats.where((friend) {
                         final searchLower = _searchQuery.toLowerCase();
-                        final numericSearch = _searchQuery.replaceAll(RegExp(r'\D'), '');
-                        
-                        return friend.name.toLowerCase().contains(searchLower) ||
-                               friend.handle.toLowerCase().contains(searchLower) ||
-                               (numericSearch.isNotEmpty && friend.virtualNumber.contains(numericSearch));
+                        final numericSearch =
+                            _searchQuery.replaceAll(RegExp(r'\D'), '');
+
+                        return friend.name
+                                .toLowerCase()
+                                .contains(searchLower) ||
+                            friend.handle.toLowerCase().contains(searchLower) ||
+                            (numericSearch.isNotEmpty &&
+                                friend.virtualNumber.contains(numericSearch));
                       }).toList();
 
                 debugPrint('🚀 [LOBBY_UI] UI CONSUMER REBUILD');
@@ -256,7 +265,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   SvgIcons.sized(
-                                    _searchQuery.isEmpty ? SvgIcons.peopleOutline : SvgIcons.searchOff,
+                                    _searchQuery.isEmpty
+                                        ? SvgIcons.peopleOutline
+                                        : SvgIcons.searchOff,
                                     64,
                                     color: Theme.of(
                                       context,
@@ -264,7 +275,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    _searchQuery.isEmpty ? 'No chats yet' : 'No matches found',
+                                    _searchQuery.isEmpty
+                                        ? 'No chats yet'
+                                        : 'No matches found',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
@@ -277,7 +290,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _searchQuery.isEmpty 
+                                    _searchQuery.isEmpty
                                         ? 'Start connecting with people'
                                         : 'Try searching for something else',
                                     style: Theme.of(context)
@@ -314,7 +327,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           vertical: 14,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(30),
+                                          borderRadius:
+                                              BorderRadius.circular(30),
                                         ),
                                       ),
                                     ),
@@ -373,7 +387,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     List<Friend> archivedChats,
     ArchiveSettingsProvider archiveSettings,
   ) {
-    int totalItems = activeChats.length;
+    int totalItems = activeChats.length + 1; // +1 for Support Hub
 
     // Add archive button if there are archived chats and it should be shown
     if (archivedChats.isNotEmpty) {
@@ -397,30 +411,36 @@ class _LobbyScreenState extends State<LobbyScreen> {
     ChatProvider chatProvider,
     AppLocalizations l10n,
   ) {
+    // 1. Support Chat (at the very top)
+    if (index == 0) {
+      return _buildSupportTile(context, l10n);
+    }
+
+    // Adjust index for subsequent items
+    final int adjustedIndex = index - 1;
+
     // Show archive button at the top if configured
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.topOfChats &&
-        index == 0) {
+        adjustedIndex == 0) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
-
-    // ... calculate friendIndex based on whether archive button is at top
 
     // Show archive button at the bottom if configured
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.bottomOfChats &&
-        index == activeChats.length) {
+        adjustedIndex == activeChats.length) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
 
     // Calculate the actual friend index
-    int friendIndex = index;
+    int friendIndex = adjustedIndex;
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.topOfChats) {
-      friendIndex = index - 1;
+      friendIndex = adjustedIndex - 1;
     }
 
     // Show friend tile
@@ -431,6 +451,103 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     // Fallback - should not happen
     return const SizedBox.shrink();
+  }
+
+  Widget _buildSupportTile(BuildContext context, AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SupportChatScreen()),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorScheme.primary.withOpacity(0.1),
+                      ),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '🛣️',
+                        style: TextStyle(fontSize: 24),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 1,
+                    bottom: 1,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF25D366), // Online status
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Boofer',
+                          style: textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 14,
+                          color: Colors.green,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Chat with us for help and updates!',
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontSize: 13.5,
+                        color: colorScheme.onSurface.withOpacity(0.55),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildArchiveContactCard(
@@ -467,17 +584,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     Text(
                       l10n.archived,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15.5,
-                      ),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15.5,
+                          ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 13.5,
-                        color: colorScheme.onSurface.withOpacity(0.55),
-                      ),
+                            fontSize: 13.5,
+                            color: colorScheme.onSurface.withOpacity(0.55),
+                          ),
                     ),
                   ],
                 ),
@@ -806,7 +923,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           children: [
                             Text(
                               friend.name,
-                              style: Theme.of(context).textTheme.titleMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             if (friend.isVerified ||
@@ -837,12 +956,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ),
                         Text(
                           '${friend.formattedHandle} • (${friend.formattedVirtualNumber})',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.6),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.6),
+                                  ),
                         ),
                       ],
                     ),

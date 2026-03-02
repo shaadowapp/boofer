@@ -203,9 +203,11 @@ class BooferIdentityCard extends StatelessWidget {
                               )
                             else
                               Text(
-                                user.isCompany
-                                    ? 'Official Verified Entity'
-                                    : 'Identity established on Boofer.',
+                                user.id == AppConstants.booferId
+                                    ? 'Official Support Chatbot'
+                                    : user.isCompany
+                                        ? 'Official Verified Entity'
+                                        : 'Identity established on Boofer.',
                                 style: TextStyle(
                                   color: theme.colorScheme.onSurface
                                       .withOpacity(0.5),

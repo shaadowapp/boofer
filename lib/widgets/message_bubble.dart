@@ -30,18 +30,22 @@ class MessageBubble extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onReply,
+    this.onAction,
   });
+
+  final Function(Map<String, dynamic>)? onAction;
 
   @override
   Widget build(BuildContext context) {
-    final isOwnMessage = message.senderId.trim() == currentUserId.trim();
+    // We treat from_system messages as "not own" so they appear on the left (bot side)
+    final isOwnMessage = (message.senderId.trim() == currentUserId.trim()) &&
+        !(message.metadata?['from_system'] == true);
     final theme = Theme.of(context);
     final appearance = Provider.of<AppearanceProvider>(context);
     final hasWallpaper = appearance.selectedWallpaper != 'none';
 
     final reactionsData = message.metadata?['reactions'];
-    final hasReactions =
-        reactionsData != null &&
+    final hasReactions = reactionsData != null &&
         (reactionsData as Map).values.any((v) => (v as List).isNotEmpty);
 
     // Check if message is strictly a SINGLE emoji
@@ -62,9 +66,13 @@ class MessageBubble extends StatelessWidget {
         : BoxDecoration(
             color: isOwnMessage
                 ? appearance.accentColor
-                : (hasWallpaper
-                      ? theme.colorScheme.surface.withValues(alpha: 0.8)
-                      : theme.colorScheme.surfaceContainerHighest),
+                : (message.id.contains('bot-') ||
+                        message.metadata?['from_system'] == true
+                    ? theme.colorScheme.primaryContainer.withValues(alpha: 0.95)
+                    : (hasWallpaper
+                        ? theme.colorScheme.surfaceContainerLow
+                            .withValues(alpha: 0.85)
+                        : theme.colorScheme.surfaceContainerHighest)),
             borderRadius: _getBorderRadius(
               isOwnMessage,
               appearance.chatBubbleShape,
@@ -117,6 +125,9 @@ class MessageBubble extends StatelessWidget {
                 isEmojiOnly ? 56.0 : appearance.bubbleFontSize,
                 isEmojiOnly,
               ),
+            if (message.metadata != null &&
+                message.metadata!['options'] != null)
+              _buildBotOptions(context, theme, appearance),
           ],
         ),
       ),
@@ -149,9 +160,8 @@ class MessageBubble extends StatelessWidget {
             }
           },
           child: Row(
-            mainAxisAlignment: isOwnMessage
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isOwnMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Flexible(
@@ -304,9 +314,8 @@ class MessageBubble extends StatelessWidget {
                             : SupabaseService.instance.getUserProfile(userId),
                         builder: (context, snapshot) {
                           final user = snapshot.data;
-                          final name = isMe
-                              ? 'You'
-                              : (user?.fullName ?? 'Unknown');
+                          final name =
+                              isMe ? 'You' : (user?.fullName ?? 'Unknown');
                           return ListTile(
                             leading: Text(
                               emoji,
@@ -319,9 +328,9 @@ class MessageBubble extends StatelessWidget {
                                       Navigator.pop(context);
                                       await SupabaseService.instance
                                           .removeMessageReaction(
-                                            message.id,
-                                            emoji,
-                                          );
+                                        message.id,
+                                        emoji,
+                                      );
                                     },
                                     child: const Text(
                                       'Remove',
@@ -370,8 +379,6 @@ class MessageBubble extends StatelessWidget {
 
     overlayState.insert(overlayEntry);
   }
-
-
 
   BorderRadius _getBorderRadius(bool isOwnMessage, ChatBubbleShape shape) {
     switch (shape) {
@@ -465,9 +472,8 @@ class MessageBubble extends StatelessWidget {
             children: [
               Container(
                 width: 4,
-                color: isOwnMessage
-                    ? Colors.white70
-                    : theme.colorScheme.primary,
+                color:
+                    isOwnMessage ? Colors.white70 : theme.colorScheme.primary,
               ),
               Flexible(
                 fit: FlexFit.loose,
@@ -540,6 +546,73 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  Widget _buildBotOptions(
+    BuildContext context,
+    ThemeData theme,
+    AppearanceProvider appearance,
+  ) {
+    if (message.metadata == null || message.metadata!['options'] == null) {
+      return const SizedBox.shrink();
+    }
+
+    final options = message.metadata!['options'] as List;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: options.map((opt) {
+          final option = Map<String, dynamic>.from(opt as Map);
+          final label = option['label']?.toString() ?? '';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: () {
+                if (onAction != null) {
+                  onAction!(option);
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: isDark
+                      ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                      : theme.colorScheme.primary.withValues(alpha: 0.05),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 20,
+                        color: theme.colorScheme.primary.withOpacity(0.5)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildProfileCard(
     BuildContext context,
     bool isOwnMessage,
@@ -552,8 +625,7 @@ class MessageBubble extends StatelessWidget {
     final profileHandle = metadata['profile_handle'] as String? ?? 'handle';
     final profileAvatar = metadata['profile_avatar'] as String?;
     final profilePicture = metadata['profile_picture'] as String?;
-    final isCompany =
-        metadata['is_company'] == true ||
+    final isCompany = metadata['is_company'] == true ||
         (profileId != null && AppConstants.officialIds.contains(profileId));
 
     return Container(
@@ -626,9 +698,8 @@ class MessageBubble extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: isOwnMessage
-                    ? Colors.white
-                    : theme.colorScheme.primary,
+                backgroundColor:
+                    isOwnMessage ? Colors.white : theme.colorScheme.primary,
                 foregroundColor: isOwnMessage
                     ? theme.colorScheme.primary
                     : theme.colorScheme.onPrimary,
@@ -691,7 +762,6 @@ class MessageBubble extends StatelessWidget {
       }
     }
   }
-
 }
 
 class _ExpandableMessageText extends StatefulWidget {
@@ -737,9 +807,8 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
   }
 
   void _updateVisibleLength() {
-    _visibleLength = (widget.text.length > _chunkSize)
-        ? _chunkSize
-        : widget.text.length;
+    _visibleLength =
+        (widget.text.length > _chunkSize) ? _chunkSize : widget.text.length;
   }
 
   void _analyzeText() {
@@ -845,9 +914,8 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
           trimCount = 0;
         }
 
-        final fullUrl = matchText.startsWith('http')
-            ? matchText
-            : 'https://$matchText';
+        final fullUrl =
+            matchText.startsWith('http') ? matchText : 'https://$matchText';
         spans.add(
           TextSpan(
             text: matchText,
@@ -1682,7 +1750,9 @@ class _OverlayDialogState extends State<_OverlayDialog>
                       children: [
                         Text(
                           widget.title,
-                          style: Theme.of(context).textTheme.titleMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),

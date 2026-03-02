@@ -18,7 +18,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 12;
+  static const int _databaseVersion = 13;
 
   /// Get database instance
   Future<Database> get database async {
@@ -220,6 +220,7 @@ class DatabaseManager {
         handle TEXT NOT NULL,
         virtual_number TEXT,
         avatar TEXT,
+        profile_picture TEXT,
         last_message TEXT,
         last_message_time TEXT NOT NULL,
         unread_count INTEGER NOT NULL DEFAULT 0,
@@ -227,6 +228,7 @@ class DatabaseManager {
         is_archived INTEGER NOT NULL DEFAULT 0,
         is_verified INTEGER NOT NULL DEFAULT 0,
         is_mutual INTEGER NOT NULL DEFAULT 0,
+        is_company INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         UNIQUE(user_id, friend_id)
       )
@@ -284,9 +286,11 @@ class DatabaseManager {
     ''');
 
     // Create indexes for better performance
-    batch.execute('CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)');
+    batch.execute(
+        'CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)');
     batch.execute('CREATE INDEX idx_messages_sender_id ON messages(sender_id)');
-    batch.execute('CREATE INDEX idx_messages_receiver_id ON messages(receiver_id)');
+    batch.execute(
+        'CREATE INDEX idx_messages_receiver_id ON messages(receiver_id)');
     batch.execute('CREATE INDEX idx_messages_timestamp ON messages(timestamp)');
     batch.execute('CREATE INDEX idx_messages_status ON messages(status)');
     batch.execute('CREATE INDEX idx_messages_hash ON messages(message_hash)');
@@ -560,6 +564,25 @@ class DatabaseManager {
         'CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id)',
       );
     }
+
+    if (oldVersion < 13) {
+      // Add profile_picture and is_company to cached_friends
+      try {
+        await db.execute(
+          'ALTER TABLE cached_friends ADD COLUMN profile_picture TEXT',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+
+      try {
+        await db.execute(
+          'ALTER TABLE cached_friends ADD COLUMN is_company INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
   }
 
   /// Execute a query with error handling
@@ -718,11 +741,11 @@ class DatabaseManager {
     try {
       final db = await database;
       final result = await db.rawQuery('PRAGMA integrity_check');
-      
+
       if (result.isNotEmpty) {
         final status = result.first['integrity_check'] as String?;
         final isOk = status == 'ok';
-        
+
         if (isOk) {
           debugPrint('✅ Database integrity check passed');
         } else {
@@ -735,10 +758,10 @@ class DatabaseManager {
             ),
           );
         }
-        
+
         return isOk;
       }
-      
+
       return false;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -757,16 +780,18 @@ class DatabaseManager {
     try {
       final db = await database;
       final result = await db.rawQuery('PRAGMA foreign_key_check');
-      
+
       if (result.isEmpty) {
         debugPrint('✅ Foreign key constraints are valid');
         return true;
       } else {
-        debugPrint('⚠️ Foreign key constraint violations found: ${result.length}');
+        debugPrint(
+            '⚠️ Foreign key constraint violations found: ${result.length}');
         for (final violation in result) {
-          debugPrint('  - Table: ${violation['table']}, Row: ${violation['rowid']}');
+          debugPrint(
+              '  - Table: ${violation['table']}, Row: ${violation['rowid']}');
         }
-        
+
         _errorHandler.handleError(
           AppError.database(
             message: 'Foreign key constraint violations found',
@@ -775,7 +800,7 @@ class DatabaseManager {
             originalException: Exception('Foreign key check failed'),
           ),
         );
-        
+
         return false;
       }
     } catch (e, stackTrace) {
@@ -794,7 +819,7 @@ class DatabaseManager {
   Future<Map<String, dynamic>> getDatabaseStats() async {
     try {
       final db = await database;
-      
+
       // Get table counts
       final tables = [
         'users',
@@ -804,31 +829,33 @@ class DatabaseManager {
         'cached_friends',
         'cached_conversations',
       ];
-      
+
       final stats = <String, dynamic>{};
-      
+
       for (final table in tables) {
         try {
-          final result = await db.rawQuery('SELECT COUNT(*) as count FROM $table');
+          final result =
+              await db.rawQuery('SELECT COUNT(*) as count FROM $table');
           stats[table] = result.first['count'];
         } catch (e) {
           stats[table] = 'error';
         }
       }
-      
+
       // Get database size
       stats['database_size_bytes'] = await getDatabaseSize();
-      stats['database_size_mb'] = (stats['database_size_bytes'] as int) / (1024 * 1024);
-      
+      stats['database_size_mb'] =
+          (stats['database_size_bytes'] as int) / (1024 * 1024);
+
       // Get page count and page size
       final pageCountResult = await db.rawQuery('PRAGMA page_count');
       final pageSizeResult = await db.rawQuery('PRAGMA page_size');
-      
+
       stats['page_count'] = pageCountResult.first['page_count'];
       stats['page_size'] = pageSizeResult.first['page_size'];
-      
+
       debugPrint('📊 Database Stats: $stats');
-      
+
       return stats;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -845,15 +872,15 @@ class DatabaseManager {
   /// Perform comprehensive database health check
   Future<Map<String, bool>> performHealthCheck() async {
     debugPrint('🏥 Starting database health check...');
-    
+
     final results = <String, bool>{};
-    
+
     // Check integrity
     results['integrity'] = await checkIntegrity();
-    
+
     // Check foreign keys
     results['foreign_keys'] = await checkForeignKeys();
-    
+
     // Check if database is accessible
     try {
       await database;
@@ -862,7 +889,7 @@ class DatabaseManager {
       results['accessible'] = false;
       debugPrint('❌ Database is not accessible: $e');
     }
-    
+
     // Get stats (non-critical)
     try {
       await getDatabaseStats();
@@ -870,15 +897,15 @@ class DatabaseManager {
     } catch (e) {
       results['stats_available'] = false;
     }
-    
+
     final allPassed = results.values.every((v) => v == true);
-    
+
     if (allPassed) {
       debugPrint('✅ Database health check passed');
     } else {
       debugPrint('⚠️ Database health check found issues: $results');
     }
-    
+
     return results;
   }
 

@@ -11,6 +11,7 @@ import 'manage_friends_screen.dart';
 import '../core/constants.dart';
 import '../widgets/skeleton_user_card.dart';
 import '../utils/screenshot_mode.dart';
+import '../widgets/smart_maintenance.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -72,8 +73,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _currentUserId = currentUser.id;
 
     // 1. Load from cache first (Instant UI)
-    final cachedUsersData = await ChatCacheService.instance
-        .getCachedDiscoverUsers(_currentUserId!);
+    final cachedUsersData =
+        await ChatCacheService.instance.getCachedDiscoverUsers(_currentUserId!);
 
     List<User> currentUsers = [];
 
@@ -110,8 +111,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     // 2. Handle Throttling for manual refreshes
     if (forceRefresh) {
-      final isThrottled = await ChatCacheService.instance
-          .isDiscoverRefreshThrottled();
+      final isThrottled =
+          await ChatCacheService.instance.isDiscoverRefreshThrottled();
       if (isThrottled) {
         debugPrint('⏳ Discover refresh throttled. Using cache.');
         if (mounted) {
@@ -274,47 +275,54 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         backgroundColor: theme.colorScheme.surface,
         centerTitle: false,
       ),
-      body: _isLoading && _users.isEmpty
-          ? ListView.builder(
-              itemCount: 8,
-              itemBuilder: (context, index) => const SkeletonUserCard(),
-            )
-          : _users.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.person_search_outlined,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No users found to follow',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: SmartMaintenance(
+        featureName: 'Discover',
+        check: (status) => status.isDiscoverActive,
+        child: _isLoading && _users.isEmpty
+            ? ListView.builder(
+                itemCount: 8,
+                itemBuilder: (context, index) => const SkeletonUserCard(),
+              )
+            : _users.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person_search_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No users found to follow',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => _loadUsers(forceRefresh: true),
+                    child: ListView.builder(
+                      itemCount: _users.length,
+                      itemBuilder: (context, index) {
+                        final user = _users[index];
+                        return UnifiedFriendCard(
+                          user: user,
+                          showOnlineStatus:
+                              false, // Not relevant for discover usually
+                          onTap: () => _navigateToUserProfile(user),
+                          // key: ValueKey(user.id), // Optional optimization
+                        );
+                      },
                     ),
                   ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: () => _loadUsers(forceRefresh: true),
-              child: ListView.builder(
-                itemCount: _users.length,
-                itemBuilder: (context, index) {
-                  final user = _users[index];
-                  return UnifiedFriendCard(
-                    user: user,
-                    showOnlineStatus:
-                        false, // Not relevant for discover usually
-                    onTap: () => _navigateToUserProfile(user),
-                    // key: ValueKey(user.id), // Optional optimization
-                  );
-                },
-              ),
-            ),
+      ),
     );
   }
 }

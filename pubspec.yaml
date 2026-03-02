@@ -2,10 +2,10 @@ name: boofer
 description: "Hybrid online/offline chat app with mesh networking capabilities."
 publish_to: 'none'
 
-version: 1.1.0+9
+version: 1.1.2+15
 
 environment:
-  sdk: ^3.10.4
+  sdk: ^3.6.0
 
 dependencies:
   flutter:
@@ -30,6 +30,7 @@ dependencies:
   uuid: ^4.5.2
   # Removed Google Sign-In as requested
   shorebird_code_push: ^2.0.0
+  onesignal_flutter: ^5.2.6
 
   http: ^1.1.0
   crypto: ^3.0.3
@@ -48,7 +49,7 @@ dependencies:
   device_info_plus: ^12.3.0
   package_info_plus: ^8.1.2
   # Removed Firebase as requested
-  libsignal_protocol_dart: ^0.7.4
+  libsignal_protocol_dart: 0.7.4
 
 dev_dependencies:
   flutter_test:
@@ -56,12 +57,11 @@ dev_dependencies:
   flutter_lints: ^2.0.0
   build_runner: ^2.4.8
   mockito: ^5.4.4
-  # integration_test:
-  #   sdk: flutter
+  integration_test:
+    sdk: flutter
 flutter:
   uses-material-design: true
   generate: true
-  
   assets:
     - assets/icons/
     - assets/images/

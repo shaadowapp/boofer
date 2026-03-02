@@ -12,6 +12,7 @@ class LocalStorageService {
   static const String _termsAcceptedKey = 'terms_accepted_v1';
   static const String _debugMutualFollowKey = 'debug_mutual_follow';
   static const String _trustedDomainsKey = 'trusted_domains';
+  static const String _seenBooferWelcomeKey = 'seen_boofer_welcome';
 
   static const List<String> _defaultTrustedDomains = [
     'google.com',
@@ -312,6 +313,26 @@ class LocalStorageService {
       }
     } catch (e) {
       throw Exception('Failed to add trusted domain: $e');
+    }
+  }
+
+  /// Check if Boofer welcome message has been seen
+  static Future<bool> hasSeenBooferWelcome(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('${_seenBooferWelcomeKey}_$userId') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Mark Boofer welcome message as seen
+  static Future<void> setSeenBooferWelcome(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('${_seenBooferWelcomeKey}_$userId', true);
+    } catch (e) {
+      // Ignore
     }
   }
 }

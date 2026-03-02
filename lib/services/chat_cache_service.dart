@@ -113,6 +113,7 @@ class ChatCacheService {
             'handle': friend.handle,
             'virtual_number': friend.virtualNumber,
             'avatar': friend.avatar,
+            'profile_picture': friend.profilePicture, // Added
             'last_message': friend.lastMessage,
             'last_message_time': friend.lastMessageTime.toIso8601String(),
             'unread_count': friend.unreadCount,
@@ -120,6 +121,7 @@ class ChatCacheService {
             'is_archived': friend.isArchived ? 1 : 0,
             'is_verified': friend.isVerified ? 1 : 0,
             'is_mutual': friend.isMutual ? 1 : 0,
+            'is_company': friend.isCompany ? 1 : 0, // Added
             'cached_at': DateTime.now().toIso8601String(),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
@@ -141,6 +143,36 @@ class ChatCacheService {
           originalException: e is Exception ? e : Exception(e.toString()),
         ),
       );
+    }
+  }
+
+  /// Update a single friend in the cache (for real-time updates)
+  Future<void> updateCachedFriend(String userId, Friend friend) async {
+    try {
+      await _database.insert(
+        'cached_friends',
+        {
+          'user_id': userId,
+          'friend_id': friend.id,
+          'name': friend.name,
+          'handle': friend.handle,
+          'virtual_number': friend.virtualNumber,
+          'avatar': friend.avatar,
+          'profile_picture': friend.profilePicture,
+          'last_message': friend.lastMessage,
+          'last_message_time': friend.lastMessageTime.toIso8601String(),
+          'unread_count': friend.unreadCount,
+          'is_online': friend.isOnline ? 1 : 0,
+          'is_archived': friend.isArchived ? 1 : 0,
+          'is_verified': friend.isVerified ? 1 : 0,
+          'is_mutual': friend.isMutual ? 1 : 0,
+          'is_company': friend.isCompany ? 1 : 0,
+          'cached_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to update incremental cache for ${friend.id}: $e');
     }
   }
 
@@ -259,39 +291,41 @@ class ChatCacheService {
   /// Clean up old cached data (older than specified days)
   Future<void> cleanupOldCache({int maxAgeDays = 7}) async {
     try {
-      final cutoffDate = DateTime.now()
-          .subtract(Duration(days: maxAgeDays))
-          .toIso8601String();
-      
+      final cutoffDate =
+          DateTime.now().subtract(Duration(days: maxAgeDays)).toIso8601String();
+
       final friendsDeleted = await _database.delete(
         'cached_friends',
         where: 'cached_at < ?',
         whereArgs: [cutoffDate],
       );
-      
+
       final conversationsDeleted = await _database.delete(
         'cached_conversations',
         where: 'cached_at < ?',
         whereArgs: [cutoffDate],
       );
-      
+
       final discoverDeleted = await _database.delete(
         'cached_discover_users',
         where: 'cached_at < ?',
         whereArgs: [cutoffDate],
       );
-      
+
       final startChatDeleted = await _database.delete(
         'cached_start_chat_users',
         where: 'cached_at < ?',
         whereArgs: [cutoffDate],
       );
 
-      final totalDeleted = friendsDeleted + conversationsDeleted + 
-                          discoverDeleted + startChatDeleted;
+      final totalDeleted = friendsDeleted +
+          conversationsDeleted +
+          discoverDeleted +
+          startChatDeleted;
 
       if (totalDeleted > 0) {
-        debugPrint('🧹 Cleaned up $totalDeleted old cache entries (older than $maxAgeDays days)');
+        debugPrint(
+            '🧹 Cleaned up $totalDeleted old cache entries (older than $maxAgeDays days)');
       }
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -388,13 +422,16 @@ class ChatCacheService {
       // Don't delete old messages, just insert/update new ones
       // This preserves message history
       for (final message in messages) {
-        await _database.insert('messages', {
-          ...message,
-          'conversation_id': conversationId,
-          'created_at':
-              message['created_at'] ?? DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await _database.insert(
+            'messages',
+            {
+              ...message,
+              'conversation_id': conversationId,
+              'created_at':
+                  message['created_at'] ?? DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
 
       // Update last sync timestamp for this conversation
@@ -482,20 +519,24 @@ class ChatCacheService {
 
       // Insert/Update new users
       for (final user in users) {
-        await _database.insert('cached_discover_users', {
-          'user_id': userId,
-          'profile_id': user['id'],
-          'name': user['full_name'] ?? user['name'] ?? '',
-          'handle': user['handle'],
-          'bio': user['bio'],
-          'avatar': user['profile_picture'] ?? user['avatar'],
-          'is_following': user['isFollowing'] == true ? 1 : 0,
-          'is_verified': user['is_verified'] == true || user['is_verified'] == 1
-              ? 1
-              : 0,
-          'is_mutual': user['isMutual'] == true ? 1 : 0,
-          'cached_at': DateTime.now().toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await _database.insert(
+            'cached_discover_users',
+            {
+              'user_id': userId,
+              'profile_id': user['id'],
+              'name': user['full_name'] ?? user['name'] ?? '',
+              'handle': user['handle'],
+              'bio': user['bio'],
+              'avatar': user['profile_picture'] ?? user['avatar'],
+              'is_following': user['isFollowing'] == true ? 1 : 0,
+              'is_verified':
+                  user['is_verified'] == true || user['is_verified'] == 1
+                      ? 1
+                      : 0,
+              'is_mutual': user['isMutual'] == true ? 1 : 0,
+              'cached_at': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
 
       // Update last sync timestamp
@@ -622,21 +663,25 @@ class ChatCacheService {
 
       // Upsert new users
       for (final user in users) {
-        await _database.insert('cached_start_chat_users', {
-          'user_id': userId,
-          'profile_id': user['id'],
-          'name': user['full_name'] ?? user['name'] ?? '',
-          'handle': user['handle'],
-          'bio': user['bio'],
-          'avatar': user['profile_picture'] ?? user['avatar'],
-          'virtual_number': user['virtual_number'],
-          'status': user['status'] ?? 'offline',
-          'is_verified': user['is_verified'] == true || user['is_verified'] == 1
-              ? 1
-              : 0,
-          'is_mutual': user['isMutual'] == true ? 1 : 0,
-          'cached_at': DateTime.now().toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await _database.insert(
+            'cached_start_chat_users',
+            {
+              'user_id': userId,
+              'profile_id': user['id'],
+              'name': user['full_name'] ?? user['name'] ?? '',
+              'handle': user['handle'],
+              'bio': user['bio'],
+              'avatar': user['profile_picture'] ?? user['avatar'],
+              'virtual_number': user['virtual_number'],
+              'status': user['status'] ?? 'offline',
+              'is_verified':
+                  user['is_verified'] == true || user['is_verified'] == 1
+                      ? 1
+                      : 0,
+              'is_mutual': user['isMutual'] == true ? 1 : 0,
+              'cached_at': DateTime.now().toIso8601String(),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
 
       // Update last sync timestamp

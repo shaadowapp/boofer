@@ -22,6 +22,8 @@ import '../providers/follow_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/skeleton_profile_header.dart';
 import '../utils/screenshot_mode.dart';
+import '../widgets/smart_maintenance.dart';
+import '../models/system_status_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -40,18 +42,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadUserData();
 
-    _profilePictureSubscription = ProfilePictureService
-        .instance
-        .profilePictureStream
-        .listen((url) {
-          if (mounted &&
-              _currentUser != null &&
-              url != _currentUser!.profilePicture) {
-            setState(() {
-              _currentUser = _currentUser!.copyWith(profilePicture: url);
-            });
-          }
+    _profilePictureSubscription =
+        ProfilePictureService.instance.profilePictureStream.listen((url) {
+      if (mounted &&
+          _currentUser != null &&
+          url != _currentUser!.profilePicture) {
+        setState(() {
+          _currentUser = _currentUser!.copyWith(profilePicture: url);
         });
+      }
+    });
   }
 
   @override
@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
-    
+
     if (ScreenshotMode.isEnabled) {
       if (mounted) {
         setState(() {
@@ -139,9 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          systemOverlayStyle: isDark
-              ? SystemUiOverlayStyle.light
-              : SystemUiOverlayStyle.dark,
+          systemOverlayStyle:
+              isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
           title: Text(
             'MY IDENTITY',
             style: TextStyle(
@@ -196,9 +195,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        systemOverlayStyle: isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         title: Text(
           'MY IDENTITY',
           style: TextStyle(
@@ -272,7 +270,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: const Color(0xFFFF6B6B).withOpacity(isDark ? 0.05 : 0.02),
             ),
           ),
-
           RefreshIndicator(
             onRefresh: _loadUserData,
             color: theme.colorScheme.primary,
@@ -308,7 +305,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 24),
                     ],
-
                     if (_currentUser!.hobbies.isNotEmpty) ...[
                       _buildSectionTitle('Hobbies'),
                       const SizedBox(height: 12),
@@ -374,7 +370,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildActionRow() {
     return GestureDetector(
-      onTap: _showEditProfileSheet,
+      onTap: () {
+        if (!SupabaseService.instance.currentStatus.isProfileUpdatesActive) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  SupabaseService.instance.currentStatus.maintenanceMessage),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+        _showEditProfileSheet();
+      },
       child: Container(
         height: 56,
         width: double.infinity,

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../models/user_model.dart';
-import '../core/constants.dart';
 import 'local_storage_service.dart';
 import '../utils/string_utils.dart';
 
@@ -14,21 +13,7 @@ class FollowService {
 
   /// Ensures that the given user follows the Boofer Official account.
   Future<void> ensureFollowingBoofer(String userId) async {
-    const booferId = AppConstants.booferId;
-    if (userId == booferId) return;
-
-    try {
-      final following = await isFollowing(
-        followerId: userId,
-        followingId: booferId,
-      );
-
-      if (!following) {
-        await followUser(followerId: userId, followingId: booferId);
-      }
-    } catch (e) {
-      // Silently fail if something goes wrong
-    }
+    // No-op: Boofer is a system account and should not clutter the follows table.
   }
 
   Future<List<User>> getSuggestedUsers({
@@ -132,9 +117,8 @@ class FollowService {
           .eq('following_id', userId)
           .filter('follower_id', 'in', '(${followingIds.join(',')})');
 
-      final mutualIds = (response as List)
-          .map((f) => f['follower_id'] as String)
-          .toSet();
+      final mutualIds =
+          (response as List).map((f) => f['follower_id'] as String).toSet();
 
       // Return only those who are mutuals
       return following.where((u) => mutualIds.contains(u.id)).toList();
@@ -205,9 +189,8 @@ class FollowService {
           .eq('follower_id', followerId)
           .inFilter('following_id', followingIds);
 
-      final List<String> foundIds = (response as List)
-          .map((f) => f['following_id'] as String)
-          .toList();
+      final List<String> foundIds =
+          (response as List).map((f) => f['following_id'] as String).toList();
 
       final Map<String, bool> results = {};
       for (final id in followingIds) {

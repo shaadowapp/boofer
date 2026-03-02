@@ -33,8 +33,8 @@ class ChatService {
   ChatService({
     required DatabaseManager database,
     required ErrorHandler errorHandler,
-  }) : _database = database,
-       _errorHandler = errorHandler {
+  })  : _database = database,
+        _errorHandler = errorHandler {
     // Initialize with default network state
     _networkStateController.add(
       NetworkState.initial().copyWith(
@@ -56,9 +56,28 @@ class ChatService {
       // Subscribe to real-time updates from Supabase
       final parts = conversationId.split('_');
       if (parts.length == 3) {
+        // Fetch last cleared at to filter old messages
+        String? lastClearedAt;
+        try {
+          final settings = await _supabaseService.getConversationSettings(
+              conversationId, userId);
+          lastClearedAt = settings?['last_cleared_at'];
+        } catch (e) {
+          debugPrint('⚠️ Error fetching last_cleared_at: $e');
+        }
+
         _supabaseService.listenToMessages(conversationId, (updateList) async {
           if (updateList.isEmpty) return;
           final updatedMsg = updateList.first;
+
+          // Filter out messages older than last_cleared_at
+          if (lastClearedAt != null) {
+            final clearTime = DateTime.parse(lastClearedAt);
+            if (updatedMsg.timestamp.isBefore(clearTime) ||
+                updatedMsg.timestamp.isAtSameMomentAs(clearTime)) {
+              return;
+            }
+          }
 
           final existingMessages = _messageCache[conversationId] ?? [];
           final index = existingMessages.indexWhere(
@@ -73,8 +92,8 @@ class ChatService {
             newMessagesList[index] = updatedMsg.copyWith(
               text:
                   (updatedMsg.text == '[Encrypted]' || updatedMsg.text.isEmpty)
-                  ? oldMsg.text
-                  : updatedMsg.text,
+                      ? oldMsg.text
+                      : updatedMsg.text,
             );
           } else {
             // New message
@@ -218,28 +237,30 @@ class ChatService {
         metadata: metadata,
       );
 
-      await _database.insert('messages', {
-        'id': message.id,
-        'text': message.text,
-        'sender_id': message.senderId,
-        'receiver_id': message.receiverId,
-        'conversation_id': message.conversationId,
-        'timestamp': message.timestamp.toIso8601String(),
-        'is_offline': message.isOffline ? 1 : 0,
-        'status': message.status.name,
-        'type': message.type.name,
-        'message_hash': message.messageHash,
-        'updated_at': DateTime.now().toIso8601String(),
-        'created_at': message.timestamp.toIso8601String(),
-        'is_encrypted': message.isEncrypted ? 1 : 0,
-        'encrypted_content': message.encryptedContent != null
-            ? jsonEncode(message.encryptedContent)
-            : null,
-        'encryption_version': message.encryptionVersion,
-        'metadata': message.metadata != null
-            ? jsonEncode(message.metadata)
-            : null,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await _database.insert(
+          'messages',
+          {
+            'id': message.id,
+            'text': message.text,
+            'sender_id': message.senderId,
+            'receiver_id': message.receiverId,
+            'conversation_id': message.conversationId,
+            'timestamp': message.timestamp.toIso8601String(),
+            'is_offline': message.isOffline ? 1 : 0,
+            'status': message.status.name,
+            'type': message.type.name,
+            'message_hash': message.messageHash,
+            'updated_at': DateTime.now().toIso8601String(),
+            'created_at': message.timestamp.toIso8601String(),
+            'is_encrypted': message.isEncrypted ? 1 : 0,
+            'encrypted_content': message.encryptedContent != null
+                ? jsonEncode(message.encryptedContent)
+                : null,
+            'encryption_version': message.encryptionVersion,
+            'metadata':
+                message.metadata != null ? jsonEncode(message.metadata) : null,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
       Message messageToSave = message;
 
@@ -261,29 +282,30 @@ class ChatService {
 
       // 3. Update local database if status/metadata changed after sending
       await _database.insert(
-        'messages',
-        {
-          'id': messageToSave.id,
-          'text': message.text, // ALWAYS keep local plaintext for sender
-          'sender_id': messageToSave.senderId,
-          'receiver_id': messageToSave.receiverId,
-          'conversation_id': messageToSave.conversationId,
-          'timestamp': messageToSave.timestamp.toIso8601String(),
-          'is_offline': messageToSave.isOffline ? 1 : 0,
-          'status': messageToSave.status.name,
-          'type': messageToSave.type.name,
-          'message_hash': messageToSave.messageHash,
-          'updated_at': DateTime.now().toIso8601String(),
-          'created_at': messageToSave.timestamp.toIso8601String(),
-          'is_encrypted': messageToSave.isEncrypted ? 1 : 0,
-          'encrypted_content': messageToSave.encryptedContent != null
-              ? jsonEncode(messageToSave.encryptedContent)
-              : null,
-          'encryption_version': messageToSave.encryptionVersion,
-        'metadata': messageToSave.metadata != null
-            ? jsonEncode(messageToSave.metadata)
-            : null,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+          'messages',
+          {
+            'id': messageToSave.id,
+            'text': message.text, // ALWAYS keep local plaintext for sender
+            'sender_id': messageToSave.senderId,
+            'receiver_id': messageToSave.receiverId,
+            'conversation_id': messageToSave.conversationId,
+            'timestamp': messageToSave.timestamp.toIso8601String(),
+            'is_offline': messageToSave.isOffline ? 1 : 0,
+            'status': messageToSave.status.name,
+            'type': messageToSave.type.name,
+            'message_hash': messageToSave.messageHash,
+            'updated_at': DateTime.now().toIso8601String(),
+            'created_at': messageToSave.timestamp.toIso8601String(),
+            'is_encrypted': messageToSave.isEncrypted ? 1 : 0,
+            'encrypted_content': messageToSave.encryptedContent != null
+                ? jsonEncode(messageToSave.encryptedContent)
+                : null,
+            'encryption_version': messageToSave.encryptionVersion,
+            'metadata': messageToSave.metadata != null
+                ? jsonEncode(messageToSave.metadata)
+                : null,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
       // Update cache
       if (_messageCache.containsKey(conversationId)) {
@@ -506,25 +528,28 @@ class ChatService {
       }
 
       // 2. Upsert into local database
-      await _database.insert('messages', {
-        'id': m.id,
-        'text': textToSave,
-        'sender_id': m.senderId,
-        'receiver_id': m.receiverId,
-        'conversation_id': m.conversationId,
-        'timestamp': m.timestamp.toIso8601String(),
-        'status': m.status.name,
-        'is_offline': 0,
-        'type': m.type.name,
-        'is_encrypted': m.isEncrypted ? 1 : 0,
-        'encrypted_content': m.encryptedContent != null
-            ? jsonEncode(m.encryptedContent)
-            : null,
-        'encryption_version': m.encryptionVersion,
-        'updated_at': DateTime.now().toIso8601String(),
-        'created_at': m.timestamp.toIso8601String(),
-        'metadata': m.metadata != null ? jsonEncode(m.metadata) : null,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await _database.insert(
+          'messages',
+          {
+            'id': m.id,
+            'text': textToSave,
+            'sender_id': m.senderId,
+            'receiver_id': m.receiverId,
+            'conversation_id': m.conversationId,
+            'timestamp': m.timestamp.toIso8601String(),
+            'status': m.status.name,
+            'is_offline': 0,
+            'type': m.type.name,
+            'is_encrypted': m.isEncrypted ? 1 : 0,
+            'encrypted_content': m.encryptedContent != null
+                ? jsonEncode(m.encryptedContent)
+                : null,
+            'encryption_version': m.encryptionVersion,
+            'updated_at': DateTime.now().toIso8601String(),
+            'created_at': m.timestamp.toIso8601String(),
+            'metadata': m.metadata != null ? jsonEncode(m.metadata) : null,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
     }
   }
 

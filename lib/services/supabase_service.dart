@@ -12,6 +12,7 @@ import 'unified_storage_service.dart';
 import 'virgil_e2ee_service.dart';
 import 'virgil_key_service.dart';
 import '../models/privacy_settings_model.dart';
+import '../models/system_status_model.dart';
 
 /// Supabase service for real-time messaging and user management
 class SupabaseService {
@@ -20,7 +21,9 @@ class SupabaseService {
       _instance ??= SupabaseService._internal();
   SupabaseService._internal();
 
-  SupabaseClient get _supabase => Supabase.instance.client;
+  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient get client => _supabase;
+  GoTrueClient get auth => _supabase.auth;
   final ErrorHandler _errorHandler = ErrorHandler();
 
   // Cache conversation timers so we don't hit the DB on every send.
@@ -38,6 +41,13 @@ class SupabaseService {
 
   Stream<List<Message>> get messagesStream => _messagesController.stream;
 
+  // System Status Stream
+  final StreamController<SystemStatus> _systemStatusController =
+      StreamController<SystemStatus>.broadcast();
+  Stream<SystemStatus> get systemStatusStream => _systemStatusController.stream;
+  SystemStatus _currentStatus = SystemStatus.initial();
+  SystemStatus get currentStatus => _currentStatus;
+
   /// Initialize Supabase connection and E2EE
   Future<void> initialize() async {
     try {
@@ -48,6 +58,9 @@ class SupabaseService {
       if (user != null) {
         await initializeE2EE(user.id);
       }
+
+      // Initialize System Status listener
+      _initSystemStatusListener();
     } catch (e, stackTrace) {
       _errorHandler.handleError(
         AppError.service(
@@ -71,6 +84,22 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ Failed to initialize Virgil E2EE: $e');
     }
+  }
+
+  /// Initialize real-time listener for system status
+  void _initSystemStatusListener() {
+    _supabase
+        .from('system_status')
+        .stream(primaryKey: ['id'])
+        .limit(1)
+        .listen((data) {
+          if (data.isNotEmpty) {
+            _currentStatus = SystemStatus.fromJson(data.first);
+            _systemStatusController.add(_currentStatus);
+            debugPrint(
+                '🔔 [SYSTEM] Status updated: Global=${_currentStatus.isGlobalMaintenance}, Messaging=${_currentStatus.isMessagingActive}');
+          }
+        });
   }
 
   /// Create user profile in profiles table
@@ -258,8 +287,7 @@ class SupabaseService {
 
       // Calculate isFollowing from my_follow
       final myFollow = data['my_follow'] as List?;
-      data['is_following'] =
-          myFollow != null &&
+      data['is_following'] = myFollow != null &&
           myFollow.any((f) => f['follower_id'] == currentUserId);
 
       // Map snake_case to camelCase for the model if needed,
@@ -305,8 +333,7 @@ class SupabaseService {
         final profileMap = Map<String, dynamic>.from(profile);
         final followsList = profileMap['follows'] as List?;
 
-        profileMap['isFollowing'] =
-            followsList != null &&
+        profileMap['isFollowing'] = followsList != null &&
             followsList.any((f) => f['follower_id'] == currentUserId);
 
         profileMap.remove('follows');
@@ -339,8 +366,7 @@ class SupabaseService {
 
       await _supabase
           .from('messages')
-          .update({'status': status.name})
-          .eq('id', messageId);
+          .update({'status': status.name}).eq('id', messageId);
 
       debugPrint('✅ Message status updated to ${status.name}: $messageId');
     } catch (e, stackTrace) {
@@ -488,17 +514,13 @@ class SupabaseService {
       debugPrint(
         '📤 Sending ${dbData['is_encrypted'] == true ? "encrypted" : "plaintext"} message to Supabase...',
       );
-      final response = await _supabase
-          .from('messages')
-          .insert(dbData)
-          .select()
-          .single();
+      final response =
+          await _supabase.from('messages').insert(dbData).select().single();
 
       debugPrint('✅ Message sent to DB, ID: ${response['id']}');
 
       // TRACK NETWORK USAGE
-      final size =
-          (text?.length ?? 0) +
+      final size = (text?.length ?? 0) +
           (messageData['mediaUrl'] != null ? 1024 * 1024 : 0);
       await UnifiedStorageService.incrementNetworkUsage(
         messageData['mediaUrl'] != null ? 'media' : 'messages',
@@ -570,11 +592,11 @@ class SupabaseService {
                   if (!VirgilE2EEService.instance.isInitialized) {
                     await initializeE2EE(currentUserId!);
                   }
-                  final decryptedText = await VirgilE2EEService.instance
-                      .decryptThenVerify(
-                        m.encryptedContent!,
-                        senderKeys['signaturePublicKey'],
-                      );
+                  final decryptedText =
+                      await VirgilE2EEService.instance.decryptThenVerify(
+                    m.encryptedContent!,
+                    senderKeys['signaturePublicKey'],
+                  );
                   m = m.copyWith(text: decryptedText);
                 }
               } catch (e) {
@@ -643,11 +665,11 @@ class SupabaseService {
                       ? jsonDecode(record['encrypted_content'])
                       : record['encrypted_content'];
 
-                  final decrypted = await VirgilE2EEService.instance
-                      .decryptThenVerify(
-                        encryptedContent,
-                        senderKeys['signaturePublicKey'],
-                      );
+                  final decrypted =
+                      await VirgilE2EEService.instance.decryptThenVerify(
+                    encryptedContent,
+                    senderKeys['signaturePublicKey'],
+                  );
                   record['text'] = decrypted;
                 }
               } catch (e) {
@@ -688,14 +710,14 @@ class SupabaseService {
                   if (senderKeys != null) {
                     final contentMap = encryptedSenderContent is String
                         ? jsonDecode(encryptedSenderContent)
-                              as Map<String, dynamic>
+                            as Map<String, dynamic>
                         : Map<String, dynamic>.from(encryptedSenderContent);
 
-                    final decrypted = await VirgilE2EEService.instance
-                        .decryptThenVerify(
-                          contentMap,
-                          senderKeys['signaturePublicKey'],
-                        );
+                    final decrypted =
+                        await VirgilE2EEService.instance.decryptThenVerify(
+                      contentMap,
+                      senderKeys['signaturePublicKey'],
+                    );
                     record['text'] = decrypted;
                   }
                 }
@@ -736,13 +758,13 @@ class SupabaseService {
           },
         )
         .subscribe((status, [error]) {
-          debugPrint(
-            '🔔 [REALTIME] Subscription status for $channelName: $status',
-          );
-          if (error != null) {
-            debugPrint('❌ [REALTIME] Subscription error: ${error.toString()}');
-          }
-        });
+      debugPrint(
+        '🔔 [REALTIME] Subscription status for $channelName: $status',
+      );
+      if (error != null) {
+        debugPrint('❌ [REALTIME] Subscription error: ${error.toString()}');
+      }
+    });
   }
 
   /// Listen for new followers
@@ -759,6 +781,27 @@ class SupabaseService {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'following_id',
+            value: userId,
+          ),
+          callback: (payload) => onFollow(payload.newRecord),
+        )
+        .subscribe();
+  }
+
+  /// Listen for when the current user follows someone
+  RealtimeChannel listenToMyFollows(
+    String userId,
+    Function(Map<String, dynamic> data) onFollow,
+  ) {
+    return _supabase
+        .channel('my_follows_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'follows',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'follower_id',
             value: userId,
           ),
           callback: (payload) => onFollow(payload.newRecord),
@@ -803,6 +846,18 @@ class SupabaseService {
               data['last_message_encrypted_content_sender'];
 
           String lastMessage = data['last_message_text'] ?? '';
+          final lastMessageTime =
+              DateTime.tryParse(data['last_message_time'] ?? '');
+          final lastClearedAtStr = data['last_cleared_at'];
+
+          // If the chat was cleared after the last message, don't show the preview
+          if (lastClearedAtStr != null && lastMessageTime != null) {
+            final clearTime = DateTime.parse(lastClearedAtStr);
+            if (lastMessageTime.isBefore(clearTime) ||
+                lastMessageTime.isAtSameMomentAs(clearTime)) {
+              lastMessage = '';
+            }
+          }
 
           // Decrypt if it's encrypted
           if (isEncrypted) {
@@ -820,11 +875,11 @@ class SupabaseService {
                         ? jsonDecode(selfCopy) as Map<String, dynamic>
                         : Map<String, dynamic>.from(selfCopy);
 
-                    lastMessage = await VirgilE2EEService.instance
-                        .decryptThenVerify(
-                          contentMap,
-                          ourKeys['signaturePublicKey'],
-                        );
+                    lastMessage =
+                        await VirgilE2EEService.instance.decryptThenVerify(
+                      contentMap,
+                      ourKeys['signaturePublicKey'],
+                    );
                   }
                 }
               } else if (encryptedContent != null) {
@@ -838,11 +893,11 @@ class SupabaseService {
                       ? jsonDecode(encryptedContent) as Map<String, dynamic>
                       : Map<String, dynamic>.from(encryptedContent);
 
-                  lastMessage = await VirgilE2EEService.instance
-                      .decryptThenVerify(
-                        contentMap,
-                        senderKeys['signaturePublicKey'],
-                      );
+                  lastMessage =
+                      await VirgilE2EEService.instance.decryptThenVerify(
+                    contentMap,
+                    senderKeys['signaturePublicKey'],
+                  );
                 }
               }
             } catch (e) {
@@ -866,6 +921,7 @@ class SupabaseService {
               'profilePicture': data['friend_profile_picture'],
               'status': data['friend_status'],
               'is_verified': data['friend_is_verified'],
+              'is_company': data['friend_is_company'],
             },
             'is_encrypted': isEncrypted,
             'encrypted_content': encryptedContent,
@@ -880,7 +936,7 @@ class SupabaseService {
     } catch (e, stackTrace) {
       debugPrint('❌ [LOBBY_FLOW] getUserConversations FAILED: $e');
       debugPrint('$stackTrace');
-      return [];
+      rethrow;
     }
   }
 
@@ -1032,13 +1088,71 @@ class SupabaseService {
       final sortedIds = [userId, friendId]..sort();
       final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
 
-      await _supabase
-          .from('conversation_settings')
-          .update({'is_hidden': true})
-          .eq('conversation_id', conversationId)
-          .eq('user_id', userId);
+      final now = DateTime.now().toUtc().toIso8601String();
+
+      // 1. Hide the conversation from lobby and set clear timestamp
+      await _supabase.from('conversation_settings').upsert({
+        'conversation_id': conversationId,
+        'user_id': userId,
+        'is_hidden': true,
+        'last_cleared_at': now,
+      });
+
+      debugPrint(
+          '✅ Conversation $conversationId hidden and cleared for $userId at $now');
     } catch (e) {
-      debugPrint('Error deleting conversation: $e');
+      debugPrint('❌ Error deleting conversation: $e');
+      // Fallback
+      try {
+        final userId = _supabase.auth.currentUser?.id;
+        final sortedIds = [userId!, friendId]..sort();
+        final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
+        await _supabase.from('conversation_settings').upsert({
+          'conversation_id': conversationId,
+          'user_id': userId,
+          'is_hidden': true,
+        });
+      } catch (e) {
+        debugPrint('❌ Fallback failed: $e');
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>?> getConversationSettings(
+      String conversationId, String userId) async {
+    try {
+      final response = await _supabase
+          .from('conversation_settings')
+          .select()
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('⚠️ Error fetching conversation settings: $e');
+      return null;
+    }
+  }
+
+  /// Un-hide a conversation in the lobby (when a new message arrives)
+  Future<void> unhideConversation(String friendId) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      if (!StringUtils.isUuid(userId) || !StringUtils.isUuid(friendId)) return;
+
+      final sortedIds = [userId, friendId]..sort();
+      final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
+
+      await _supabase.from('conversation_settings').upsert({
+        'conversation_id': conversationId,
+        'user_id': userId,
+        'is_hidden': false,
+      });
+      debugPrint('✅ Conversation $conversationId un-hidden for $userId');
+    } catch (e) {
+      debugPrint('❌ Error un-hiding conversation: $e');
     }
   }
 
@@ -1104,8 +1218,7 @@ class SupabaseService {
         final followsList = profileMap['follows'] as List?;
 
         // isFollowing is true if any follow record for this user has the currentUserId as follower
-        profileMap['isFollowing'] =
-            followsList != null &&
+        profileMap['isFollowing'] = followsList != null &&
             followsList.any((f) => f['follower_id'] == currentUserId);
 
         // Clean up the joined data for the UI
@@ -1194,13 +1307,10 @@ class SupabaseService {
     if (userId == null) return;
 
     try {
-      await _supabase
-          .from('profiles')
-          .update({
-            'status': status,
-            'last_seen': DateTime.now().toIso8601String(),
-          })
-          .eq('id', userId);
+      await _supabase.from('profiles').update({
+        'status': status,
+        'last_seen': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
       debugPrint('✅ User status updated to $status');
     } catch (e) {
       debugPrint('❌ Error updating user status: $e');
@@ -1326,8 +1436,7 @@ class SupabaseService {
 
       await _supabase
           .from('messages')
-          .update({'metadata': metadata})
-          .eq('id', messageId);
+          .update({'metadata': metadata}).eq('id', messageId);
 
       debugPrint('✅ Message hidden for user $userId: $messageId');
     } catch (e, stackTrace) {
@@ -1391,8 +1500,7 @@ class SupabaseService {
         // 3. Save back to DB
         await _supabase
             .from('messages')
-            .update({'metadata': metadata})
-            .eq('id', messageId);
+            .update({'metadata': metadata}).eq('id', messageId);
 
         debugPrint('✅ Added reaction $emoji to message $messageId');
       }
@@ -1437,8 +1545,7 @@ class SupabaseService {
         // 3. Save back to DB
         await _supabase
             .from('messages')
-            .update({'metadata': metadata})
-            .eq('id', messageId);
+            .update({'metadata': metadata}).eq('id', messageId);
 
         debugPrint('✅ Removed reaction $emoji from message $messageId');
       }

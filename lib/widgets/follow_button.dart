@@ -35,8 +35,9 @@ class _FollowButtonState extends State<FollowButton> {
         final isLoading = provider.isLoading || _isProcessing;
         final isSelf = provider.currentUserId == widget.user.id;
 
-        if (isSelf) {
-          return const SizedBox.shrink(); // Don't show button for self
+        if (isSelf || widget.user.id == AppConstants.booferId) {
+          return const SizedBox
+              .shrink(); // Don't show button for self or Boofer support
         }
 
         if (widget.compact) {
@@ -97,8 +98,8 @@ class _FollowButtonState extends State<FollowButton> {
                     isFollowing
                         ? theme.colorScheme.onSurfaceVariant
                         : (showGradient
-                              ? Colors.white
-                              : theme.colorScheme.onPrimary),
+                            ? Colors.white
+                            : theme.colorScheme.onPrimary),
                   ),
                 ),
               )

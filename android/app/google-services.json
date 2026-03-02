@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "545525621222",
+    "project_id": "boofer-chat",
+    "storage_bucket": "boofer-chat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545525621222:android:4f3f2e6e968451fee6b627",
+        "android_client_info": {
+          "package_name": "com.shaadow.boofer.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "545525621222-akeshqckk9a2ecseilg1k6hqphsp79ri.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shaadow.boofer.android",
+            "certificate_hash": "5013dc70a04894ee31753a060c50eeff5ca885be"
+          }
+        },
+        {
+          "client_id": "545525621222-oofhq1vtbo3k95k18qup9l9fake5uem2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5llO_4pt833N9Wv74NMHTG19xOkQwaL8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "545525621222-oofhq1vtbo3k95k18qup9l9fake5uem2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

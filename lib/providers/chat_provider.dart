@@ -16,6 +16,7 @@ import '../services/notification_service.dart';
 import '../core/constants.dart';
 import '../services/chat_cache_service.dart';
 import '../utils/screenshot_mode.dart';
+// Removed unused import
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
@@ -40,6 +41,7 @@ class ChatProvider with ChangeNotifier {
   StreamSubscription<Message>? _newMessageSubscription;
   RealtimeChannel? _globalMessagesSubscription;
   RealtimeChannel? _followSubscription;
+  RealtimeChannel? _myFollowSubscription;
   RealtimeChannel? _presenceChannel;
   RealtimeChannel? _profilesSubscription;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
@@ -47,8 +49,8 @@ class ChatProvider with ChangeNotifier {
   ChatProvider({
     required ChatService chatService,
     required ErrorHandler errorHandler,
-  }) : _chatService = chatService,
-       _errorHandler = errorHandler {
+  })  : _chatService = chatService,
+        _errorHandler = errorHandler {
     _initializeSubscriptions();
     _loadRealFriends(); // Load real friends instead of demo data
   }
@@ -117,9 +119,8 @@ class ChatProvider with ChangeNotifier {
         if (recipientPresence != null) {
           final isSameChat =
               recipientPresence['current_conversation_id'] == conversationId;
-          initialStatus = isSameChat
-              ? MessageStatus.read
-              : MessageStatus.delivered;
+          initialStatus =
+              isSameChat ? MessageStatus.read : MessageStatus.delivered;
         }
       }
 
@@ -132,6 +133,30 @@ class ChatProvider with ChangeNotifier {
         status: initialStatus,
         metadata: metadata,
       );
+
+      // Update lobby list immediately when user sends a message
+      // This ensures the chat moves to the top of the list
+      if (receiverId != null) {
+        final friendIndex = _friends.indexWhere((f) => f.id == receiverId);
+        if (friendIndex != -1) {
+          final friend = _friends[friendIndex];
+          final updatedFriend = friend.copyWith(
+            lastMessage: content,
+            lastMessageTime: DateTime.now(),
+            lastSenderId: senderId,
+            lastMessageStatus: initialStatus,
+            unreadCount: 0, // Reset unread since we're sending
+          );
+          
+          // Move to top of list
+          _friends.removeAt(friendIndex);
+          _friends.insert(0, updatedFriend);
+          notifyListeners();
+          
+          // Update cache
+          ChatCacheService.instance.updateCachedFriend(senderId, updatedFriend);
+        }
+      }
     } catch (e) {
       _handleError(e);
       rethrow;
@@ -194,9 +219,8 @@ class ChatProvider with ChangeNotifier {
       _errorHandler.handleError(
         AppError.service(
           message: error.toString(),
-          originalException: error is Exception
-              ? error
-              : Exception(error.toString()),
+          originalException:
+              error is Exception ? error : Exception(error.toString()),
         ),
       );
     }
@@ -242,10 +266,6 @@ class ChatProvider with ChangeNotifier {
       debugPrint(
         '🚀 [LOBBY] Starting _loadRealFriends (forceRefresh: $forceRefresh)',
       );
-      // Use StackTrace to see who called this
-      debugPrint(
-        '📍 [LOBBY] Called from: ${StackTrace.current.toString().split('\n')[1]}',
-      );
 
       final currentUser = await UserService.getCurrentUser();
       final supabaseUser = Supabase.instance.client.auth.currentUser;
@@ -260,6 +280,25 @@ class ChatProvider with ChangeNotifier {
         return;
       }
 
+      // 1. Initial Cache Load (Offline-first)
+      if (!_friendsLoaded || forceRefresh) {
+        final cachedFriends =
+            await ChatCacheService.instance.getCachedFriends(currentUser.id);
+        if (cachedFriends.isNotEmpty) {
+          debugPrint(
+              '🎯 [LOBBY] Loaded ${cachedFriends.length} friends from cache');
+          // Replace current user's name with "You" in cached friends
+          _friends = cachedFriends.map((friend) {
+            if (friend.id == currentUser.id) {
+              return friend.copyWith(name: 'You');
+            }
+            return friend;
+          }).toList();
+          _friendsLoaded = true;
+          notifyListeners();
+        }
+      }
+
       debugPrint(
         '✅ [LOBBY] Session Check: LocalId=${currentUser.id}, SupabaseUid=${supabaseUser?.id}',
       );
@@ -269,86 +308,77 @@ class ChatProvider with ChangeNotifier {
 
       // Initialize global listeners
       if (_globalMessagesSubscription == null) {
-        debugPrint(
-          '📡 [LOBBY] Setting up message subscription for ${currentUser.id}...',
-        );
         _globalMessagesSubscription = SupabaseService.instance
             .listenToAllUserMessages(currentUser.id, (payload) {
-              _handleRealtimeMessageEvent(payload, currentUser.id);
-            });
+          _handleRealtimeMessageEvent(payload, currentUser.id);
+        });
       }
       if (_followSubscription == null) {
-        debugPrint('📡 [LOBBY] Setting up follow subscription...');
         _followSubscription = SupabaseService.instance.listenToUserFollows(
-          currentUser.id,
-          (data) => _handleFollowEvent(data),
-        );
+            currentUser.id, (data) => _handleOtherFollowEvent(data));
+      }
+      if (_myFollowSubscription == null) {
+        _myFollowSubscription = SupabaseService.instance.listenToMyFollows(
+            currentUser.id, (data) => _handleMyFollowEvent(data));
       }
       if (_profilesSubscription == null) {
-        debugPrint('📡 [LOBBY] Setting up profiles listener...');
         _setupProfilesListener();
       }
       if (_presenceChannel == null) {
-        debugPrint('📡 [LOBBY] Setting up presence for ${currentUser.id}...');
         _setupPresence(currentUser.id);
       }
 
       _isLoadingFromNetwork = true;
       notifyListeners();
 
-      debugPrint('🚀 [LOBBY] Fetching data via SupabaseService...');
       final supabaseService = SupabaseService.instance;
 
-      // Single source of truth: the v_chat_lobby view
-      debugPrint(
-        '🚀 [LOBBY] Awaiting getUserConversations and getBlockedUserIds...',
+      // 2. Network Fetch (Single source of truth: the v_chat_lobby view)
+      final results = await Future.wait([
+        supabaseService.getUserConversations(currentUser.id),
+        supabaseService.getBlockedUserIds(),
+      ]).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('⚠️ [LOBBY] Fetch TIMEOUT after 15s');
+          return [[], []];
+        },
       );
-      final results =
-          await Future.wait([
-            supabaseService.getUserConversations(currentUser.id),
-            supabaseService.getBlockedUserIds(),
-          ]).timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              debugPrint('⚠️ [LOBBY] Fetch TIMEOUT after 15s');
-              return [[], []];
-            },
-          );
 
-      final List<Map<String, dynamic>> conversationData = (results[0] as List)
-          .cast<Map<String, dynamic>>();
+      final List<Map<String, dynamic>> conversationData =
+          (results[0] as List).cast<Map<String, dynamic>>();
       final List<String> blockedUserIds = (results[1] as List).cast<String>();
 
       debugPrint(
-        '🚀 [LOBBY] Received ${conversationData.length} conversations and ${blockedUserIds.length} blocked users',
-      );
+          '📥 [LOBBY] Network fetch returned ${conversationData.length} conversations');
 
       _blockedUsers.clear();
       _blockedUsers.addAll(blockedUserIds);
 
       final List<Friend> friendsList = [];
 
-      // 1. Map conversations directly from view
-      int parseCount = 0;
+      // If we got ZERO conversations from network, this is suspicious if user has started chats.
+      // We don't overwrite _friends yet, we prepare friendsList first.
+
+      // Map conversations directly from view
       for (final conv in conversationData) {
         try {
           final friend = Friend.fromJson(conv);
           if (!blockedUserIds.contains(friend.id)) {
-            friendsList.add(friend);
-            parseCount++;
+            // Replace current user's name with "You" for self-chat
+            if (friend.id == currentUser.id) {
+              friendsList.add(friend.copyWith(name: 'You'));
+            } else {
+              friendsList.add(friend);
+            }
           }
         } catch (e) {
           debugPrint('⚠️ [LOBBY] Error parsing conversation: $e');
-          debugPrint('⚠️ [LOBBY] Raw data that failed: $conv');
         }
       }
-      debugPrint(
-        '🚀 [LOBBY] Successfully parsed $parseCount friends from server data',
-      );
 
-      // 2. Ensure Self-chat exists
+      // 3. Ensure Self-chat exists
       if (!friendsList.any((f) => f.id == currentUser.id)) {
-        debugPrint('🚀 [LOBBY] Adding Self-chat tile');
         friendsList.add(
           Friend(
             id: currentUser.id,
@@ -365,48 +395,25 @@ class ChatProvider with ChangeNotifier {
         );
       }
 
-      // 3. Ensure Boofer tile exists (use real data from v_chat_lobby when available)
-      // The welcome-message trigger guarantees boofer always has a message row,
-      // so v_chat_lobby should return it with the correct unread_count.
-      // We only add a fallback if somehow it’s missing (e.g. the trigger hasn’t fired yet).
-      if (!friendsList.any((f) => f.id == AppConstants.booferId)) {
-        debugPrint(
-          '🚀 [LOBBY] Boofer not in lobby yet — adding placeholder tile',
-        );
-        friendsList.add(
-          Friend(
-            id: AppConstants.booferId,
-            name: 'Boofer',
-            handle: 'boofer',
-            virtualNumber: 'BOOFER-001',
-            avatar: '🛣️',
-            lastMessage: 'Welcome to Boofer! 🛣️',
-            lastMessageTime: DateTime.now().subtract(const Duration(days: 300)),
-            unreadCount:
-                0, // safe fallback — real count comes from v_chat_lobby
-            isOnline: true,
-            isArchived: false,
-          ),
-        );
-      }
+      // 4. Ensure Boofer tile existence REMOVED - transitioned to dedicated Support Hub
+      // Boofer is no longer a standard profile in the chat list.
 
       _friends = friendsList;
 
       // Sort: Most recent message first
       _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
-      debugPrint(
-        '🚀 [LOBBY] Total friends in list (including officials): ${_friends.length}',
-      );
+
+      // 5. Update Cache with fresh data
+      await ChatCacheService.instance.cacheFriends(currentUser.id, _friends);
 
       _isLoadingFromNetwork = false;
       _friendsLoaded = true;
-      debugPrint('✅ [LOBBY] _loadRealFriends completed. Notifying listeners.');
       notifyListeners();
     } catch (e, stack) {
       debugPrint('❌ [LOBBY] CRITICAL Load Error: $e');
       debugPrint('❌ [LOBBY] STACK: $stack');
       _isLoadingFromNetwork = false;
-      _friendsLoaded = true; // Still mark as loaded to show UI
+      _friendsLoaded = true;
       notifyListeners();
     } finally {
       _isRefreshing = false;
@@ -599,9 +606,8 @@ class ChatProvider with ChangeNotifier {
 
   Future<void> deleteChat(String chatId) async {
     final deletedFriends = _friends.where((f) => f.id == chatId).toList();
-    final deletedArchived = _archivedFriends
-        .where((f) => f.id == chatId)
-        .toList();
+    final deletedArchived =
+        _archivedFriends.where((f) => f.id == chatId).toList();
 
     _friends.removeWhere((friend) => friend.id == chatId);
     _archivedFriends.removeWhere((friend) => friend.id == chatId);
@@ -612,6 +618,21 @@ class ChatProvider with ChangeNotifier {
 
     try {
       await SupabaseService.instance.deleteConversation(chatId);
+
+      // 🏆 Sync local cache after successful server delete
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        // Remove from local SQLite friends list
+        await ChatCacheService.instance.cacheFriends(currentUserId, _friends);
+
+        // Clear local SQLite messages for this conversation
+        final sortedIds = [currentUserId, chatId]..sort();
+        final conversationId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
+        await ChatCacheService.instance
+            .clearConversationMessages(conversationId);
+      }
+
+      debugPrint('✅ Chat with $chatId fully deleted locally and on server');
     } catch (e) {
       // Revert if failed (optimistic UI update revert)
       if (deletedFriends.isNotEmpty) {
@@ -650,7 +671,6 @@ class ChatProvider with ChangeNotifier {
 
   /// Check if a user is a mutual friend
   bool isMutualFriend(String userId) {
-    if (userId == booferId) return true;
     try {
       final friend = _friends.firstWhere((f) => f.id == userId);
       return friend.isMutual;
@@ -670,19 +690,17 @@ class ChatProvider with ChangeNotifier {
 
     _presenceChannel = supabase.channel('presence:global');
 
-    _presenceChannel!
-        .onPresenceSync((payload) {
-          _updateFriendsOnlineStatus();
-        })
-        .subscribe((status, error) async {
-          if (status == RealtimeSubscribeStatus.subscribed) {
-            await _presenceChannel!.track({
-              'user_id': userId,
-              'online_at': DateTime.now().toIso8601String(),
-              'current_conversation_id': _currentConversationId,
-            });
-          }
+    _presenceChannel!.onPresenceSync((payload) {
+      _updateFriendsOnlineStatus();
+    }).subscribe((status, error) async {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        await _presenceChannel!.track({
+          'user_id': userId,
+          'online_at': DateTime.now().toIso8601String(),
+          'current_conversation_id': _currentConversationId,
         });
+      }
+    });
 
     // Monitor connectivity and app lifecycle
     _connectivitySubscription?.cancel();
@@ -823,9 +841,13 @@ class ChatProvider with ChangeNotifier {
       final index = _friends.indexWhere((f) => f.id == friendId);
       final messageText = (record['text'] ?? '').toString();
       final timeStr = record['timestamp'];
-      final timestamp = timeStr != null
-          ? DateTime.parse(timeStr.toString())
-          : DateTime.now();
+      final timestamp =
+          timeStr != null ? DateTime.parse(timeStr.toString()) : DateTime.now();
+
+      final isEncrypted = record['is_encrypted'] ?? false;
+      final displayMessage = messageText.isNotEmpty
+          ? messageText
+          : (isEncrypted ? '[Encrypted]' : '');
 
       if (index != -1) {
         var friend = _friends[index];
@@ -847,16 +869,19 @@ class ChatProvider with ChangeNotifier {
           newUnread = 0;
         }
 
-        final isEncrypted = record['is_encrypted'] ?? false;
         final encryptedContent = record['encrypted_content'];
+        // If it was hidden, un-hide it in DB
+        if (friend.isArchived) {
+          // This also covers hidden chats if we treat them similar to archived
+          // In this app, we should probably explicitly un-hide in DB
+          SupabaseService.instance.unhideConversation(friend.id);
+        }
 
-        // Use decrypted text from the realtime service; it's already decrypted before reaching here
-        // If it's still empty but was encrypted, mark it as [Encrypted]
-        final displayMessage = messageText.isNotEmpty
-            ? messageText
-            : (isEncrypted ? '[Encrypted]' : '');
+        // Always ensure is_hidden is false if a new message arrives
+        SupabaseService.instance.unhideConversation(friendId);
 
         final updatedFriend = friend.copyWith(
+          isArchived: false, // Un-hide if it was hidden/archived
           lastMessage: displayMessage,
           lastMessageTime: timestamp,
           unreadCount: newUnread,
@@ -864,8 +889,8 @@ class ChatProvider with ChangeNotifier {
           lastMessageEncryptedContent: encryptedContent is String
               ? jsonDecode(encryptedContent)
               : (encryptedContent != null
-                    ? Map<String, dynamic>.from(encryptedContent)
-                    : null),
+                  ? Map<String, dynamic>.from(encryptedContent)
+                  : null),
           lastSenderId: senderId,
           lastMessageStatus: MessageStatus.values.firstWhere(
             (e) => e.name == (record['status'] ?? 'sent'),
@@ -876,6 +901,10 @@ class ChatProvider with ChangeNotifier {
         _friends.removeAt(index);
         _friends.insert(0, updatedFriend);
         notifyListeners();
+
+        // Update local cache incrementally for better "real-time" sync
+        ChatCacheService.instance
+            .updateCachedFriend(currentUserId, updatedFriend);
 
         // 🎯 Trigger System Notification (only for received messages, not our own sends)
         final sortedIds = [currentUserId, friendId]..sort();
@@ -893,8 +922,57 @@ class ChatProvider with ChangeNotifier {
           );
         }
       } else {
-        // Friend not in list yet — do a full refresh to load them
-        refreshFriends();
+        // Friend not in list yet — fetch their profile and add them
+        try {
+          final profile =
+              await SupabaseService.instance.getUserProfile(friendId);
+          if (profile != null) {
+            final newFriend = Friend(
+              id: profile.id,
+              name: profile.id == currentUserId ? 'You' : profile.fullName,
+              handle: profile.handle,
+              virtualNumber: profile.virtualNumber ?? '',
+              avatar: profile.profilePicture ?? '👤',
+              lastMessage: displayMessage,
+              lastMessageTime: timestamp,
+              unreadCount: receiverId == currentUserId ? 1 : 0,
+              isOnline: true,
+              isArchived: false,
+              lastSenderId: senderId,
+              isLastMessageEncrypted: isEncrypted,
+              lastMessageStatus: MessageStatus.values.firstWhere(
+                (e) => e.name == (record['status'] ?? 'sent'),
+                orElse: () => MessageStatus.sent,
+              ),
+            );
+
+            _friends.insert(0, newFriend);
+
+            // Incrementally update cache
+            ChatCacheService.instance
+                .updateCachedFriend(currentUserId, newFriend);
+
+            notifyListeners();
+
+            // Trigger System Notification
+            if (receiverId == currentUserId) {
+              final sortedIds = [currentUserId, friendId]..sort();
+              final convId = 'conv_${sortedIds[0]}_${sortedIds[1]}';
+
+              NotificationService.instance.showMessageNotification(
+                senderName: newFriend.name,
+                message: newFriend.lastMessage,
+                conversationId: convId,
+              );
+            }
+
+            // Also ensure it's not hidden in DB
+            SupabaseService.instance.unhideConversation(friendId);
+          }
+        } catch (e) {
+          debugPrint('⚠️ [LOBBY] Error adding new friend from realtime: $e');
+          refreshFriends(); // Fallback to full refresh
+        }
       }
     }
     // Handle status UPDATES (Status: Read logic)
@@ -935,7 +1013,7 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  void _handleFollowEvent(Map<String, dynamic> data) async {
+  void _handleOtherFollowEvent(Map<String, dynamic> data) async {
     try {
       final followerId = data['follower_id'];
       if (followerId == null) return;
@@ -949,11 +1027,49 @@ class ChatProvider with ChangeNotifier {
           body:
               '${followerProfile.fullName} (@${followerProfile.handle}) is now following you!',
         );
-        // Refresh friends to show them in lobby if it's mutual now
-        refreshFriends();
+        // We don't necessarily add them to lobby unless it's mutual or they message us
       }
     } catch (e) {
       debugPrint('Error handling follow event: $e');
+    }
+  }
+
+  void _handleMyFollowEvent(Map<String, dynamic> data) async {
+    try {
+      final followingId = data['following_id'];
+      if (followingId == null) return;
+
+      // User just followed someone - show them in lobby immediately
+      final profile =
+          await SupabaseService.instance.getUserProfile(followingId);
+      if (profile != null) {
+        // Check if already in list
+        if (!_friends.any((f) => f.id == followingId)) {
+          final newFriend = Friend(
+            id: profile.id,
+            name: profile.fullName,
+            handle: profile.handle,
+            virtualNumber: profile.virtualNumber ?? '',
+            avatar: profile.profilePicture ?? '👤',
+            lastMessage: 'Start a conversation',
+            lastMessageTime: DateTime.now(),
+            unreadCount: 0,
+            isOnline: true,
+            isArchived: false,
+          );
+
+          _friends.insert(0, newFriend);
+          notifyListeners();
+
+          final currentUser = await UserService.getCurrentUser();
+          if (currentUser != null) {
+            await ChatCacheService.instance
+                .cacheFriends(currentUser.id, _friends);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error handling my follow event: $e');
     }
   }
 
@@ -984,6 +1100,9 @@ class ChatProvider with ChangeNotifier {
     }
     if (_followSubscription != null) {
       SupabaseService.instance.removeChannel(_followSubscription!);
+    }
+    if (_myFollowSubscription != null) {
+      SupabaseService.instance.removeChannel(_myFollowSubscription!);
     }
     if (_presenceChannel != null) {
       Supabase.instance.client.removeChannel(_presenceChannel!);

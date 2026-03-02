@@ -67,6 +67,20 @@ class CodePushService {
 
       final status = await _updater.checkForUpdate();
       debugPrint('🔍 [CodePush] Check result: $status');
+
+      // 1.5 Update readiness flag based on status
+      if (status == UpdateStatus.upToDate) {
+        if (isUpdateReady.value) {
+          debugPrint(
+              '🧹 [CodePush] App is now up-to-date. Resetting ready flag.');
+          isUpdateReady.value = false;
+        }
+        updateStatus.value = status;
+        debugPrint(
+            '✅ [CodePush] No new updates found. You are on the latest patch.');
+        return;
+      }
+
       updateStatus.value = status;
 
       if (status == UpdateStatus.outdated) {
@@ -100,16 +114,16 @@ class CodePushService {
 
         // 4. Update notification to indicate readiness
         await NotificationService.instance.showSystemNotification(
-          title: 'Update Ready ✨',
+          title: 'Critical Fixes Ready ✨',
           body:
-              'The newest fixes have been applied. Restart Boofer to see changes.',
+              'Critical security and feature fixes have been applied. Restart Boofer to see changes.',
           payload: 'restart_required',
         );
 
-        // 5. Check Supabase for force-restart config
+        // 5. Check Supabase for force-restart and highlights
         try {
           final res = await Supabase.instance.client
-              .from('config')
+              .from('changelogs')
               .select()
               .order('created_at', ascending: false)
               .limit(1)
@@ -117,27 +131,38 @@ class CodePushService {
 
           if (res != null) {
             final bool forceRestart = res['force_restart'] ?? false;
-            final String patchNotes =
-                res['patch_notes'] ??
-                'We\'ve improved Boofer with some stability fixes.';
+            final List<dynamic> highlights = res['highlights'] ?? [];
+            final String version = res['version'] ?? 'Latest';
+            final String patchNotes = highlights.isNotEmpty
+                ? highlights.join('\n• ')
+                : 'We\'ve improved Boofer with some stability fixes.';
 
             if (forceRestart && context.mounted) {
-              _showUpdateDialog(context, patchNotes);
+              _showUpdateDialog(
+                  context, 'Version $version Highlights:\n• $patchNotes');
             }
           }
         } catch (e) {
           debugPrint(
-            '⚠️ [CodePush] Supabase config check failed (Non-critical): $e',
+            '⚠️ [CodePush] Changelogs fetch failed (Non-critical): $e',
           );
         }
-      } else if (status == UpdateStatus.upToDate) {
-        debugPrint(
-          '✅ [CodePush] No new updates found. You are on the latest patch.',
-        );
       } else if (status == UpdateStatus.restartRequired) {
         debugPrint(
           '🔁 [CodePush] Update already downloaded. Waiting for restart.',
         );
+
+        // Only show notification if we haven't flagged it as ready in this session
+        // to avoid spamming the user on every app start.
+        if (!isUpdateReady.value) {
+          await NotificationService.instance.showSystemNotification(
+            title: 'Critical Update Ready ✨',
+            body:
+                'A new version of Boofer is ready. Restart now to apply fixes.',
+            payload: 'restart_required',
+          );
+          isUpdateReady.value = true;
+        }
       }
     } catch (e) {
       debugPrint('❌ [CodePush] Update Check Failed: $e');

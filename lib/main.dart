@@ -24,6 +24,7 @@ import 'core/database/database_manager.dart';
 import 'core/error/error_handler.dart';
 import 'services/deep_link_service.dart';
 import 'services/receive_share_service.dart';
+import 'widgets/smart_maintenance.dart';
 import 'screens/main_screen.dart';
 import 'screens/friend_chat_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -45,9 +46,18 @@ Future<Map<String, dynamic>> _initializeApp() async {
   try {
     debugPrint('🚀 [BOOT] Phase 2: Services Initialization Started');
 
-    // Ensure we have a valid client before proceeding
-    final client = Supabase.instance.client;
-    debugPrint('🚀 [BOOT] Supabase client obtained: ${client.hashCode}');
+    // Defense: Don't use late client until we're sure Supabase is initialized
+    late final SupabaseClient client;
+    try {
+      client = Supabase.instance.client;
+      debugPrint('🚀 [BOOT] Supabase client obtained: ${client.hashCode}');
+    } catch (e) {
+      debugPrint('❌ [BOOT] Supabase not initialized, skipping Phase 2: $e');
+      return {
+        'initialRoute': '/onboarding',
+        'error': 'Supabase Initialization Failed: $e',
+      };
+    }
 
     // Early Share Check (Fire and forget, but with safety)
     debugPrint('🚀 [BOOT] Checking for initial share...');
@@ -55,27 +65,27 @@ Future<Map<String, dynamic>> _initializeApp() async {
         .checkInitialShare()
         .timeout(const Duration(seconds: 3))
         .then((_) {
-          debugPrint('✅ [BOOT] Share check completed');
-        })
-        .catchError((e) {
-          debugPrint('⚠️ [BOOT] Share check timed out or failed: $e');
-        });
+      debugPrint('✅ [BOOT] Share check completed');
+    }).catchError((e) {
+      debugPrint('⚠️ [BOOT] Share check timed out or failed: $e');
+    });
 
     // Await core services with timeouts
     debugPrint('🚀 [BOOT] Initializing NotificationService...');
     await NotificationService.instance.initialize().timeout(
-      const Duration(seconds: 5),
-      onTimeout: () => debugPrint('⚠️ [BOOT] NotificationService init timeout'),
-    );
+          const Duration(seconds: 5),
+          onTimeout: () =>
+              debugPrint('⚠️ [BOOT] NotificationService init timeout'),
+        );
     debugPrint('✅ [BOOT] NotificationService Initialized');
 
     debugPrint('🚀 [BOOT] Initializing ProfilePictureService...');
     try {
       await ProfilePictureService.instance.initialize().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () =>
-            debugPrint('⚠️ [BOOT] ProfilePictureService init timeout'),
-      );
+            const Duration(seconds: 5),
+            onTimeout: () =>
+                debugPrint('⚠️ [BOOT] ProfilePictureService init timeout'),
+          );
       debugPrint('✅ [BOOT] ProfilePictureService Initialized');
     } catch (e) {
       debugPrint('⚠️ [BOOT] ProfilePictureService initialization failed: $e');
@@ -83,9 +93,9 @@ Future<Map<String, dynamic>> _initializeApp() async {
 
     debugPrint('🚀 [BOOT] Phase 3: SupabaseService initialization');
     await SupabaseService.instance.initialize().timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => debugPrint('⚠️ [BOOT] SupabaseService init timeout'),
-    );
+          const Duration(seconds: 10),
+          onTimeout: () => debugPrint('⚠️ [BOOT] SupabaseService init timeout'),
+        );
     debugPrint('✅ [BOOT] SupabaseService Initialized');
 
     debugPrint('🚀 [BOOT] Phase 4: Route Determination');
@@ -191,11 +201,13 @@ void main() async {
 
   debugPrint('🚀 [BOOT] Phase 1: Global Infrastructure (Blocking)');
 
-  // Move validation and Supabase setup into a guarded future to avoid black screen on crash
-  final initializationFuture = _performInfrastructureSetup();
+  // Await validation and Supabase setup before starting the UI tree.
+  // This prevents race conditions where services try to use Supabase
+  // before initialize() finishes.
+  final results = await _performInfrastructureSetup();
 
-  debugPrint('🚀 [BOOT] Calling runApp...');
-  runApp(BooferApp(initializationFuture: initializationFuture));
+  debugPrint('🚀 [BOOT] Calling runApp with infrastructure ready...');
+  runApp(BooferApp(initializationResults: results));
 }
 
 Future<Map<String, dynamic>> _performInfrastructureSetup() async {
@@ -222,11 +234,11 @@ Future<Map<String, dynamic>> _performInfrastructureSetup() async {
 }
 
 class BooferApp extends StatefulWidget {
-  final Future<Map<String, dynamic>> initializationFuture;
+  final Map<String, dynamic> initializationResults;
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  const BooferApp({super.key, required this.initializationFuture});
+  const BooferApp({super.key, required this.initializationResults});
 
   @override
   State<BooferApp> createState() => _BooferAppState();
@@ -237,13 +249,10 @@ class _BooferAppState extends State<BooferApp> {
   late final DatabaseManager _databaseManager;
   late final ChatService _chatService;
 
-  late Future<Map<String, dynamic>> _initFuture;
-
   @override
   void initState() {
     super.initState();
     debugPrint('🚀 [APP] initState triggered');
-    _initFuture = widget.initializationFuture;
     _errorHandler = ErrorHandler();
     _databaseManager = DatabaseManager.instance;
     _chatService = ChatService(
@@ -307,8 +316,22 @@ class _BooferAppState extends State<BooferApp> {
 
   void _retryInit() {
     debugPrint('🔄 [APP] Retrying initialization...');
-    setState(() {
-      _initFuture = _initializeApp();
+    _performInfrastructureSetup().then((results) {
+      if (mounted) {
+        // Use the global navigatorKey to reset the app state accurately
+        if (BooferApp.navigatorKey.currentState != null) {
+          BooferApp.navigatorKey.currentState!.pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => BooferApp(initializationResults: results),
+            ),
+            (route) => false,
+          );
+        } else {
+          // Fallback: This is a deep reset, just update the main results
+          // In most cases, if the navigator isn't ready, the whole app needs a rebuild.
+          debugPrint('⚠️ [BOOT] Navigator not ready, please restart via CLI');
+        }
+      }
     });
   }
 
@@ -358,68 +381,50 @@ class _BooferAppState extends State<BooferApp> {
             themeMode: themeProvider.themeMode == AppThemeMode.system
                 ? ThemeMode.system
                 : (themeProvider.themeMode == AppThemeMode.dark
-                      ? ThemeMode.dark
-                      : ThemeMode.light),
+                    ? ThemeMode.dark
+                    : ThemeMode.light),
             darkTheme: themeProvider.darkTheme,
             theme: themeProvider.lightTheme,
             locale: Provider.of<LocaleProvider>(context).locale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: FutureBuilder<Map<String, dynamic>>(
-              future: _initFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    backgroundColor: Color(0xFF0F172A),
-                    body: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Colors.cyanAccent),
-                          SizedBox(height: 24),
-                          Text(
-                            'Initializing Boofer OS...',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
+            home: Builder(
+              builder: (context) {
+                final data = widget.initializationResults;
 
-                if (snapshot.hasError ||
-                    (snapshot.data != null &&
-                        snapshot.data!['error'] != null)) {
+                if (data['error'] != null) {
                   return _ErrorScreen(
-                    message: snapshot.data?['error'] ?? 'Unknown Error',
+                    message: data['error'] ?? 'Unknown Error',
                     onRetry: _retryInit,
                   );
                 }
 
-                final initialRoute =
-                    snapshot.data?['initialRoute'] ?? '/onboarding';
+                final initialRoute = data['initialRoute'] ?? '/onboarding';
                 final List<Map<String, dynamic>> initialAccounts =
                     List<Map<String, dynamic>>.from(
-                      snapshot.data?['accounts'] ?? [],
-                    );
+                  data['accounts'] ?? [],
+                );
 
-                // Return appropriate initial screen
-                switch (initialRoute) {
-                  case '/main':
-                    return const MainScreen();
-                  case '/legal-acceptance':
-                    return const LegalAcceptanceScreen();
-                  case '/welcome':
-                    // Map empty data for welcome screen if accessed without draft
-                    return const WelcomeScreen(draftData: {});
-                  case '/onboarding':
-                  default:
-                    return OnboardingScreen(initialAccounts: initialAccounts);
-                }
+                // Return appropriate initial screen wrapped in SmartMaintenance for Global Check
+                return SmartMaintenance(
+                  check: (status) => true, // Only trigger on Global
+                  child: Builder(
+                    builder: (context) {
+                      switch (initialRoute) {
+                        case '/main':
+                          return const MainScreen();
+                        case '/legal-acceptance':
+                          return const LegalAcceptanceScreen();
+                        case '/welcome':
+                          return const WelcomeScreen(draftData: {});
+                        case '/onboarding':
+                        default:
+                          return OnboardingScreen(
+                              initialAccounts: initialAccounts);
+                      }
+                    },
+                  ),
+                );
               },
             ),
             onGenerateRoute: (settings) {
@@ -454,8 +459,7 @@ class _BooferAppState extends State<BooferApp> {
                   rName = args['recipientName'] ?? args['friend']?.name;
                   rHandle = args['recipientHandle'] ?? args['friend']?.handle;
                   rAvatar = args['recipientAvatar'] ?? args['friend']?.avatar;
-                  rPic =
-                      args['recipientProfilePicture'] ??
+                  rPic = args['recipientProfilePicture'] ??
                       args['friend']?.profilePicture;
                   vNum = args['virtualNumber'] ?? args['friend']?.virtualNumber;
                 } else if (args is Friend) {

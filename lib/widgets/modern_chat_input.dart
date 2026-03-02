@@ -8,6 +8,7 @@ class ModernChatInput extends StatefulWidget {
   final VoidCallback? onTypingStopped;
   final bool autofocus;
   final String? initialText;
+  final bool hideWarning;
 
   const ModernChatInput({
     super.key,
@@ -16,6 +17,7 @@ class ModernChatInput extends StatefulWidget {
     this.onTypingStopped,
     this.autofocus = false,
     this.initialText,
+    this.hideWarning = false,
   });
 
   @override
@@ -229,7 +231,8 @@ class _ModernChatInputState extends State<ModernChatInput>
         ),
 
         // Safety warning hidden when keyboard, emoji library, or focus is active
-        if (MediaQuery.viewInsetsOf(context).bottom <= 0 &&
+        if (!widget.hideWarning &&
+            MediaQuery.viewInsetsOf(context).bottom <= 0 &&
             !_showEmojiPicker &&
             !_focusNode.hasFocus)
           Padding(

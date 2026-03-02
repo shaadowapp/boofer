@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 /// Notification channel IDs and configurations
 class NotificationChannels {
@@ -67,7 +68,8 @@ class NotificationChannels {
       updates,
       'App Updates',
       description: 'Progress and status for software updates',
-      importance: Importance.low, // Lower importance for background downloads
+      importance:
+          Importance.high, // Increased to show status bar icon and pop-up
       showBadge: false,
     ),
   ];
@@ -103,16 +105,16 @@ class NotificationService {
 
     const DarwinInitializationSettings initializationSettingsDarwin =
         DarwinInitializationSettings(
-          requestAlertPermission: false,
-          requestBadgePermission: false,
-          requestSoundPermission: false,
-        );
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
 
     const InitializationSettings initializationSettings =
         InitializationSettings(
-          android: initializationSettingsAndroid,
-          iOS: initializationSettingsDarwin,
-        );
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
+    );
 
     await _notificationsPlugin.initialize(
       settings: initializationSettings,
@@ -129,14 +131,35 @@ class NotificationService {
 
     // Create Android channels
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      final androidImplementation = _notificationsPlugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
+      final androidImplementation =
+          _notificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
       if (androidImplementation != null) {
         for (final channel in NotificationChannels.channels) {
           await androidImplementation.createNotificationChannel(channel);
         }
+      }
+    }
+
+    // OneSignal Initialization (Industry standard for remote push)
+    if (!kIsWeb) {
+      try {
+        // Suggested by OneSignal for troubleshooting "No Subscribed Users"
+        OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+
+        debugPrint('🔔 [ONESIGNAL] Initializing OneSignal...');
+        // Replace with your real OneSignal App ID from the dashboard
+        OneSignal.initialize('c6933c8b-184e-4c14-a00c-e9c5df47878e');
+
+        // The user will be prompted for permission if not already granted
+        OneSignal.Notifications.requestPermission(true);
+
+        OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+          debugPrint(
+              '🔔 [ONESIGNAL] Notification received in foreground: ${event.notification.body}');
+        });
+      } catch (e) {
+        debugPrint('⚠️ [ONESIGNAL] Failed to initialize: $e');
       }
     }
 
@@ -289,8 +312,8 @@ class NotificationService {
       NotificationChannels.updates,
       'App Updates',
       channelDescription: 'Progress and status for software updates',
-      importance: Importance.low,
-      priority: Priority.low,
+      importance: Importance.high,
+      priority: Priority.high,
       onlyAlertOnce: true,
       showProgress: true,
       maxProgress: maxProgress,
@@ -298,6 +321,7 @@ class NotificationService {
       indeterminate: indeterminate,
       ongoing: true, // User cannot swipe it away while downloading
       autoCancel: false,
+      showWhen: true,
     );
 
     final details = NotificationDetails(android: androidDetails);
