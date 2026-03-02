@@ -113,6 +113,149 @@ moltbook_register.json
 !.env.production.example
 .env.production
 
+# API Keys and Credentials - ALL TYPES
+*.key
+*.pem
+*.crt
+*.cert
+*.p12
+*.pfx
+*.der
+*.cer
+private.key
+public.key
+secret.key
+access.key
+api.key
+auth.key
+token.key
+jwt.key
+oauth.key
+service-account-key.json
+google-service-account.json
+firebase-service-account.json
+aws-credentials.json
+azure-credentials.json
+one_signal_auth_key.txt
+one_signal_rest_api_key.txt
+onesignal_auth_key.*
+onesignal_rest_api_key.*
+onesignal_config.*
+push_notification_keys.*
+
+# Configuration files with credentials
+config.json
+settings.json
+credentials.json
+secrets.json
+keys.json
+auth_config.json
+database_config.json
+server_config.json
+
+# Mobile app signing keys
+*.mobileprovision
+*.provisionprofile
+*.ipa
+*.apk
+*.aab
+signing-config.json
+app-signing.keystore
+upload-key.keystore
+
+# SSH and security keys
+.ssh/
+ssh-keys/
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+known_hosts
+authorized_keys
+
+# Database credentials
+database.yml
+db_config.yml
+database.json
+db_secrets.json
+connection_strings.txt
+
+# Cloud provider credentials
+.gcloud/
+.aws/
+.azure/
+.heroku/
+.netrc
+_ netrc
+gcp-key.json
+aws-access-key-id
+aws-secret-access-key
+azure-client-secret
+heroku-api-key
+
+# Payment and commerce keys
+stripe-keys.json
+paypal-keys.json
+braintree-keys.json
+payment-keys.json
+commerce-keys.json
+
+# Social media and third-party API keys
+facebook-app-token.txt
+twitter-api-key.txt
+instagram-access-token.txt
+linkedin-client-secret.txt
+google-api-key.txt
+github-token.txt
+slack-webhook-url.txt
+discord-bot-token.txt
+
+# Analytics and monitoring keys
+google-analytics-key.txt
+mixpanel-token.txt
+amplitude-key.txt
+segment-write-key.txt
+sentry-dsn.txt
+datadog-api-key.txt
+newrelic-license-key.txt
+
+# Development and testing keys
+test-keys.json
+dev-keys.json
+staging-keys.json
+local-keys.json
+debug-keys.json
+
+# Certificate files
+*.csr
+*.crl
+*.p7b
+*.p7r
+*.spc
+*.sst
+*.stl
+
+# Kubernetes and container secrets
+.kube/config
+kube-config.yml
+docker-config.json
+container-registry-key.json
+k8s-secrets.yml
+
+# Application specific keys
+appcenter-config.json
+codepush-deployment-key.txt
+bugsnag-api-key.txt
+rollbar-access-token.txt
+honeybadger-api-key.txt
+
+# Machine learning and AI keys
+openai-api-key.txt
+anthropic-api-key.txt
+cohere-api-key.txt
+huggingface-token.txt
+replicate-api-key.txt
+
 # Android signing - CRITICAL: Never commit these!
 key.properties
 *.jks
