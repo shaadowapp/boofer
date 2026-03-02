@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/test/
 
 # Symbolication related
 app.*.symbols
@@ -129,3 +130,49 @@ boofer-release.jks
 analyze_output.*
 flutter_*.log
 .progress.txt
+
+# HTML files (except web app index.html)
+*.html
+!web/index.html
+!boofer_admin/index.html
+delete-account.html
+child-safety-standards.html
+
+# Output and build artifacts
+/output/
+boofer-keystore
+
+# Database migration scripts (keep in repo but ignore local changes)
+# Uncomment if you want to ignore:
+# database/*.sql
+
+# Scripts folder
+scripts/*.bat
+!scripts/shorebird_release.bat
+
+# Admin panel (if not needed in production)
+admin/
+
+# Shorebird and deployment
+.shorebird/
+
+# IDE and editor files
+*.iml
+.vscode/
+.idea/
+devtools_options.yaml
+
+# Firebase files (keep rules, ignore temp)
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+
+# Documentation (keep only essential)
+docs/*.txt
+!docs/README.md
+
+# Local configuration
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+boofer.iml
