@@ -49,9 +49,7 @@ class ChatService {
     try {
       // Validate conversation access first
       final canAccess = await canAccessConversation(conversationId, userId);
-      if (!canAccess) {
-        throw Exception('You don\'t have access to this conversation.');
-      }
+      if (!canAccess) throw Exception('You don\'t have access to this conversation.');
 
       // Subscribe to real-time updates from Supabase
       final parts = conversationId.split('_');
@@ -140,22 +138,16 @@ class ChatService {
     try {
       // Extract user IDs from conversation ID (format: conv_userId1_userId2)
       final parts = conversationId.split('_');
-      if (parts.length != 3 || parts[0] != 'conv') {
-        return false;
-      }
+      if (parts.length != 3 || parts[0] != 'conv') return false;
 
       final userId1 = parts[1];
       final userId2 = parts[2];
 
       // User must be part of the conversation
-      if (userId != userId1 && userId != userId2) {
-        return false;
-      }
+      if (userId != userId1 && userId != userId2) return false;
 
       // If it's a self-conversation, allow it
-      if (userId1 == userId2) {
-        return userId == userId1;
-      }
+      if (userId1 == userId2) return userId == userId1;
 
       // Allow if either user is Boofer
       if (userId1 == AppConstants.booferId ||
@@ -211,9 +203,7 @@ class ChatService {
 
       // Validate conversation access
       final canAccess = await canAccessConversation(conversationId, senderId);
-      if (!canAccess) {
-        throw Exception('You don\'t have access to this conversation.');
-      }
+      if (!canAccess) throw Exception('You don\'t have access to this conversation.');
 
       // 1. Ensure sender exists in local database (satisfies FOREIGN KEY constraint)
       final currentUser = await UserService.getCurrentUser();
@@ -275,9 +265,7 @@ class ChatService {
           messageObject: message,
         );
 
-        if (sentMessage != null) {
-          messageToSave = sentMessage;
-        }
+        if (sentMessage != null) messageToSave = sentMessage;
       }
 
       // 3. Update local database if status/metadata changed after sending
@@ -560,9 +548,7 @@ class ChatService {
         'SELECT text FROM messages WHERE id = ?',
         [messageId],
       );
-      if (results.isNotEmpty) {
-        return results.first['text'] as String?;
-      }
+      if (results.isNotEmpty) return results.first['text'] as String?;
     } catch (e) {
       debugPrint('Error getting message text: $e');
     }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/follow_provider.dart';
 import '../models/user_model.dart';
-import '../widgets/follow_button.dart';
 
 /// Screen showing followers list
 class FollowersScreen extends StatefulWidget {
@@ -64,8 +63,8 @@ class _FollowersScreenState extends State<FollowersScreen> {
                   Text(
                     error,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -102,8 +101,8 @@ class _FollowersScreenState extends State<FollowersScreen> {
                   Text(
                     'When people follow this user, they\'ll appear here',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -134,9 +133,6 @@ class _FollowersScreenState extends State<FollowersScreen> {
     User user,
     FollowProvider followProvider,
   ) {
-    final currentUserId = followProvider.currentUserId;
-    final isCurrentUser = user.id == currentUserId;
-
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -146,23 +142,22 @@ class _FollowersScreenState extends State<FollowersScreen> {
             // User avatar
             CircleAvatar(
               radius: 24,
-              backgroundImage:
-                  user.profilePicture != null &&
+              backgroundImage: user.profilePicture != null &&
                       user.profilePicture!.startsWith('http')
                   ? NetworkImage(user.profilePicture!)
                   : null,
               child: user.avatar != null && user.avatar!.isNotEmpty
                   ? Text(user.avatar!)
                   : (user.profilePicture == null ||
-                            !user.profilePicture!.startsWith('http')
-                        ? Text(
-                            user.initials,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null),
+                          !user.profilePicture!.startsWith('http')
+                      ? Text(
+                          user.initials,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null),
             ),
             const SizedBox(width: 12),
 
@@ -174,14 +169,14 @@ class _FollowersScreenState extends State<FollowersScreen> {
                   Text(
                     user.displayName,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                   Text(
                     user.formattedHandle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                   if (user.bio.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -196,88 +191,56 @@ class _FollowersScreenState extends State<FollowersScreen> {
               ),
             ),
 
-            // Follow button or remove option
-            if (!isCurrentUser) ...[
-              const SizedBox(width: 12),
-              if (widget.userId == currentUserId) ...[
-                // Show remove button if viewing own followers
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'remove') {
-                      _showRemoveFollowerDialog(context, user, followProvider);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'remove',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_remove),
-                          SizedBox(width: 8),
-                          Text('Remove follower'),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: const Icon(Icons.more_vert),
+            const SizedBox(width: 12),
+            if (widget.userId == followProvider.currentUserId)
+              TextButton(
+                onPressed: () =>
+                    _confirmRemoveFollower(context, user, followProvider),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
-              ] else ...[
-                // Show follow button for other users' followers
-                FollowButton(user: user, compact: true),
-              ],
-            ],
+                child: const Text('Remove'),
+              ),
           ],
         ),
       ),
     );
   }
 
-  void _showRemoveFollowerDialog(
+  Future<void> _confirmRemoveFollower(
     BuildContext context,
     User user,
     FollowProvider followProvider,
-  ) {
-    showDialog(
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Follower'),
+        title: const Text('Remove Follower?'),
         content: Text(
-          'Are you sure you want to remove ${user.displayName} from your followers? '
-          'They will no longer see your posts in their feed.',
+          'Boofer will stop ${user.fullName} from following you. They won\'t be notified.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-
-              final success = await followProvider.removeFollower(user.id);
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Removed ${user.displayName} from followers'
-                          : 'Failed to remove follower',
-                    ),
-                    backgroundColor: success
-                        ? null
-                        : Theme.of(context).colorScheme.error,
-                  ),
-                );
-              }
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Remove'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && context.mounted) {
+      final success = await followProvider.removeFollower(user.id);
+      if (success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed ${user.fullName} from followers')),
+        );
+      }
+    }
   }
 }

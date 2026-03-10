@@ -29,9 +29,7 @@ class PersistentSignalProtocolStore extends SignalProtocolStore {
   Future<IdentityKeyPair> getIdentityKeyPair() async {
     final key = 'identity_key_pair_$_userId';
     final value = await _storage.read(key: key);
-    if (value == null) {
-      throw Exception('Identity key pair not found for user $_userId');
-    }
+    if (value == null) throw Exception('Identity key pair not found for user $_userId');
     return IdentityKeyPair.fromSerialized(base64Decode(value));
   }
 
@@ -39,9 +37,7 @@ class PersistentSignalProtocolStore extends SignalProtocolStore {
   Future<int> getLocalRegistrationId() async {
     final key = 'registration_id_$_userId';
     final value = await _storage.read(key: key);
-    if (value == null) {
-      throw Exception('Registration ID not found for user $_userId');
-    }
+    if (value == null) throw Exception('Registration ID not found for user $_userId');
     return int.parse(value);
   }
 
@@ -97,9 +93,7 @@ class PersistentSignalProtocolStore extends SignalProtocolStore {
   Future<PreKeyRecord> loadPreKey(int preKeyId) async {
     final key = 'pre_key_${_userId}_$preKeyId';
     final value = await _storage.read(key: key);
-    if (value == null) {
-      throw InvalidKeyIdException('PreKeyRecord not found: $preKeyId');
-    }
+    if (value == null) throw InvalidKeyIdException('PreKeyRecord not found: $preKeyId');
     return PreKeyRecord.fromBuffer(base64Decode(value));
   }
 
@@ -199,9 +193,7 @@ class PersistentSignalProtocolStore extends SignalProtocolStore {
   Future<SessionRecord> loadSession(SignalProtocolAddress address) async {
     final key = 'session_${_userId}_${address.toString()}';
     final value = await _storage.read(key: key);
-    if (value == null) {
-      return SessionRecord();
-    }
+    if (value == null) return SessionRecord();
     return SessionRecord.fromSerialized(base64Decode(value));
   }
 

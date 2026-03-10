@@ -7,9 +7,14 @@ class SkeletonChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShimmerEffect(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: ShimmerEffect(
+        baseColor: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0),
+        highlightColor: isDark ? const Color(0xFF404040) : const Color(0xFFF5F5F5),
         child: Row(
           children: [
             const SkeletonAvatar(size: 56),

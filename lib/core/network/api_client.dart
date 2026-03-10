@@ -261,9 +261,7 @@ class ApiClient {
 
   /// Build URI with query parameters
   Uri _buildUri(String endpoint, [Map<String, dynamic>? queryParameters]) {
-    if (_baseUrl == null) {
-      throw Exception('API client not initialized. Call initialize() first.');
-    }
+    if (_baseUrl == null) throw Exception('API client not initialized. Call initialize() first.');
     
     final url = '$_baseUrl$endpoint';
     final uri = Uri.parse(url);
@@ -291,9 +289,7 @@ class ApiClient {
       
       if (statusCode >= 200 && statusCode < 300) {
         T? data;
-        if (fromJson != null && responseBody.isNotEmpty) {
-          data = fromJson(responseBody);
-        }
+        if (fromJson != null && responseBody.isNotEmpty) data = fromJson(responseBody);
         
         return ApiResponse<T>.success(
           data: data,

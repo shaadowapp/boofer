@@ -64,9 +64,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     } catch (e) {
       if (mounted) _showSnackBar('Update check failed: $e', Colors.red);
     } finally {
-      if (mounted) {
-        setState(() => _isChecking = false);
-      }
+      if (mounted) setState(() => _isChecking = false);
     }
   }
 
@@ -133,8 +131,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     return FutureBuilder<bool>(
       future: CodePushService.instance.isShorebirdAvailable,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
-          return const SizedBox.shrink();
+        if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
         final available = snapshot.data ?? false;
         if (available) return const SizedBox.shrink();
 
@@ -142,9 +139,9 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
           margin: const EdgeInsets.only(bottom: 24),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
+            color: Colors.orange.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
@@ -165,7 +162,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                       'Update engine is only active in Release mode. If you are testing, build a release APK/Bundle.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.orange.withOpacity(0.8),
+                        color: Colors.orange.withValues(alpha: 0.8),
                       ),
                     ),
                   ],
@@ -189,7 +186,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: colorScheme.primary.withOpacity(0.1),
+                color: colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
             ),
@@ -209,13 +206,12 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                   : 'System is up to date',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        if (!_isChecking)
-          Text(
+        if (!_isChecking) Text(
             CodePushService.instance.isUpdateReady.value
                 ? 'High-speed update downloaded & staged'
                 : 'Version: $_currentVersion',
             style: TextStyle(
-              color: colorScheme.onSurface.withOpacity(0.5),
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
               fontSize: 13,
             ),
           ),
@@ -255,9 +251,9 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
@@ -301,7 +297,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
               Text(
                 label,
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               Text(
@@ -323,9 +319,9 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.15),
+        color: Colors.green.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
       ),
       child: const Text(
         'ACTIVE',
@@ -353,7 +349,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
           decoration: BoxDecoration(
             color: Theme.of(
               context,
-            ).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
@@ -402,12 +398,12 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primary.withOpacity(0.05),
-            theme.colorScheme.secondary.withOpacity(0.05),
+            theme.colorScheme.primary.withValues(alpha: 0.05),
+            theme.colorScheme.secondary.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

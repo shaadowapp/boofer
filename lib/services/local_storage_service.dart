@@ -67,9 +67,7 @@ class LocalStorageService {
       await prefs.setString(_virtualNumberKey, data.virtualNumber);
 
       // Save PIN securely if provided
-      if (data.pin != null) {
-        await _secureStorage.write(key: _userPinKey, value: data.pin);
-      }
+      if (data.pin != null) await _secureStorage.write(key: _userPinKey, value: data.pin);
     } catch (e) {
       throw Exception('Failed to save onboarding data: $e');
     }

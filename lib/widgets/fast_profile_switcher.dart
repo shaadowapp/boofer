@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/multi_account_storage_service.dart';
 import '../providers/auth_state_provider.dart';
@@ -81,7 +80,7 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -141,17 +140,17 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
                               color: isCurrent
                                   ? theme.colorScheme.primary
                                   : isPrimary
-                                  ? theme.colorScheme.primary.withOpacity(0.3)
+                                  ? theme.colorScheme.primary.withValues(alpha: 0.3)
                                   : Colors.transparent,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(16),
                             color: isCurrent
-                                ? theme.colorScheme.primary.withOpacity(0.05)
+                                ? theme.colorScheme.primary.withValues(alpha: 0.05)
                                 : isPrimary
-                                ? theme.colorScheme.primary.withOpacity(0.02)
+                                ? theme.colorScheme.primary.withValues(alpha: 0.02)
                                 : isDark
-                                ? Colors.white.withOpacity(0.03)
+                                ? Colors.white.withValues(alpha: 0.03)
                                 : Colors.black.withValues(alpha: 0.03),
                           ),
                           child: Row(
@@ -220,7 +219,7 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
                                             ),
                                             decoration: BoxDecoration(
                                               color: theme.colorScheme.primary
-                                                  .withOpacity(0.1),
+                                                  .withValues(alpha: 0.1),
                                               borderRadius:
                                                   BorderRadius.circular(6),
                                             ),
@@ -242,15 +241,14 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
                                       '@${account['handle']}',
                                       style: TextStyle(
                                         color: theme.colorScheme.onSurface
-                                            .withOpacity(0.4),
+                                            .withValues(alpha: 0.4),
                                         fontSize: 12,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              if (isCurrent)
-                                Icon(
+                              if (isCurrent) Icon(
                                   Icons.check_circle_rounded,
                                   color: theme.colorScheme.primary,
                                 ),
@@ -269,7 +267,7 @@ class _FastProfileSwitcherState extends State<FastProfileSwitcher> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -155,11 +154,12 @@ class VirgilE2EEService {
     if (!_initialized) throw Exception('E2EE not initialized');
 
     try {
-      final ephemeralKeyBytes = base64Decode(cryptogram['ephemeralKey']);
-      final ciphertext = base64Decode(cryptogram['ciphertext']);
-      final nonce = base64Decode(cryptogram['nonce']);
-      final mac = base64Decode(cryptogram['mac']);
-      final signatureBytes = base64Decode(cryptogram['signature']);
+      final ephemeralKeyBytes =
+          base64Decode(cryptogram['ephemeralKey'] as String);
+      final ciphertext = base64Decode(cryptogram['ciphertext'] as String);
+      final nonce = base64Decode(cryptogram['nonce'] as String);
+      final mac = base64Decode(cryptogram['mac'] as String);
+      final signatureBytes = base64Decode(cryptogram['signature'] as String);
 
       // 1. Verify Signature FIRST (Virgil's decryptThenVerify typically verifies integrity)
       final senderPublicKey = SimplePublicKey(
@@ -203,6 +203,51 @@ class VirgilE2EEService {
       return utf8.decode(decryptedBytes);
     } catch (e) {
       debugPrint('❌ Decryption/Verification error: $e');
+      rethrow;
+    }
+  }
+
+  /// ECIES Decrypt WITHOUT signature verification.
+  /// Used for media key decryption where the sender's signing key may have
+  /// rotated since the message was sent. AES-GCM MAC provides integrity.
+  Future<String> decryptMediaKey(
+    Map<String, dynamic> cryptogram,
+  ) async {
+    if (!_initialized) throw Exception('E2EE not initialized');
+
+    try {
+      final ephemeralKeyBytes =
+          base64Decode(cryptogram['ephemeralKey'] as String);
+      final ciphertext = base64Decode(cryptogram['ciphertext'] as String);
+      final nonce = base64Decode(cryptogram['nonce'] as String);
+      final mac = base64Decode(cryptogram['mac'] as String);
+
+      // Perform Key Agreement (Diffie-Hellman)
+      final ephemeralPubKey = SimplePublicKey(
+        ephemeralKeyBytes,
+        type: KeyPairType.x25519,
+      );
+      final sharedSecret = await x25519.sharedSecretKey(
+        keyPair: _encryptionKeyPair!,
+        remotePublicKey: ephemeralPubKey,
+      );
+
+      // Derive Symmetric Key
+      final sharedSecretBytes = await sharedSecret.extractBytes();
+      final symmetricKey = await aesGcm.newSecretKeyFromBytes(
+        sharedSecretBytes.sublist(0, 32),
+      );
+
+      // Decrypt with AES-GCM (this verifies integrity via MAC)
+      final secretBox = SecretBox(ciphertext, nonce: nonce, mac: Mac(mac));
+      final decryptedBytes = await aesGcm.decrypt(
+        secretBox,
+        secretKey: symmetricKey,
+      );
+
+      return utf8.decode(decryptedBytes);
+    } catch (e) {
+      debugPrint('❌ Media key decryption error: $e');
       rethrow;
     }
   }

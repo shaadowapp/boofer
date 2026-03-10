@@ -17,9 +17,7 @@ class E2EEKeyService {
   /// Upload the public key bundle for the current user to Supabase
   Future<void> uploadPublicKeyBundle(String userId) async {
     try {
-      if (!_e2eeService.isInitialized) {
-        await _e2eeService.initialize(userId);
-      }
+      if (!_e2eeService.isInitialized) await _e2eeService.initialize(userId);
 
       final identityKeyPair = await _e2eeService.getIdentityKeyPair();
       final registrationId = await _e2eeService.getLocalRegistrationId();
@@ -88,9 +86,7 @@ class E2EEKeyService {
           .eq('user_id', recipientId)
           .maybeSingle();
 
-      if (response == null) {
-        throw Exception('Recipient $recipientId has no E2EE key bundle');
-      }
+      if (response == null) throw Exception('Recipient $recipientId has no E2EE key bundle');
 
       final bundle = response['key_bundle'];
       final registrationId = bundle['registrationId'] as int;
@@ -109,9 +105,7 @@ class E2EEKeyService {
 
       // Use the first available pre-key
       final preKeys = bundle['preKeys'] as List;
-      if (preKeys.isEmpty) {
-        throw Exception('No pre-keys in bundle for $recipientId');
-      }
+      if (preKeys.isEmpty) throw Exception('No pre-keys in bundle for $recipientId');
 
       final preKeyData = preKeys.first;
       final preKeyId = preKeyData['keyId'] as int;

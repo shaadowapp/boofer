@@ -5,7 +5,6 @@ enum UserStatus { online, offline, away, busy, frozen, deleted }
 
 class User {
   final String id; // Firebase UID
-  final String email; // Google email
   final String handle; // @username (alphanumeric + underscore)
   final String fullName; // Full name from Google
   final String bio;
@@ -35,7 +34,6 @@ class User {
 
   const User({
     required this.id,
-    required this.email,
     required this.handle,
     required this.fullName,
     required this.bio,
@@ -90,7 +88,7 @@ class User {
 
   /// Check if profile is complete
   bool get isProfileComplete {
-    return id.isNotEmpty && email.isNotEmpty && handle.isNotEmpty;
+    return id.isNotEmpty && handle.isNotEmpty;
   }
 
   /// Get status display text
@@ -130,7 +128,6 @@ class User {
   /// Create a copy with updated fields
   User copyWith({
     String? id,
-    String? email,
     String? handle,
     String? fullName,
     String? bio,
@@ -160,7 +157,6 @@ class User {
   }) {
     return User(
       id: id ?? this.id,
-      email: email ?? this.email,
       handle: handle ?? this.handle,
       fullName: fullName ?? this.fullName,
       bio: bio ?? this.bio,
@@ -195,7 +191,6 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'email': email,
       'handle': handle,
       'fullName': fullName,
       'bio': bio,
@@ -235,10 +230,16 @@ class User {
       'bio': bio,
       'is_discoverable': isDiscoverable ? 1 : 0,
       'profile_picture': profilePicture,
+      'avatar': avatar,
       'status': status.name,
       'last_username_change': lastUsernameChange?.toIso8601String(),
       'last_seen': lastSeen?.toIso8601String(),
       'location': location,
+      'age': age,
+      'gender': gender,
+      'looking_for': lookingFor,
+      'interests': jsonEncode(interests),
+      'hobbies': jsonEncode(hobbies),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_verified': isVerified ? 1 : 0,
@@ -276,15 +277,26 @@ class User {
       }
     }
 
+    List<String> parseList(dynamic value) {
+      if (value == null) return [];
+      if (value is List) return value.map((e) => e.toString()).toList();
+      if (value is String && value.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(value);
+          if (decoded is List) return decoded.map((e) => e.toString()).toList();
+        } catch (_) {}
+      }
+      return [];
+    }
+
+
     return User(
       id: toString(json['id']),
-      email: toString(json['email']),
       handle: toString(json['handle']),
       fullName: toString(json['fullName'] ?? json['full_name']),
       bio: toString(json['bio']),
       isDiscoverable: toBool(json['isDiscoverable'] ?? json['is_discoverable']),
-      lastUsernameChange:
-          json['lastUsernameChange'] != null ||
+      lastUsernameChange: json['lastUsernameChange'] != null ||
               json['last_username_change'] != null
           ? parseDate(
               json['lastUsernameChange'] ?? json['last_username_change'],
@@ -306,16 +318,8 @@ class User {
       virtualNumber: toString(json['virtualNumber'] ?? json['virtual_number']),
       gender: json['gender'] as String?,
       lookingFor: (json['lookingFor'] ?? json['looking_for']) as String?,
-      interests:
-          (json['interests'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
-      hobbies:
-          (json['hobbies'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      interests: parseList(json['interests']),
+      hobbies: parseList(json['hobbies']),
       followerCount: toInt(json['followerCount'] ?? json['follower_count']),
       followingCount: toInt(json['followingCount'] ?? json['following_count']),
       friendsCount: toInt(json['friendsCount'] ?? json['friends_count']),
@@ -341,7 +345,7 @@ class User {
 
   @override
   String toString() {
-    return 'User(id: $id, email: $email, handle: $handle, fullName: $fullName, status: $status)';
+    return 'User(id: $id, handle: $handle, fullName: $fullName, status: $status)';
   }
 
   @override
@@ -357,7 +361,6 @@ class User {
   factory User.fromFirestore(Map<String, dynamic> data, String documentId) {
     return User(
       id: documentId,
-      email: data['email'] ?? '',
       handle: data['handle'] ?? '',
       fullName: data['fullName'] ?? '',
       bio: data['bio'] ?? '',
@@ -377,9 +380,8 @@ class User {
         (e) => e.toString() == 'UserStatus.${data['status'] ?? 'offline'}',
         orElse: () => UserStatus.offline,
       ),
-      lastSeen: data['lastSeen'] != null
-          ? DateTime.parse(data['lastSeen'])
-          : null,
+      lastSeen:
+          data['lastSeen'] != null ? DateTime.parse(data['lastSeen']) : null,
       location: data['location'],
       age: data['age'],
       virtualNumber: data['virtualNumber'],
@@ -394,7 +396,6 @@ class User {
   /// Convert User to Firestore document
   Map<String, dynamic> toFirestore() {
     return {
-      'email': email,
       'handle': handle,
       'fullName': fullName,
       'bio': bio,

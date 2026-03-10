@@ -18,7 +18,7 @@ class DatabaseManager {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   static const String _databaseName = 'boofer_app.db';
-  static const int _databaseVersion = 13;
+  static const int _databaseVersion = 19;
 
   /// Get database instance
   Future<Database> get database async {
@@ -78,7 +78,10 @@ class DatabaseManager {
   /// Configure database settings
   Future<void> _onConfigure(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON');
-    // Removed problematic PRAGMA statements that cause issues on some Android versions
+    // Use rawQuery for PRAGMAs that return results to avoid Android's execSQL restriction
+    await db.rawQuery('PRAGMA journal_mode = WAL');
+    await db.rawQuery('PRAGMA synchronous = NORMAL');
+    await db.rawQuery('PRAGMA cache_size = -2000'); // 2MB cache
   }
 
   /// Create database tables
@@ -95,13 +98,21 @@ class DatabaseManager {
         bio TEXT,
         is_discoverable INTEGER NOT NULL DEFAULT 1,
         profile_picture TEXT,
+        avatar TEXT,
         status TEXT NOT NULL DEFAULT 'offline',
         last_username_change TEXT,
         last_seen TEXT,
         location TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        is_verified INTEGER NOT NULL DEFAULT 0
+        is_verified INTEGER NOT NULL DEFAULT 0,
+        is_company INTEGER NOT NULL DEFAULT 0,
+        guardian_id TEXT,
+        age INTEGER,
+        gender TEXT,
+        looking_for TEXT,
+        interests TEXT,
+        hobbies TEXT
       )
     ''');
 
@@ -286,37 +297,26 @@ class DatabaseManager {
     ''');
 
     // Create indexes for better performance
-    batch.execute(
-        'CREATE INDEX idx_messages_conversation_id ON messages(conversation_id)');
-    batch.execute('CREATE INDEX idx_messages_sender_id ON messages(sender_id)');
-    batch.execute(
-        'CREATE INDEX idx_messages_receiver_id ON messages(receiver_id)');
-    batch.execute('CREATE INDEX idx_messages_timestamp ON messages(timestamp)');
-    batch.execute('CREATE INDEX idx_messages_status ON messages(status)');
-    batch.execute('CREATE INDEX idx_messages_hash ON messages(message_hash)');
-    batch.execute('CREATE INDEX idx_friends_user_id ON friends(user_id)');
-    batch.execute('CREATE INDEX idx_friends_status ON friends(status)');
-    batch.execute(
-      'CREATE INDEX idx_connection_requests_to_user ON connection_requests(to_user_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_conversation_participants_conversation ON conversation_participants(conversation_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_error_logs_timestamp ON error_logs(timestamp)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_cached_friends_user_id ON cached_friends(user_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_cached_friends_last_message_time ON cached_friends(last_message_time)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_cached_conversations_user_id ON cached_conversations(user_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_cached_conversations_cached_at ON cached_conversations(cached_at)',
-    );
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_users_handle ON users(handle)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_users_virtual_number ON users(virtual_number)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_messages_hash ON messages(message_hash)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_friends_user_id ON friends(user_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_friends_status ON friends(status)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_connection_requests_to_user ON connection_requests(to_user_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation ON conversation_participants(conversation_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_error_logs_timestamp ON error_logs(timestamp)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_friends_user_id ON cached_friends(user_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_friends_last_message_time ON cached_friends(last_message_time)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_conversations_user_id ON cached_conversations(user_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_conversations_cached_at ON cached_conversations(cached_at)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_discover_users_id ON cached_discover_users(user_id)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_discover_users_cached_at ON cached_discover_users(cached_at)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cached_start_chat_users_id ON cached_start_chat_users(user_id)');
 
     await batch.commit(noResult: true);
   }
@@ -505,7 +505,7 @@ class DatabaseManager {
       // Recreate messages table to fix id column type (INTEGER -> TEXT) and add E2EE columns
       // We rename existing table to keep backup if needed, but recreate fresh one for sync
       await db.execute(
-        'ALTER TABLE messages RENAME TO messages_old_v' + oldVersion.toString(),
+        'ALTER TABLE messages RENAME TO messages_old_v$oldVersion',
       );
       await db.execute('''
         CREATE TABLE messages (
@@ -534,11 +534,9 @@ class DatabaseManager {
       // valid messages. We can attempt to copy plaintext for sent messages by hash.
       try {
         await db.execute(
-          '''
-          INSERT INTO messages (id, text, sender_id, receiver_id, conversation_id, timestamp, status, type, message_hash, created_at, updated_at, metadata)
+          '''          INSERT INTO messages (id, text, sender_id, receiver_id, conversation_id, timestamp, status, type, message_hash, created_at, updated_at, metadata)
           SELECT CAST(id AS TEXT), text, sender_id, receiver_id, conversation_id, timestamp, status, 'text', message_hash, created_at, updated_at, metadata
-          FROM messages_old_v''' +
-              oldVersion.toString(),
+          FROM messages_old_v$oldVersion''',
         );
       } catch (e) {
         debugPrint(
@@ -579,6 +577,84 @@ class DatabaseManager {
         await db.execute(
           'ALTER TABLE cached_friends ADD COLUMN is_company INTEGER NOT NULL DEFAULT 0',
         );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 14) {
+      // Add media_url column to messages table for media messages
+      try {
+        await db.execute(
+          'ALTER TABLE messages ADD COLUMN media_url TEXT',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 15) {
+      // Add age, gender, and looking_for columns to users table
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN age INTEGER');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN gender TEXT');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN looking_for TEXT');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 16) {
+      // Add is_company and guardian_id columns to users table
+      try {
+        await db.execute(
+          'ALTER TABLE users ADD COLUMN is_company INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN guardian_id TEXT');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 17) {
+      // Add interests and hobbies columns to users table
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN interests TEXT');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN hobbies TEXT');
+      } catch (e) {
+        if (!e.toString().contains('duplicate column name')) rethrow;
+      }
+    }
+
+    if (oldVersion < 18) {
+      // Add missing performance indexes for messages and users
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_users_handle ON users(handle)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_users_virtual_number ON users(virtual_number)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)');
+    }
+
+    if (oldVersion < 19) {
+      // Add avatar column to users table
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN avatar TEXT');
       } catch (e) {
         if (!e.toString().contains('duplicate column name')) rethrow;
       }

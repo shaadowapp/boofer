@@ -72,7 +72,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       elevation: 0,
-                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -96,7 +96,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: color.withOpacity(0.1),
+                                    color: color.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -127,7 +127,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurface
-                                    .withOpacity(0.7),
+                                    .withValues(alpha: 0.7),
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -140,7 +140,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                               style: theme.textTheme.bodySmall?.copyWith(
                                 fontSize: 10,
                                 color: theme.colorScheme.onSurface
-                                    .withOpacity(0.4),
+                                    .withValues(alpha: 0.4),
                               ),
                             ),
                           ],
@@ -236,7 +236,7 @@ class _NewTicketSheetState extends State<NewTicketSheet> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withOpacity(0.2),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

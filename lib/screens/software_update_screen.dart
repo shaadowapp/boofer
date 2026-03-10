@@ -53,9 +53,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
           CodePushService.instance.syncPatchInfo().then((_) => CodePushService.instance.currentPatch.value),
         ]),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
           final packageInfo = snapshot.data![0] as PackageInfo;
           final isShorebirdAvailable = snapshot.data![1] as bool;
@@ -72,7 +70,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: colorScheme.primary.withOpacity(0.1),
+                    color: colorScheme.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -95,7 +93,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
               Text(
                 'Version $version+$buildNumber ${patchNumber != null ? '(Patch $patchNumber)' : ''}',
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurface.withOpacity(0.6),
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               
@@ -105,9 +103,9 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.1),
+                      color: Colors.amber.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                     ),
                     child: const Text(
                       '⚠️ DEBUG MODE: Updates disabled',
@@ -133,10 +131,10 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                         return Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant.withOpacity(0.5),
+                            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: colorScheme.outline.withOpacity(0.1),
+                              color: colorScheme.outline.withValues(alpha: 0.1),
                             ),
                           ),
                           child: Row(
@@ -164,8 +162,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                                   ],
                                 ),
                               ),
-                              if (status == UpdateStatus.restartRequired)
-                                TextButton(
+                              if (status == UpdateStatus.restartRequired) TextButton(
                                   onPressed: () => exit(0),
                                   child: const Text('RESTART'),
                                 ),

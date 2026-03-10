@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'package:provider/provider.dart';
 
 import '../providers/appearance_provider.dart';
@@ -471,8 +470,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
         child: Stack(
           children: [
-            if (id != 'none')
-              ClipRRect(
+            if (id != 'none') ClipRRect(
                 borderRadius: BorderRadius.circular(
                   14,
                 ), // slightly less than container for border

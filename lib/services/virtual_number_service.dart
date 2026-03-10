@@ -9,14 +9,14 @@ class VirtualNumberService {
   /// Generates a random 10-digit numeric virtual number (e.g., 5551423620)
   Future<String?> generateAndAssignVirtualNumber(String userId) async {
     final Random random = Random();
-    final areaCode = 555;
+    const areaCode = 555;
     final String part1 = (100 + random.nextInt(900)).toString(); // 3 digits
     final String part2 = (1000 + random.nextInt(9000)).toString(); // 4 digits
 
     // Simulate API delay
     await Future.delayed(const Duration(milliseconds: 800));
 
-    return "$areaCode$part1$part2";
+    return '$areaCode$part1$part2';
   }
 
   Future<Map<String, dynamic>> getVirtualNumberStats() async {

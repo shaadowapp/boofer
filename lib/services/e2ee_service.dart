@@ -57,9 +57,7 @@ class E2EEService {
     String plaintext,
     String recipientId,
   ) async {
-    if (!_initialized || _protocolStore == null) {
-      throw Exception('E2EEService not initialized');
-    }
+    if (!_initialized || _protocolStore == null) throw Exception('E2EEService not initialized');
 
     final address = SignalProtocolAddress(recipientId, 1);
     final sessionCipher = SessionCipher.fromStore(_protocolStore!, address);
@@ -74,9 +72,7 @@ class E2EEService {
     CiphertextMessage ciphertext,
     String senderId,
   ) async {
-    if (!_initialized || _protocolStore == null) {
-      throw Exception('E2EEService not initialized');
-    }
+    if (!_initialized || _protocolStore == null) throw Exception('E2EEService not initialized');
 
     final address = SignalProtocolAddress(senderId, 1);
     final sessionCipher = SessionCipher.fromStore(_protocolStore!, address);
@@ -84,9 +80,7 @@ class E2EEService {
     Uint8List plaintextBytes;
     if (ciphertext is PreKeySignalMessage) {
       plaintextBytes = await sessionCipher.decrypt(ciphertext);
-    } else if (ciphertext is SignalMessage) {
-      plaintextBytes = await sessionCipher.decryptFromSignal(ciphertext);
-    } else {
+    } else if (ciphertext is SignalMessage) plaintextBytes = await sessionCipher.decryptFromSignal(ciphertext); else {
       throw Exception('Unknown ciphertext type');
     }
 

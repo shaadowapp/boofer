@@ -199,7 +199,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.08),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -232,7 +232,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFF6B6B).withOpacity(0.4),
+                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
                   blurRadius: 24,
                   spreadRadius: 4,
                 ),
@@ -255,7 +255,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
           Text(
             'We\'ll squash it as soon as possible.',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -293,7 +293,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                 Text(
                   'Help us make Boofer better by reporting issues.',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.45),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
                     fontSize: 14,
                   ),
                 ),
@@ -320,8 +320,8 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? color.withOpacity(0.15)
-                                : theme.colorScheme.onSurface.withOpacity(0.04),
+                                ? color.withValues(alpha: 0.15)
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.04),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected ? color : Colors.transparent,
@@ -336,7 +336,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                                 size: 16,
                                 color: isSelected
                                     ? color
-                                    : theme.colorScheme.onSurface.withOpacity(
+                                    : theme.colorScheme.onSurface.withValues(alpha: 
                                         0.35,
                                       ),
                               ),
@@ -348,7 +348,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                                   fontWeight: FontWeight.w700,
                                   color: isSelected
                                       ? color
-                                      : theme.colorScheme.onSurface.withOpacity(
+                                      : theme.colorScheme.onSurface.withValues(alpha: 
                                           0.4,
                                         ),
                                 ),
@@ -372,8 +372,9 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                   isDark: isDark,
                   prefixIcon: Icons.title_rounded,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Please enter a title';
+                    }
                     if (v.trim().length < 5) return 'Title is too short';
                     return null;
                   },
@@ -391,8 +392,9 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                   theme: theme,
                   isDark: isDark,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Please describe the bug';
+                    }
                     if (v.trim().length < 20) {
                       return 'Please provide at least 20 characters';
                     }
@@ -457,10 +459,10 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withOpacity(0.04),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.onSurface.withOpacity(0.07),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.07),
                     ),
                   ),
                   child: Row(
@@ -469,7 +471,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                       Icon(
                         Icons.phone_android_rounded,
                         size: 18,
-                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -481,7 +483,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: theme.colorScheme.onSurface.withOpacity(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 
                                   0.4,
                                 ),
                               ),
@@ -491,7 +493,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                               _deviceInfo,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: theme.colorScheme.onSurface.withOpacity(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 
                                   0.6,
                                 ),
                               ),
@@ -501,7 +503,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
                               'App v$_appVersion',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: theme.colorScheme.onSurface.withOpacity(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 
                                   0.5,
                                 ),
                               ),
@@ -531,7 +533,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
         fontSize: 11,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.4,
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
       ),
     );
   }
@@ -559,14 +561,14 @@ class _ReportBugScreenState extends State<ReportBugScreen>
             ? Icon(
                 prefixIcon,
                 size: 18,
-                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
               )
             : null,
         hintStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.3),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
         filled: true,
-        fillColor: theme.colorScheme.onSurface.withOpacity(
+        fillColor: theme.colorScheme.onSurface.withValues(alpha: 
           isDark ? 0.06 : 0.04,
         ),
         border: OutlineInputBorder(
@@ -576,13 +578,13 @@ class _ReportBugScreenState extends State<ReportBugScreen>
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: theme.colorScheme.onSurface.withOpacity(0.07),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.07),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: const Color(0xFFFF6B6B).withOpacity(0.6),
+            color: const Color(0xFFFF6B6B).withValues(alpha: 0.6),
             width: 1.5,
           ),
         ),
@@ -595,7 +597,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
           vertical: 14,
         ),
         counterStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.3),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
           fontSize: 11,
         ),
       ),
@@ -621,7 +623,7 @@ class _ReportBugScreenState extends State<ReportBugScreen>
               ? []
               : [
                   BoxShadow(
-                    color: const Color(0xFFFF6B6B).withOpacity(0.35),
+                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.35),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

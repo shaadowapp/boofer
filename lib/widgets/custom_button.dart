@@ -54,7 +54,7 @@ class CustomButton extends StatelessWidget {
                   color:
                       (appearanceProvider.getAccentGradient()?.colors.first ??
                               theme.colorScheme.primary)
-                          .withOpacity(0.3),
+                          .withValues(alpha: 0.3),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

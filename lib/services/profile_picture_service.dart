@@ -83,9 +83,7 @@ class ProfilePictureService {
       }
 
       // Skip if same URL
-      if (_currentProfilePicture == profilePictureUrl) {
-        return;
-      }
+      if (_currentProfilePicture == profilePictureUrl) return;
 
       // Update cache
       _currentProfilePicture = profilePictureUrl;
@@ -110,9 +108,7 @@ class ProfilePictureService {
   /// Get profile picture from storage
   Future<String?> getProfilePicture() async {
     try {
-      if (_currentProfilePicture != null) {
-        return _currentProfilePicture;
-      }
+      if (_currentProfilePicture != null) return _currentProfilePicture;
 
       _currentProfilePicture = await LocalStorageService.getString(
         _profilePictureKey,

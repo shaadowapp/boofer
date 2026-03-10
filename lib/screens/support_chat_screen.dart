@@ -76,9 +76,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               _scrollToBottom();
               
               // Clear messages from database
-              if (_userId != null) {
-                SupportService.instance.clearMessages(_userId!);
-              }
+              if (_userId != null) SupportService.instance.clearMessages(_userId!);
             }
           }
         }
@@ -111,7 +109,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       // Send notification message to admin
       await SupportService.instance.sendSupportMessage(
         userId: _userId!,
-        text: "👋 User is requesting live chat support.",
+        text: '👋 User is requesting live chat support.',
         isFromAdmin: false,
         metadata: {
           'type': 'live_chat_request',
@@ -231,9 +229,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           // Reset inactivity timer only if a new message from USER is received
           if (msgs.length > oldLen) {
             final lastMsg = msgs.isNotEmpty ? msgs.last : null;
-            if (lastMsg != null && lastMsg['from_admin'] == false) {
-              _resetInactivityTimer();
-            }
+            if (lastMsg != null && lastMsg['from_admin'] == false) _resetInactivityTimer();
           }
         }
       });
@@ -425,11 +421,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         ticketNumber: '#$shortId',
       );
 
-      String summary = "🎫 *Ticket Detail Received (#$shortId)*\n"
+      final String summary = '🎫 *Ticket Detail Received (#$shortId)*\n'
           "► Category: ${_ticketDraft['category']}\n"
           "► Location: ${_ticketDraft['location']}\n"
           "► Title: ${_ticketDraft['title']}\n"
-          "► Status: Open 🟢";
+          '► Status: Open 🟢';
 
       _finalizeFlow(summary);
     } catch (e) {
@@ -450,11 +446,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         severity: _ticketDraft['severity'],
       );
 
-      String summary = "🐛 *Bug Report Bundled*\n"
+      final String summary = '🐛 *Bug Report Bundled*\n'
           "► Title: ${_ticketDraft['title']}\n"
           "► Area: ${_ticketDraft['area']}\n"
           "► Severity: ${_ticketDraft['severity'].toString().toUpperCase()}\n"
-          "► Status: Sent to Dev Group ⚡";
+          '► Status: Sent to Dev Group ⚡';
 
       _finalizeFlow(summary);
     } catch (e) {
@@ -681,8 +677,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               child: Stack(
                 children: [
                   _buildMessagesList(),
-                  if (_isBotTyping)
-                    Positioned(
+                  if (_isBotTyping) Positioned(
                         bottom: 12, left: 16, child: _buildTypingIndicator()),
                 ],
               ),
@@ -698,7 +693,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Row(
@@ -725,7 +720,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight + 10),
       child: AppBar(
-        backgroundColor: Colors.white.withOpacity(0.95),
+        backgroundColor: Colors.white.withValues(alpha: 0.95),
         elevation: 0,
         centerTitle: false,
         leading: IconButton(

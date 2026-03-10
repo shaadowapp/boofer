@@ -6,6 +6,7 @@ class ModernChatInput extends StatefulWidget {
   final Function(String) onSendMessage;
   final VoidCallback? onTypingStarted;
   final VoidCallback? onTypingStopped;
+  final VoidCallback? onAttachmentPressed;
   final bool autofocus;
   final String? initialText;
   final bool hideWarning;
@@ -15,6 +16,7 @@ class ModernChatInput extends StatefulWidget {
     required this.onSendMessage,
     this.onTypingStarted,
     this.onTypingStopped,
+    this.onAttachmentPressed,
     this.autofocus = false,
     this.initialText,
     this.hideWarning = false,
@@ -120,112 +122,162 @@ class _ModernChatInputState extends State<ModernChatInput>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 1. Emoji Button
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: IconButton(
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) =>
-                        ScaleTransition(scale: anim, child: child),
-                    child: Icon(
-                      _showEmojiPicker
-                          ? Icons.keyboard
-                          : Icons.emoji_emotions_outlined,
-                      key: ValueKey(_showEmojiPicker),
-                      size: 26,
-                      color: _showEmojiPicker
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface.withOpacity(0.6),
-                    ),
-                  ),
-                  onPressed: _toggleEmojiPicker,
-                ),
-              ),
-
-              // 2. Input Field (Transparent, no border)
+              // Chat Input Box (Expanded to fill space)
               Expanded(
-                child: TextField(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  autofocus: widget.autofocus,
-                  textCapitalization: TextCapitalization.sentences,
-                  keyboardType: TextInputType.multiline,
-                  maxLines: 6,
-                  minLines: 1,
-                  style: theme.textTheme.bodyLarge,
-                  decoration: InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurface.withOpacity(0.4),
-                    ),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 12,
-                    ),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  onTap: () {
-                    if (_showEmojiPicker) {
-                      setState(() {
-                        _showEmojiPicker = false;
-                        _emojiController.reverse();
-                      });
-                    }
-                  },
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 1. Emoji Button (Left)
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, anim) =>
+                              ScaleTransition(scale: anim, child: child),
+                          child: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard
+                                : Icons.emoji_emotions_outlined,
+                            key: ValueKey(_showEmojiPicker),
+                            size: 24,
+                            color: _showEmojiPicker
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
+                          ),
+                        ),
+                        onPressed: _toggleEmojiPicker,
+                      ),
+
+                      // 2. Input Field (Transparent, no border) - Takes remaining space
+                      Expanded(
+                        child: TextField(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          autofocus: widget.autofocus,
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          maxLines: 6,
+                          minLines: 1,
+                          style: theme.textTheme.bodyLarge,
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            hintStyle: TextStyle(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.4),
+                            ),
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
+                          ),
+                          onTap: () {
+                            if (_showEmojiPicker) {
+                              setState(() {
+                                _showEmojiPicker = false;
+                                _emojiController.reverse();
+                              });
+                            }
+                          },
+                        ),
+                      ),
+
+                      // 3. Attachment Button (Right)
+                      if (widget.onAttachmentPressed != null)
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: widget.onAttachmentPressed,
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.attach_file_rounded,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
 
-              // 3. Modern Send Button
-              AnimatedScale(
-                scale: _isComposing ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutBack,
-                child: AnimatedOpacity(
-                  opacity: _isComposing ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 4, right: 4),
-                    child: InkWell(
-                      onTap: _isComposing ? _handleSend : null,
-                      borderRadius: BorderRadius.circular(32),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.send_rounded,
-                          size: 20,
-                          color: theme.colorScheme.onPrimary,
+              // 4. Modern Send Button (Outside the box) - Only takes space when composing
+              if (_isComposing)
+                AnimatedScale(
+                  scale: _isComposing ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutBack,
+                  child: AnimatedOpacity(
+                    opacity: _isComposing ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: InkWell(
+                        onTap: _isComposing ? _handleSend : null,
+                        borderRadius: BorderRadius.circular(32),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.send_rounded,
+                            size: 24,
+                            color: theme.colorScheme.onPrimary,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -240,7 +292,7 @@ class _ModernChatInputState extends State<ModernChatInput>
             child: Text(
               'Be careful of fake profiles and fraud. Stay safe.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 fontSize: 10,
               ),
             ),
@@ -282,7 +334,7 @@ class _ModernChatInputState extends State<ModernChatInput>
                 categoryViewConfig: CategoryViewConfig(
                   backgroundColor: theme.colorScheme.surface,
                   indicatorColor: theme.colorScheme.primary,
-                  iconColor: theme.colorScheme.onSurface.withOpacity(0.5),
+                  iconColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   iconColorSelected: theme.colorScheme.primary,
                   backspaceColor: theme.colorScheme.primary,
                   categoryIcons: const CategoryIcons(),

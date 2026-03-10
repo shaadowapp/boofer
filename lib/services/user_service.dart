@@ -18,16 +18,16 @@ class UserService {
   final ErrorHandler _errorHandler;
 
   UserService._internal()
-    : _database = DatabaseManager.instance,
-      _errorHandler = ErrorHandler();
+      : _database = DatabaseManager.instance,
+        _errorHandler = ErrorHandler();
 
   // Named constructor for dependency injection
   UserService({
     required DatabaseManager database,
     required ErrorHandler errorHandler,
-  }) : _database = database,
-       _errorHandler = errorHandler;
-  
+  })  : _database = database,
+        _errorHandler = errorHandler;
+
   // LRU cache with size limit to prevent memory leaks
   static const int _maxCacheSize = 1000;
   final LinkedHashMap<String, User> _cache = LinkedHashMap();
@@ -46,8 +46,7 @@ class UserService {
 
   // Static methods for backward compatibility
   static Future<String?> getUserEmail() async {
-    final currentUser = await instance._getCurrentUser();
-    return currentUser?.email;
+    return null; // Removed email usage
   }
 
   static Future<User?> getCurrentUser() async {
@@ -116,8 +115,7 @@ class UserService {
   static String _generateNumericUserId() {
     final now = DateTime.now();
 
-    final dateTime =
-        now.year.toString() +
+    final dateTime = now.year.toString() +
         now.month.toString().padLeft(2, '0') +
         now.day.toString().padLeft(2, '0') +
         now.hour.toString().padLeft(2, '0') +
@@ -138,9 +136,7 @@ class UserService {
       final storedUserData = await LocalStorageService.getString(
         'current_user',
       );
-      if (storedUserData != null) {
-        return User.fromJsonString(storedUserData);
-      }
+      if (storedUserData != null) return User.fromJsonString(storedUserData);
 
       // Fallback to onboarding data for backward compatibility
       final onboardingData = await LocalStorageService.getOnboardingData();
@@ -150,8 +146,6 @@ class UserService {
           id: _generateNumericUserId(), // Generate numeric ID for legacy users
           handle: onboardingData.userName,
           fullName: onboardingData.userName,
-          email:
-              '${onboardingData.userName}@legacy.local', // Placeholder email for legacy users
           bio: 'Hey there! I\'m using Boofer 👋',
           isDiscoverable: true,
           status: UserStatus.online,
@@ -175,7 +169,11 @@ class UserService {
 
   /// Store current user data
   static Future<void> setCurrentUser(User user) async {
+    debugPrint('💾 [USER] Storing current user to local storage and SQLite: ${user.id}');
     await LocalStorageService.setString('current_user', user.toJsonString());
+
+    // CRITICAL: Also save to SQLite so foreign keys for messages/conversations work!
+    await instance.insertUser(user);
 
     // Also update profile picture service and dedicated storage key
     final ProfilePictureService profilePictureService =
@@ -402,23 +400,20 @@ class UserService {
 
       final results = await _database.query(
         '''
-        SELECT * FROM users 
-        WHERE (handle LIKE ? OR email LIKE ? OR full_name LIKE ?) 
+        WHERE (handle LIKE ? OR full_name LIKE ?) 
         AND is_discoverable = 1
         ORDER BY 
           CASE 
             WHEN handle = ? THEN 1
-            WHEN email = ? THEN 2
-            WHEN handle LIKE ? THEN 3
-            WHEN email LIKE ? THEN 4
-            ELSE 5
+            WHEN handle LIKE ? THEN 2
+            ELSE 3
           END
         LIMIT 20
         ''',
         [
-          '%$query%', '%$query%', '%$query%', // LIKE searches
-          query, query, // Exact matches (highest priority)
-          '$query%', '$query%', // Starts with (second priority)
+          '%$query%', '%$query%', // LIKE searches
+          query, // Exact match
+          '$query%', // Starts with
         ],
       );
 

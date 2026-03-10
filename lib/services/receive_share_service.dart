@@ -18,7 +18,7 @@ class ReceiveShareService {
   /// Initialize the service with a navigator key for navigation
   void init(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
-    debugPrint("🚀 ReceiveShareService: Initializing...");
+    debugPrint('🚀 ReceiveShareService: Initializing...');
 
     // Cancel existing subscription if any
     _mediaSubscription?.cancel();
@@ -27,12 +27,12 @@ class ReceiveShareService {
     _mediaSubscription = ReceiveSharingIntent.instance.getMediaStream().listen(
       (List<SharedMediaFile> value) {
         debugPrint(
-          "🚀 ReceiveShareService: Stream Received ${value.length} items",
+          '🚀 ReceiveShareService: Stream Received ${value.length} items',
         );
         _handleMediaContent(value);
       },
       onError: (err) {
-        debugPrint("❌ ReceiveShareService: getMediaStream error: $err");
+        debugPrint('❌ ReceiveShareService: getMediaStream error: $err');
       },
     );
 
@@ -42,7 +42,7 @@ class ReceiveShareService {
     ) {
       if (value.isNotEmpty) {
         debugPrint(
-          "🚀 ReceiveShareService: Initial Received ${value.length} items",
+          '🚀 ReceiveShareService: Initial Received ${value.length} items',
         );
         _handleMediaContent(value);
       }
@@ -51,7 +51,7 @@ class ReceiveShareService {
     // 3. Check for pending media captured via checkInitialShare
     if (_pendingMedia != null && _pendingMedia!.isNotEmpty) {
       debugPrint(
-        "🚀 ReceiveShareService: Processing ${_pendingMedia!.length} PENDING items",
+        '🚀 ReceiveShareService: Processing ${_pendingMedia!.length} PENDING items',
       );
       _handleMediaContent(_pendingMedia!);
       _pendingMedia = null;
@@ -65,12 +65,12 @@ class ReceiveShareService {
           .getInitialMedia();
       if (initialMedia.isNotEmpty) {
         debugPrint(
-          "🚀 ReceiveShareService: PRE-INITIAL Captured ${initialMedia.length} items",
+          '🚀 ReceiveShareService: PRE-INITIAL Captured ${initialMedia.length} items',
         );
         _pendingMedia = initialMedia;
       }
     } catch (e) {
-      debugPrint("❌ ReceiveShareService: Error in checkInitialShare: $e");
+      debugPrint('❌ ReceiveShareService: Error in checkInitialShare: $e');
     }
   }
 
@@ -81,18 +81,18 @@ class ReceiveShareService {
   void _handleMediaContent(List<SharedMediaFile> media) {
     if (media.isEmpty) return;
 
-    debugPrint("📦 Processing ${media.length} shared items...");
+    debugPrint('📦 Processing ${media.length} shared items...');
 
     String? sharedText;
-    List<String> sharedFiles = [];
+    final List<String> sharedFiles = [];
 
     for (var item in media) {
-      debugPrint("📄 Item: ${item.type} - Path: ${item.path}");
+      debugPrint('📄 Item: ${item.type} - Path: ${item.path}');
 
       // 🛡️ SECURITY: Ignore Boofer's own deep links so DeepLinkService can handle them
       if (item.path.contains('booferapp.github.io') || 
           item.path.startsWith('boofer://')) {
-        debugPrint("🚫 ReceiveShareService: Ignoring Boofer Deep Link path: ${item.path}");
+        debugPrint('🚫 ReceiveShareService: Ignoring Boofer Deep Link path: ${item.path}');
         continue;
       }
 
@@ -100,22 +100,20 @@ class ReceiveShareService {
           item.type == SharedMediaType.url) {
         sharedText = (sharedText == null)
             ? item.path
-            : "$sharedText\n${item.path}";
+            : '$sharedText\n${item.path}';
       } else {
         sharedFiles.add(item.path);
       }
     }
 
-    if (sharedText != null || sharedFiles.isNotEmpty) {
-      _navigateToSelection(sharedText, sharedFiles);
-    }
+    if (sharedText != null || sharedFiles.isNotEmpty) _navigateToSelection(sharedText, sharedFiles);
   }
 
   void _navigateToSelection(String? text, List<String> files) {
     // If navigator state is not ready yet, retry after a short delay
     if (_navigatorKey == null || _navigatorKey!.currentState == null) {
       debugPrint(
-        "❌ ReceiveShareService: Navigator state is NULL, retrying in 500ms...",
+        '❌ ReceiveShareService: Navigator state is NULL, retrying in 500ms...',
       );
       Future.delayed(
         const Duration(milliseconds: 500),
@@ -124,7 +122,7 @@ class ReceiveShareService {
       return;
     }
 
-    debugPrint("🎯 Navigating to SelectFriendsScreen...");
+    debugPrint('🎯 Navigating to SelectFriendsScreen...');
 
     _navigatorKey!.currentState!.push(
       MaterialPageRoute(

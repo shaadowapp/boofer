@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
+import 'dart:typed_data';
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -20,12 +22,15 @@ import '../providers/chat_provider.dart';
 import '../widgets/user_avatar.dart';
 import '../utils/svg_icons.dart';
 import '../widgets/modern_chat_input.dart';
+import '../widgets/media_edit_viewer.dart';
 import '../services/moderation_service.dart';
+import '../services/media_service.dart';
 import '../services/supabase_service.dart';
 import '../services/virgil_e2ee_service.dart';
 import '../services/virgil_key_service.dart';
 import '../services/local_storage_service.dart';
 import '../widgets/smart_maintenance.dart';
+import 'dart:io';
 
 /// Chat screen that enforces friend-only messaging
 class FriendChatScreen extends StatefulWidget {
@@ -115,8 +120,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       _currentUserId = currentUser.id;
 
       // Check cached relationship status first (to prevent flashing "Follow to Message" on network errors)
+      if (!mounted) return;
       final chatProvider = context.read<ChatProvider>();
-      final isCachedFriend = chatProvider.isMutualFriend(widget.recipientId);
 
       // Parallelize initialization calls to reduce delay
       final results = await Future.wait([
@@ -157,22 +162,20 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
       // Fallback to cache if remote check failed (returned 'none') but we know they are a friend
       String finalStatus = relationshipStatus;
-      if (finalStatus == 'none' && isCachedFriend) {
+      if (finalStatus == 'none' && chatProvider.isMutualFriend(widget.recipientId)) {
         finalStatus = 'mutual';
       }
 
       final isBoofer = widget.recipientId == AppConstants.booferId;
       final isMutual = isBoofer || finalStatus == 'mutual';
       final isFollowing = isBoofer || finalStatus == 'following' || isMutual;
-      final canChat = true; // Messaging possible without following
+      const canChat = true; // Messaging possible without following
       const isBlocked = false;
 
       // Create recipient user object with fallback to widget params
       final recipientUser = freshRecipient ??
           User(
             id: widget.recipientId,
-            email:
-                '${widget.recipientName.toLowerCase().replaceAll(' ', '_')}@demo.com',
             virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
             handle: widget.recipientHandle ??
                 widget.recipientName.toLowerCase().replaceAll(' ', '_'),
@@ -460,11 +463,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       } else {
         // Parse hours
         int hours = 24;
-        if (_ephemeralTimer == '12_hours')
+        if (_ephemeralTimer == '12_hours') {
           hours = 12;
-        else if (_ephemeralTimer == '48_hours')
+        } else if (_ephemeralTimer == '48_hours') {
           hours = 48;
-        else if (_ephemeralTimer == '72_hours') hours = 72;
+        } else if (_ephemeralTimer == '72_hours') {
+          hours = 72;
+        }
 
         final deleteTime = message.timestamp.add(Duration(hours: hours));
         if (now.isAfter(deleteTime)) {
@@ -768,11 +773,11 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                                   ? Colors.orange
                                   : (widget.recipientId == _currentUserId
                                       ? theme.colorScheme.onSurface
-                                          .withOpacity(0.6)
+                                          .withValues(alpha: 0.6)
                                       : (isRecipientOnline
                                           ? Colors.green
                                           : theme.colorScheme.onSurface
-                                              .withOpacity(0.6))),
+                                              .withValues(alpha: 0.6))),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -781,7 +786,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                             '•',
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontSize: 10,
-                              color: theme.colorScheme.onSurface.withOpacity(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 
                                 0.4,
                               ),
                             ),
@@ -792,13 +797,13 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                                 ? Icons.visibility_off_outlined
                                 : Icons.timer_outlined,
                             size: 10,
-                            color: theme.colorScheme.primary.withOpacity(0.7),
+                            color: theme.colorScheme.primary.withValues(alpha: 0.7),
                           ),
                           const SizedBox(width: 2),
                           Text(
                             _ephemeralTimer.replaceAll('_', ' '),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary.withOpacity(0.7),
+                              color: theme.colorScheme.primary.withValues(alpha: 0.7),
                               fontSize: 9,
                             ),
                           ),
@@ -848,7 +853,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     if (_isBlocked) {
       return Container(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        color: theme.colorScheme.errorContainer.withOpacity(0.3),
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
         child: Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -879,6 +884,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
           onSendMessage: (text) {
             _handleSendMessage(text);
           },
+          onAttachmentPressed: _onAttachmentPressed,
         ),
       ],
     );
@@ -960,10 +966,10 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: theme.colorScheme.primary.withOpacity(0.2),
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -973,7 +979,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child:
@@ -981,7 +987,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Welcome to Boofer! 🚀',
+              'Welcome to Boofer, $userName! 🚀',
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
@@ -1137,7 +1143,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         margin: const EdgeInsets.symmetric(vertical: 20),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.8),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
@@ -1350,6 +1356,329 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
+  void _onAttachmentPressed() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Share Media',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildAttachmentOption(
+                      icon: Icons.image_rounded,
+                      label: 'Gallery',
+                      color: Colors.purple,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickMedia(false, false);
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Camera',
+                      color: Colors.blue,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickMedia(true, false);
+                      },
+                    ),
+                    _buildAttachmentOption(
+                      icon: Icons.videocam_rounded,
+                      label: 'Video',
+                      color: Colors.red,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickMedia(false, true);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachmentOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: color.withOpacity(isDark ? 0.2 : 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 30),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickMedia(bool fromCamera, bool isVideo) async {
+    try {
+      File? pickedFile;
+      if (isVideo) {
+        pickedFile =
+            await MediaService.instance.pickVideo(fromCamera: fromCamera);
+      } else {
+        pickedFile =
+            await MediaService.instance.pickImage(fromCamera: fromCamera);
+      }
+
+      if (pickedFile == null) return;
+
+      // Validate file
+      if (!MediaService.instance
+          .validateMediaFile(pickedFile, isVideo: isVideo)) {
+        return;
+      }
+
+      // Open Editor
+      if (!mounted) return;
+      final result = await Navigator.push<MediaEditResult>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MediaEditViewer(
+            file: pickedFile!,
+            isVideo: isVideo,
+            recipientName: widget.recipientName,
+          ),
+        ),
+      );
+
+      if (result != null) {
+        await _handleSendMedia(result);
+      }
+    } catch (e) {
+      debugPrint('❌ Error picking media: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleSendMedia(MediaEditResult result) async {
+    if (_currentUserId == null || _conversationId == null) return;
+
+    debugPrint('📤 Preparing media message...');
+
+    // Create optimistic message ID
+    final messageId = const Uuid().v4();
+    final type = result.isVideo ? MessageType.video : MessageType.image;
+    final timestamp = DateTime.now();
+
+    final metadata = {
+      'media': {
+        'local_media_path': result.file.path,
+        'is_video': result.isVideo,
+        'original_size': await result.file.length(),
+      },
+      'reply_to': _replyToMessage != null
+          ? {
+              'id': _replyToMessage!.id,
+              'text': _replyToMessage!.text,
+              'sender_name': _replyToMessage!.senderId == _currentUserId
+                  ? 'You'
+                  : widget.recipientName,
+            }
+          : null,
+    };
+
+    final optimisticMessage = Message(
+      id: messageId,
+      senderId: _currentUserId!,
+      receiverId: widget.recipientId,
+      conversationId: _conversationId!,
+      text: result.isVideo ? '[Video]' : '[Image]',
+      timestamp: timestamp,
+      status: MessageStatus.pending,
+      type: type,
+      isEncrypted: true,
+      metadata: metadata,
+      messageHash: '${_currentUserId}_${widget.recipientId}_${timestamp.millisecondsSinceEpoch}',
+    );
+
+    if (mounted) {
+      setState(() {
+        _messages.add(optimisticMessage);
+        _replyToMessage = null; // Clear reply
+        _updateChatItems();
+      });
+      _scrollToBottom();
+    }
+
+    // Save to local DB for recovery
+    try {
+      await DatabaseManager.instance.insert(
+        'messages',
+        {
+          'id': optimisticMessage.id,
+          'text': optimisticMessage.text,
+          'sender_id': optimisticMessage.senderId,
+          'receiver_id': optimisticMessage.receiverId,
+          'conversation_id': optimisticMessage.conversationId,
+          'timestamp': optimisticMessage.timestamp.toIso8601String(),
+          'is_offline': 0,
+          'status': optimisticMessage.status.name,
+          'message_hash': optimisticMessage.messageHash,
+          'is_encrypted': 1,
+          'type': optimisticMessage.type.name,
+          'metadata': jsonEncode(optimisticMessage.metadata),
+          'created_at': optimisticMessage.timestamp.toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save media message locally: $e');
+    }
+
+    try {
+      Uint8List mediaBytes;
+      int originalSize = await result.file.length();
+      int compressedSize;
+      String mimeType;
+
+      // Update UI with "Compressing..." stage
+      _updateMessageMetadata(messageId, {'upload_stage': 'Compressing...', 'upload_progress': 0.1});
+
+      if (result.isVideo) {
+        mediaBytes = await result.file.readAsBytes();
+        compressedSize = originalSize;
+        mimeType = 'video/mp4';
+      } else {
+        final compressionResult =
+            await MediaService.instance.compressImageToWebp(result.file);
+        final File compressedFile = compressionResult['file'];
+        mediaBytes = await compressedFile.readAsBytes();
+        compressedSize = compressionResult['compressedSize'];
+        mimeType = 'image/webp';
+      }
+
+      _updateMessageMetadata(messageId, {'upload_stage': 'Encrypting...', 'upload_progress': 0.3});
+
+      // Fetch keys
+      final recipientKeys =
+          await VirgilKeyService().getRecipientKeys(widget.recipientId);
+      final senderKeys =
+          await VirgilKeyService().getRecipientKeys(_currentUserId!);
+
+      if (recipientKeys == null) {
+        throw Exception(
+            'Recipient keys not found. Cannot send encrypted media.');
+      }
+
+      _updateMessageMetadata(messageId, {'upload_stage': 'Uploading...', 'upload_progress': 0.5});
+
+      // Send via Supabase
+      final sentMessage = await SupabaseService.instance.sendMediaMessage(
+        conversationId: _conversationId!,
+        senderId: _currentUserId!,
+        receiverId: widget.recipientId,
+        mediaLocalPath: result.file.path,
+        type: type,
+        compressedMediaBytes: mediaBytes,
+        recipientKeys: recipientKeys,
+        senderKeys: senderKeys,
+        originalSize: originalSize,
+        compressedSize: compressedSize,
+        mimeType: mimeType,
+        knownTimer: _ephemeralTimer,
+      );
+
+      if (sentMessage != null && mounted) {
+        setState(() {
+          final index = _messages.indexWhere((m) => m.id == messageId);
+          if (index != -1) {
+            // Keep local_media_path in metadata for UI
+            final finalMetadata = Map<String, dynamic>.from(sentMessage.metadata ?? {});
+            finalMetadata['media'] ??= {};
+            finalMetadata['media']['local_media_path'] = result.file.path;
+            
+            _messages[index] = sentMessage.copyWith(metadata: finalMetadata);
+            _updateChatItems();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Media send failed: $e');
+      if (mounted) {
+        setState(() {
+          final index = _messages.indexWhere((m) => m.id == messageId);
+          if (index != -1) {
+            _messages[index] =
+                optimisticMessage.copyWith(status: MessageStatus.failed);
+            _updateChatItems();
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Failed to send media: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _updateMessageMetadata(String messageId, Map<String, dynamic> extraMetadata) {
+    if (!mounted) return;
+    setState(() {
+      final index = _messages.indexWhere((m) => m.id == messageId);
+      if (index != -1) {
+        final currentMetadata = Map<String, dynamic>.from(_messages[index].metadata ?? {});
+        currentMetadata.addAll(extraMetadata);
+        _messages[index] = _messages[index].copyWith(metadata: currentMetadata);
+      }
+    });
+  }
+
   Widget _buildReplyPreview(ThemeData theme) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -1357,7 +1686,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -1569,7 +1898,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1820,7 +2149,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1833,7 +2162,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                     radius: 24,
                     backgroundColor: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.1),
+                    ).colorScheme.surfaceContainerHighest,
                     child: widget.recipientAvatar != null &&
                             widget.recipientAvatar!.startsWith('http')
                         ? ClipOval(
@@ -1888,7 +2217,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.onSurface.withOpacity(0.6),
+                                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                                     ),
                           )
                         else
@@ -1898,7 +2227,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.onSurface.withOpacity(0.6),
+                                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                                     ),
                           ),
                       ],
@@ -2002,8 +2331,8 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         height: 40,
         decoration: BoxDecoration(
           color: isDestructive
-              ? Colors.red.withOpacity(0.1)
-              : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              ? Colors.red.withValues(alpha: 0.1)
+              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
@@ -2047,7 +2376,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2133,7 +2462,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: Theme.of(context).colorScheme.primary),

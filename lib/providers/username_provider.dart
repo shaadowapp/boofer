@@ -35,9 +35,7 @@ class UsernameProvider extends ChangeNotifier {
     }
     
     final lastChangeTimestamp = await UnifiedStorageService.getInt(UnifiedStorageService.lastUsernameChange);
-    if (lastChangeTimestamp != null) {
-      _lastUsernameChange = DateTime.fromMillisecondsSinceEpoch(lastChangeTimestamp);
-    }
+    if (lastChangeTimestamp != null) _lastUsernameChange = DateTime.fromMillisecondsSinceEpoch(lastChangeTimestamp);
     
     notifyListeners();
   }
@@ -121,17 +119,11 @@ class UsernameProvider extends ChangeNotifier {
   String? validateUsername(String handle) {
     handle = handle.replaceAll('@', '').trim();
     
-    if (handle.isEmpty) {
-      return 'Handle cannot be empty';
-    }
+    if (handle.isEmpty) return 'Handle cannot be empty';
     
-    if (handle.length < 3) {
-      return 'Handle must be at least 3 characters';
-    }
+    if (handle.length < 3) return 'Handle must be at least 3 characters';
     
-    if (handle.length > 20) {
-      return 'Handle must be 20 characters or less';
-    }
+    if (handle.length > 20) return 'Handle must be 20 characters or less';
     
     if (!RegExp(r'^[a-zA-Z]').hasMatch(handle)) {
       return 'Handle must start with a letter';
@@ -152,9 +144,7 @@ class UsernameProvider extends ChangeNotifier {
     int months = (end.year - start.year) * 12 + (end.month - start.month);
     
     // If the day hasn't been reached yet in the current month, subtract one month
-    if (end.day < start.day) {
-      months--;
-    }
+    if (end.day < start.day) months--;
     
     return months;
   }

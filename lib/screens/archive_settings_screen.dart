@@ -228,7 +228,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                             archiveSettings.setKeepChatsArchived(value);
                           },
                           contentPadding: EdgeInsets.zero,
-                          activeColor: theme.colorScheme.primary,
+                          activeThumbColor: theme.colorScheme.primary,
                         ),
                       ],
                     ),
@@ -297,8 +297,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
               ),
             ),
           ),
-          if (isExpanded)
-            Padding(
+          if (isExpanded) Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,7 +326,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
         ),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -356,7 +355,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(
@@ -384,12 +383,12 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.3),
+                        ).colorScheme.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -406,7 +405,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           Icons.chevron_right,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                           size: 16,
                         ),
                       ],
@@ -429,7 +428,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           radius: 12,
                           backgroundColor: Theme.of(
                             context,
-                          ).colorScheme.primary.withOpacity(0.2),
+                          ).colorScheme.primary.withValues(alpha: 0.2),
                           child: Text(
                             '${index + 1}',
                             style: const TextStyle(fontSize: 10),
@@ -453,7 +452,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                                   fontSize: 8,
                                   color: Theme.of(
                                     context,
-                                  ).colorScheme.onSurface.withOpacity(0.6),
+                                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
                               ),
                             ],
@@ -472,12 +471,12 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.3),
+                        ).colorScheme.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -494,7 +493,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           Icons.chevron_right,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                           size: 16,
                         ),
                       ],
@@ -509,12 +508,12 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
-                      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.outline.withOpacity(0.3),
+                        ).colorScheme.outline.withValues(alpha: 0.3),
                         style: BorderStyle.solid,
                       ),
                     ),
@@ -524,7 +523,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                           Icons.search,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.6),
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
                           size: 16,
                         ),
                         const SizedBox(width: 8),
@@ -535,7 +534,7 @@ class _ArchiveSettingsScreenState extends State<ArchiveSettingsScreen> {
                             fontStyle: FontStyle.italic,
                             color: Theme.of(
                               context,
-                            ).colorScheme.onSurface.withOpacity(0.6),
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                         ),
                       ],

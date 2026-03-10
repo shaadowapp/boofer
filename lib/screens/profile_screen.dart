@@ -22,8 +22,6 @@ import '../providers/follow_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/skeleton_profile_header.dart';
 import '../utils/screenshot_mode.dart';
-import '../widgets/smart_maintenance.dart';
-import '../models/system_status_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -32,10 +30,13 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveClientMixin {
   bool _isLoading = false;
   User? _currentUser;
   StreamSubscription<String?>? _profilePictureSubscription;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -129,6 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -152,13 +154,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           centerTitle: true,
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+        body: const SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-              const SizedBox(height: 110),
-              const SkeletonProfileHeader(),
-              const SizedBox(height: 32),
+              SizedBox(height: 110),
+              SkeletonProfileHeader(),
+              SizedBox(height: 32),
             ],
           ),
         ),
@@ -175,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 'Identity Not Found',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               ),
               const SizedBox(height: 20),
@@ -260,14 +262,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             top: -100,
             right: -100,
             child: _GlowCircle(
-              color: theme.colorScheme.primary.withOpacity(isDark ? 0.1 : 0.05),
+              color: theme.colorScheme.primary
+                  .withValues(alpha: isDark ? 0.1 : 0.05),
             ),
           ),
           Positioned(
             bottom: 100,
             left: -50,
             child: _GlowCircle(
-              color: const Color(0xFFFF6B6B).withOpacity(isDark ? 0.05 : 0.02),
+              color: const Color(0xFFFF6B6B)
+                  .withValues(alpha: isDark ? 0.05 : 0.02),
             ),
           ),
           RefreshIndicator(
@@ -281,6 +285,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 110),
                   BooferIdentityCard(
                     user: _currentUser!,
+                    showFollowStats: false,
+                    showInterests: true,
+                    onFollowersTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FollowersScreen(
+                          userId: _currentUser!.id,
+                          userName: _currentUser!.fullName,
+                        ),
+                      ),
+                    ),
+                    onFollowingTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FollowingScreen(
+                          userId: _currentUser!.id,
+                          userName: _currentUser!.fullName,
+                        ),
+                      ),
+                    ),
                     onCopyNumber: () {
                       Clipboard.setData(
                         ClipboardData(text: _currentUser!.virtualNumber ?? ''),
@@ -290,38 +314,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                   ),
-
                   const SizedBox(height: 32),
                   _buildActionRow(),
                   const SizedBox(height: 32),
-
-                  if (!_currentUser!.isCompany) ...[
-                    if (_currentUser!.interests.isNotEmpty) ...[
-                      _buildSectionTitle('Interests'),
-                      const SizedBox(height: 12),
-                      _buildChipCloud(
-                        _currentUser!.interests,
-                        const Color(0xFF845EF7),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    if (_currentUser!.hobbies.isNotEmpty) ...[
-                      _buildSectionTitle('Hobbies'),
-                      const SizedBox(height: 12),
-                      _buildChipCloud(
-                        _currentUser!.hobbies,
-                        const Color(0xFFFF6B6B),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ],
-
-                  _buildSectionTitle('Network Stats'),
+                  _buildSectionTitle('Network'),
                   const SizedBox(height: 16),
-                  _buildStatsGrid(),
-                  const SizedBox(height: 40),
+                  Consumer<FollowProvider>(
+                    builder: (context, provider, child) {
+                      final stats = provider.getFollowStats(_currentUser!.id);
+                      final followers = stats?.followersCount ??
+                          _currentUser?.followerCount ??
+                          0;
+                      final following = stats?.followingCount ??
+                          _currentUser?.followingCount ??
+                          0;
 
-                  // Tools Section
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _StatBox(
+                              label: 'Followers',
+                              value: '$followers',
+                              icon: Icons.people_outline,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FollowersScreen(
+                                    userId: _currentUser!.id,
+                                    userName: _currentUser!.fullName,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatBox(
+                              label: 'Following',
+                              value: '$following',
+                              icon: Icons.person_add_alt_1_outlined,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FollowingScreen(
+                                    userId: _currentUser!.id,
+                                    userName: _currentUser!.fullName,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 48),
                   _buildSectionTitle('Identity Tools'),
                   const SizedBox(height: 16),
                   _buildToolItem(
@@ -344,20 +391,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  _buildToolItem(
-                    Icons.people_outline,
-                    'Followers',
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FollowersScreen(
-                          userId: _currentUser!.id,
-                          userName: _currentUser!.fullName,
-                        ),
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 100),
                 ],
               ),
@@ -393,7 +426,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF845EF7).withOpacity(0.3),
+              color: const Color(0xFF845EF7).withValues(alpha: 0.3),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -426,91 +459,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
           fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 2,
         ),
       ),
-    );
-  }
-
-  Widget _buildChipCloud(List<String> items, Color color) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: items.map((item) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.2)),
-            ),
-            child: Text(
-              item,
-              style: TextStyle(
-                color: color.withOpacity(0.9),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildStatsGrid() {
-    return Consumer<FollowProvider>(
-      builder: (context, provider, child) {
-        final stats = provider.getFollowStats(_currentUser!.id);
-        return Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FollowersScreen(
-                      userId: _currentUser!.id,
-                      userName: _currentUser!.fullName,
-                    ),
-                  ),
-                ),
-                child: _StatBox(
-                  label: 'Followers',
-                  value: '${stats?.followersCount ?? 0}',
-                  icon: Icons.people_outline,
-                ),
-              ),
-            ),
-            if (!_currentUser!.isCompany) ...[
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => FollowingScreen(
-                        userId: _currentUser!.id,
-                        userName: _currentUser!.fullName,
-                      ),
-                    ),
-                  ),
-                  child: _StatBox(
-                    label: 'Following',
-                    value: '${stats?.followingCount ?? 0}',
-                    icon: Icons.person_add_alt_1_outlined,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        );
-      },
     );
   }
 
@@ -522,31 +476,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.onSurface.withOpacity(0.03),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: theme.colorScheme.onSurface.withOpacity(0.05),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
           ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: theme.colorScheme.onSurface.withOpacity(0.3),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
               size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               title,
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w600,
               ),
             ),
             const Spacer(),
             Icon(
               Icons.arrow_forward_ios,
-              color: theme.colorScheme.onSurface.withOpacity(0.1),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
               size: 14,
             ),
           ],
@@ -562,8 +516,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ageCtrl = TextEditingController(
       text: _currentUser?.age?.toString() ?? '',
     );
-    Set<String> selectedInterests = Set.from(_currentUser?.interests ?? []);
-    Set<String> selectedHobbies = Set.from(_currentUser?.hobbies ?? []);
+    String? selectedGender = _currentUser?.gender;
+    final Set<String> selectedInterests =
+        Set.from(_currentUser?.interests ?? []);
+    final Set<String> selectedHobbies = Set.from(_currentUser?.hobbies ?? []);
     String selectedAvatar = _currentUser?.avatar ?? '👤';
 
     showModalBottomSheet(
@@ -587,7 +543,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               boxShadow: [
                 if (!isDark)
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
                   ),
@@ -620,9 +576,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         'Choose how the world sees you. System data remains immutable.',
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.4),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.4),
                           fontSize: 13,
                         ),
+                      ),
+                      const SizedBox(height: 32),
+                      _buildModalSectionTitle(
+                        'Gender Identity',
+                        const Color(0xFF4DABF7),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildGenderChip(
+                            'Male',
+                            'male',
+                            '♂️',
+                            selectedGender,
+                            (g) => setModalState(() => selectedGender = g),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildGenderChip(
+                            'Female',
+                            'female',
+                            '♀️',
+                            selectedGender,
+                            (g) => setModalState(() => selectedGender = g),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildGenderChip(
+                            'Other',
+                            'other',
+                            '⚧',
+                            selectedGender,
+                            (g) => setModalState(() => selectedGender = g),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 32),
                       _buildModalSectionTitle(
@@ -645,13 +635,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 width: 100,
                                 height: 100,
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withOpacity(
-                                    0.1,
-                                  ),
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: theme.colorScheme.primary
-                                        .withOpacity(0.2),
+                                        .withValues(alpha: 0.2),
                                     width: 2,
                                   ),
                                 ),
@@ -725,10 +714,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(
                         height: 150,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.05),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: theme.colorScheme.onSurface.withOpacity(0.1),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.1),
                           ),
                         ),
                         child: ListWheelScrollView.useDelegate(
@@ -801,7 +792,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : theme.scaffoldBackgroundColor,
                     border: Border(
                       top: BorderSide(
-                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.05),
                       ),
                     ),
                   ),
@@ -855,6 +847,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         handle: handleCtrl.text,
                         bio: bioCtrl.text,
                         avatar: selectedAvatar,
+                        gender: selectedGender,
                         age: newAge,
                         interests: selectedInterests.toList(),
                         hobbies: selectedHobbies.toList(),
@@ -947,10 +940,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Container(
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Theme.of(ctx).colorScheme.primary.withOpacity(0.1)
+                            ? Theme.of(ctx)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.1)
                             : Theme.of(
                                 ctx,
-                              ).colorScheme.onSurface.withOpacity(0.05),
+                              ).colorScheme.onSurface.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
@@ -1039,7 +1035,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.4),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
             fontSize: 10,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
@@ -1054,13 +1050,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: theme.colorScheme.primary.withOpacity(0.5),
+              color: theme.colorScheme.primary.withValues(alpha: 0.5),
               size: 20,
             ),
             filled: true,
             fillColor: Theme.of(
               context,
-            ).colorScheme.onSurface.withOpacity(0.05),
+            ).colorScheme.onSurface.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -1107,13 +1103,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: isSelected
-                  ? color.withOpacity(0.2)
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                  ? color.withValues(alpha: 0.2)
+                  : Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
-                    ? color.withOpacity(0.5)
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+                    ? color.withValues(alpha: 0.5)
+                    : Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.1),
               ),
             ),
             child: Text(
@@ -1121,7 +1123,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 color: isSelected
                     ? color
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    : Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -1137,6 +1142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String handle,
     String? bio,
     String? avatar,
+    String? gender,
     int? age,
     required List<String> interests,
     required List<String> hobbies,
@@ -1148,6 +1154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         handle: handle,
         bio: bio,
         avatar: avatar,
+        gender: gender,
         age: age,
         interests: interests,
         hobbies: hobbies,
@@ -1158,6 +1165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         handle: handle,
         bio: bio,
         avatar: avatar,
+        gender: gender,
         age: age,
         interests: interests,
         hobbies: hobbies,
@@ -1168,13 +1176,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _currentUser = updatedUser;
         _isLoading = false;
       });
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Identity secured.'),
             backgroundColor: Colors.green,
           ),
         );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1184,56 +1193,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
+
+  Widget _buildGenderChip(
+    String label,
+    String value,
+    String emoji,
+    String? current,
+    Function(String) onSelect,
+  ) {
+    final isSelected = current == value;
+    final theme = Theme.of(context);
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          onSelect(value);
+          HapticFeedback.lightImpact();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF4DABF7).withValues(alpha: 0.1)
+                : theme.colorScheme.onSurface.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF4DABF7)
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.1),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? const Color(0xFF4DABF7)
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _StatBox extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback onTap;
+
   const _StatBox({
     required this.label,
     required this.value,
     required this.icon,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.onSurface.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.06),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: theme.colorScheme.onSurface.withOpacity(0.2),
-            size: 20,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              color: theme.colorScheme.onSurface,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+              size: 20,
             ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-        ],
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -48,7 +48,7 @@ class ChatBackupScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.background,
+              color: theme.colorScheme.surface,
               shape: BoxShape.circle,
             ),
             child: Icon(

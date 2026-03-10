@@ -135,7 +135,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         exit(0);
                       },
                       style: TextButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
@@ -171,7 +171,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                     fontSize: 14,
                   ),
                   prefixIcon: Icon(
@@ -180,7 +180,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                   ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -195,7 +195,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       : null,
                   filled: true,
                   fillColor:
-                      Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -271,7 +271,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     64,
                                     color: Theme.of(
                                       context,
-                                    ).colorScheme.onSurface.withOpacity(0.5),
+                                    ).colorScheme.onSurface.withValues(alpha: 0.5),
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
@@ -285,7 +285,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurface
-                                              .withOpacity(0.5),
+                                              .withValues(alpha: 0.5),
                                         ),
                                   ),
                                   const SizedBox(height: 8),
@@ -300,7 +300,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurface
-                                              .withOpacity(0.5),
+                                              .withValues(alpha: 0.5),
                                         ),
                                   ),
                                   if (_searchQuery.isEmpty) ...[
@@ -359,7 +359,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       indent:
                           74, // align with text start (16 padding + 56 avatar + 2)
                       endIndent: 0,
-                      color: Theme.of(context).dividerColor.withOpacity(0.15),
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
                     ),
                     itemBuilder: (context, index) {
                       return _buildListItem(
@@ -477,10 +477,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: colorScheme.primary.withOpacity(0.12),
+                      color: colorScheme.primary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: colorScheme.primary.withOpacity(0.1),
+                        color: colorScheme.primary.withValues(alpha: 0.1),
                       ),
                     ),
                     child: const Center(
@@ -535,7 +535,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       'Chat with us for help and updates!',
                       style: textTheme.bodyMedium?.copyWith(
                         fontSize: 13.5,
-                        color: colorScheme.onSurface.withOpacity(0.55),
+                        color: colorScheme.onSurface.withValues(alpha: 0.55),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -569,7 +569,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: colorScheme.primary.withOpacity(0.12),
+                backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
                 child: Icon(
                   Icons.archive_rounded,
                   color: colorScheme.primary,
@@ -593,7 +593,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       '${archivedChats.length} ${archivedChats.length == 1 ? 'chat' : 'chats'}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontSize: 13.5,
-                            color: colorScheme.onSurface.withOpacity(0.55),
+                            color: colorScheme.onSurface.withValues(alpha: 0.55),
                           ),
                     ),
                   ],
@@ -601,7 +601,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: colorScheme.onSurface.withOpacity(0.35),
+                color: colorScheme.onSurface.withValues(alpha: 0.35),
                 size: 20,
               ),
             ],
@@ -733,7 +733,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               Icon(
                                 Icons.volume_off_rounded,
                                 size: 14,
-                                color: colorScheme.onSurface.withOpacity(0.40),
+                                color: colorScheme.onSurface.withValues(alpha: 0.40),
                               ),
                               const SizedBox(width: 3),
                             ],
@@ -741,7 +741,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               Icon(
                                 Icons.push_pin_rounded,
                                 size: 13,
-                                color: colorScheme.primary.withOpacity(0.75),
+                                color: colorScheme.primary.withValues(alpha: 0.75),
                               ),
                               const SizedBox(width: 3),
                             ],
@@ -751,7 +751,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 fontSize: 12,
                                 color: hasUnread
                                     ? colorScheme.primary
-                                    : colorScheme.onSurface.withOpacity(0.50),
+                                    : colorScheme.onSurface.withValues(alpha: 0.50),
                                 fontWeight: hasUnread
                                     ? FontWeight.w600
                                     : FontWeight.normal,
@@ -783,8 +783,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             style: textTheme.bodyMedium?.copyWith(
                               fontSize: 13.5,
                               color: hasUnread
-                                  ? colorScheme.onSurface.withOpacity(0.85)
-                                  : colorScheme.onSurface.withOpacity(0.55),
+                                  ? colorScheme.onSurface.withValues(alpha: 0.85)
+                                  : colorScheme.onSurface.withValues(alpha: 0.55),
                               fontStyle: friend.lastMessage.isEmpty
                                   ? FontStyle.italic
                                   : FontStyle.normal,
@@ -804,7 +804,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: isMuted
-                                  ? colorScheme.onSurface.withOpacity(0.35)
+                                  ? colorScheme.onSurface.withValues(alpha: 0.35)
                                   : colorScheme.primary,
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -840,19 +840,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
         return Icon(
           Icons.access_time,
           size: 14,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
         );
       case MessageStatus.sent:
         return Icon(
           Icons.check,
           size: 14,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
         );
       case MessageStatus.delivered:
         return Icon(
           Icons.done_all,
           size: 14,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
         );
       case MessageStatus.read:
         return const Icon(Icons.done_all, size: 14, color: Colors.blue);
@@ -960,7 +960,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: Theme.of(
                                       context,
-                                    ).colorScheme.onSurface.withOpacity(0.6),
+                                    ).colorScheme.onSurface.withValues(alpha: 0.6),
                                   ),
                         ),
                       ],
@@ -1177,6 +1177,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ElevatedButton(
             onPressed: () async {
               await chatProvider.blockUser(friend.id);
+              if (!context.mounted) return;
               Navigator.pop(context);
               _showSnackBar(l10n.userBlocked, Colors.red);
             },
@@ -1218,6 +1219,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ElevatedButton(
             onPressed: () async {
               await chatProvider.deleteChat(friend.id);
+              if (!context.mounted) return;
               Navigator.pop(context);
               _showSnackBar(l10n.chatDeleted, Colors.red);
             },

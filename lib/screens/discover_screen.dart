@@ -1,29 +1,50 @@
 import 'package:flutter/material.dart';
+
 import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 import '../services/chat_cache_service.dart';
 import '../services/user_service.dart';
-import '../models/user_model.dart'; // Import User model
-import '../widgets/unified_friend_card.dart'; // Import UnifiedFriendCard
+import '../models/user_model.dart';
+import '../widgets/unified_friend_card.dart';
 import '../providers/follow_provider.dart';
-import 'user_profile_screen.dart'; // Import UserProfileScreen
+import 'user_profile_screen.dart';
 import 'manage_friends_screen.dart';
 import '../core/constants.dart';
 import '../widgets/skeleton_user_card.dart';
+import '../widgets/skeleton_grid_user_card.dart';
 import '../utils/screenshot_mode.dart';
 import '../widgets/smart_maintenance.dart';
+import '../widgets/custom_search_bar.dart';
+import '../widgets/grid_user_card.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  final bool showAppBar;
+  final bool showManageFriendsButton;
+  final bool isGridView;
+  final VoidCallback? onToggleGridView;
+
+  const DiscoverScreen({
+    super.key,
+    this.showAppBar = true,
+    this.showManageFriendsButton = false,
+    this.isGridView = false,
+    this.onToggleGridView,
+  });
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
-class _DiscoverScreenState extends State<DiscoverScreen> {
+class _DiscoverScreenState extends State<DiscoverScreen>
+    with AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
-  List<User> _users = []; // Use User objects for UI
+  List<User> _users = [];
   String? _currentUserId;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -33,9 +54,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   // Helper method to convert map to User
   User _mapToUser(Map<String, dynamic> data) {
+    // Prioritize profile_id because cached data from SQLite has an auto-increment integer 'id'
+    final actualId =
+        data['profile_id']?.toString() ?? data['id']?.toString() ?? '';
     return User(
-      id: data['id'] ?? data['profile_id'] ?? '',
-      email: data['email'] ?? '',
+      id: actualId,
       handle: data['handle'] ?? '',
       fullName: data['full_name'] ?? data['name'] ?? 'Unknown User',
       bio: data['bio'] ?? '',
@@ -67,10 +90,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
 
     if (currentUser == null) {
+      debugPrint('⚠️ DiscoverScreen: No current user found in UserService');
       if (mounted) setState(() => _isLoading = false);
       return;
     }
     _currentUserId = currentUser.id;
+    debugPrint('🔍 DiscoverScreen: Loading users for ID: $_currentUserId');
 
     // 1. Load from cache first (Instant UI)
     final cachedUsersData =
@@ -81,7 +106,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (mounted && cachedUsersData.isNotEmpty) {
       currentUsers = cachedUsersData
           .where((data) {
-            final id = data['id']?.toString() ?? '';
+            final id =
+                data['profile_id']?.toString() ?? data['id']?.toString() ?? '';
             final handle = (data['handle'] ?? '').toString().toLowerCase();
             return !AppConstants.officialIds.contains(id) && handle != 'boofer';
           })
@@ -94,10 +120,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         listen: false,
       );
       for (var data in cachedUsersData) {
-        final userId = data['id'] ?? data['profile_id'];
+        final userId = data['profile_id']?.toString() ?? data['id']?.toString();
         if (userId != null &&
             (data['isFollowing'] == true || data['is_following'] == 1)) {
-          followProvider.setLocalFollowingStatus(userId, true);
+          followProvider.setLocalFollowingStatus(userId.toString(), true);
         }
       }
 
@@ -144,9 +170,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     // 4. Fetch from network
     try {
-      if (currentUsers.isEmpty && mounted) {
-        setState(() => _isLoading = true);
-      }
+      if (currentUsers.isEmpty && mounted) setState(() => _isLoading = true);
 
       debugPrint(
         '🔍 DiscoverScreen: Fetching network users (Force: $forceRefresh)',
@@ -175,7 +199,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           final userId = data['id'];
           if (userId != null) {
             followProvider.setLocalFollowingStatus(
-              userId,
+              userId.toString(),
               data['isFollowing'] == true,
             );
           }
@@ -202,9 +226,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       }
     } catch (e) {
       debugPrint('❌ Error loading discover users: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -219,109 +241,247 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
+
+    // Filter users based on search
+    final filteredUsers = _searchQuery.isEmpty
+        ? _users
+        : _users.where((user) {
+            final query = _searchQuery.toLowerCase();
+            return user.fullName.toLowerCase().contains(query) ||
+                user.handle.toLowerCase().contains(query);
+          }).toList();
+
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Discover'),
+                  const SizedBox(width: 12),
+                  _buildSecondaryManageButton(theme),
+                ],
+              ),
+              elevation: 0,
+              backgroundColor: theme.colorScheme.surface,
+              centerTitle: false,
+            )
+          : null,
+      body: SmartMaintenance(
+        featureName: 'Discover',
+        check: (status) => status.isDiscoverActive,
+        child: RefreshIndicator(
+          onRefresh: () => _loadUsers(forceRefresh: true),
+          child: Column(
+            children: [
+              // Only show search bar and manage button if used as a tab
+              if (!widget.showAppBar) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: CustomSearchBar(
+                    controller: _searchController,
+                    hintText: 'Search people...',
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value.trim().toLowerCase();
+                      });
+                    },
+                  ),
+                ),
+                if (widget.showManageFriendsButton)
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Find Friends',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ManageFriendsScreen(),
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Manage friends',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+
+              Expanded(
+                child: _isLoading && filteredUsers.isEmpty
+                    ? widget.isGridView
+                        ? GridView.builder(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.70,
+                            ),
+                            itemCount: 8,
+                            itemBuilder: (context, index) =>
+                                const SkeletonGridUserCard(),
+                          )
+                        : ListView.builder(
+                            itemCount: 8,
+                            itemBuilder: (context, index) =>
+                                const SkeletonUserCard(),
+                          )
+                    : filteredUsers.isEmpty
+                        ? LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight,
+                                  ),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          _searchQuery.isEmpty
+                                              ? Icons.person_search_outlined
+                                              : Icons.search_off,
+                                          size: 64,
+                                          color: theme.colorScheme.outline,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          _searchQuery.isEmpty
+                                              ? 'No users found to follow'
+                                              : 'No matches found',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        if (_searchQuery.isEmpty)
+                                          TextButton(
+                                            onPressed: () =>
+                                                _loadUsers(forceRefresh: true),
+                                            child: const Text('Tap to Retry'),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : widget.isGridView
+                            ? GridView.builder(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio:
+                                      0.70, // Slightly taller to fit bio nicely
+                                ),
+                                itemCount: filteredUsers.length,
+                                itemBuilder: (context, index) {
+                                  final user = filteredUsers[index];
+                                  return GridUserCard(
+                                    user: user,
+                                    onTap: () => _navigateToUserProfile(user),
+                                  );
+                                },
+                              )
+                            : ListView.builder(
+                                itemCount: filteredUsers.length,
+                                itemBuilder: (context, index) {
+                                  final user = filteredUsers[index];
+                                  return UnifiedFriendCard(
+                                    user: user,
+                                    showOnlineStatus: false,
+                                    onTap: () => _navigateToUserProfile(user),
+                                  );
+                                },
+                              ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryManageButton(ThemeData theme) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ManageFriendsScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Discover'),
-            const SizedBox(width: 12),
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ManageFriendsScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.people_outline,
-                      size: 16,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Manage',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+            Icon(
+              Icons.people_outline,
+              size: 16,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Manage',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
-        centerTitle: false,
-      ),
-      body: SmartMaintenance(
-        featureName: 'Discover',
-        check: (status) => status.isDiscoverActive,
-        child: _isLoading && _users.isEmpty
-            ? ListView.builder(
-                itemCount: 8,
-                itemBuilder: (context, index) => const SkeletonUserCard(),
-              )
-            : _users.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.person_search_outlined,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No users found to follow',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () => _loadUsers(forceRefresh: true),
-                    child: ListView.builder(
-                      itemCount: _users.length,
-                      itemBuilder: (context, index) {
-                        final user = _users[index];
-                        return UnifiedFriendCard(
-                          user: user,
-                          showOnlineStatus:
-                              false, // Not relevant for discover usually
-                          onTap: () => _navigateToUserProfile(user),
-                          // key: ValueKey(user.id), // Optional optimization
-                        );
-                      },
-                    ),
-                  ),
       ),
     );
   }

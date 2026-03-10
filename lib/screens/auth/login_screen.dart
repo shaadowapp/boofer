@@ -4,6 +4,7 @@ import '../../providers/auth_state_provider.dart';
 import '../../services/multi_account_storage_service.dart';
 import '../../services/local_storage_service.dart';
 import '../main_screen.dart';
+import '../signup_steps_screen.dart';
 
 /// Login screen shown when user taps "I already have an account".
 /// Lists all saved accounts on this device → auto-login on tap.
@@ -69,14 +70,10 @@ class _LoginScreenState extends State<LoginScreen>
       } else {
         // This part should technically be unreachable if switchAccount succeeds,
         // but keeping it as a fallback in case switchAccount sets unauthenticated state.
-        if (mounted) {
-          _showSessionExpiredDialog(account);
-        }
+        if (mounted) _showSessionExpiredDialog(account);
       }
     } catch (e) {
-      if (mounted) {
-        _showSessionExpiredDialog(account);
-      }
+      if (mounted) _showSessionExpiredDialog(account);
     } finally {
       if (mounted) setState(() => _loadingAccountId = null);
     }
@@ -148,8 +145,16 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF845EF7))),
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SignupStepsScreen()),
+              );
+            },
+            child: const Text('Sign Up',
+                style: TextStyle(
+                    color: Color(0xFF845EF7), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -201,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen>
                     Text(
                       'Select your account to continue',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.45),
+                        color: Colors.white.withValues(alpha: 0.45),
                         fontSize: 15,
                       ),
                     ),
@@ -226,9 +231,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     final accounts = snapshot.data ?? [];
 
-                    if (accounts.isEmpty) {
-                      return _buildNoAccounts();
-                    }
+                    if (accounts.isEmpty) return _buildNoAccounts();
 
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -256,7 +259,7 @@ class _LoginScreenState extends State<LoginScreen>
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white12),
                           borderRadius: BorderRadius.circular(16),
-                          color: Colors.white.withOpacity(0.04),
+                          color: Colors.white.withValues(alpha: 0.04),
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -304,13 +307,13 @@ class _LoginScreenState extends State<LoginScreen>
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isLoading
-              ? const Color(0xFF845EF7).withOpacity(0.15)
-              : Colors.white.withOpacity(0.06),
+              ? const Color(0xFF845EF7).withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isLoading
-                ? const Color(0xFF845EF7).withOpacity(0.5)
-                : Colors.white.withOpacity(0.08),
+                ? const Color(0xFF845EF7).withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.08),
           ),
         ),
         child: Row(
@@ -319,19 +322,18 @@ class _LoginScreenState extends State<LoginScreen>
             Container(
               width: 52,
               height: 52,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
                 ),
               ),
               child: Center(
                 child: Text(
-                  avatar != null
-                      ? avatar
-                      : (fullName.isNotEmpty
-                            ? fullName.substring(0, 1).toUpperCase()
-                            : '?'),
+                  avatar ??
+                      (fullName.isNotEmpty
+                          ? fullName.substring(0, 1).toUpperCase()
+                          : '?'),
                   style: TextStyle(
                     fontSize: avatar != null ? 24 : 20,
                     color: Colors.white,
@@ -359,7 +361,7 @@ class _LoginScreenState extends State<LoginScreen>
                   Text(
                     '@$handle',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: Colors.white.withValues(alpha: 0.4),
                       fontSize: 13,
                     ),
                   ),
@@ -400,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen>
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF845EF7).withOpacity(0.15),
+              color: const Color(0xFF845EF7).withValues(alpha: 0.15),
             ),
             child: const Center(
               child: Text('🔍', style: TextStyle(fontSize: 36)),
@@ -419,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen>
           Text(
             'No previous accounts found on this device. Go back and create a new account to get started!',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               fontSize: 14,
               height: 1.5,
             ),

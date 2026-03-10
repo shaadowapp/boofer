@@ -23,9 +23,7 @@ class UserProfileSyncService {
       }
 
       final userData = user.toDatabaseJson();
-      if (additionalData != null) {
-        userData.addAll(additionalData);
-      }
+      if (additionalData != null) userData.addAll(additionalData);
 
       // Ensure ID matches the authenticated user
       userData['id'] = _supabase.auth.currentUser!.id;

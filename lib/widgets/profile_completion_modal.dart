@@ -30,6 +30,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
   bool _isLoading = false;
   String? _usernameError;
   bool _isCheckingUsername = false;
+  String? _selectedGender;
 
   late AnimationController _slideController;
   late AnimationController _fadeController;
@@ -46,6 +47,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
       text: widget.initialUser.handle,
     );
     _bioController = TextEditingController(text: widget.initialUser.bio);
+    _selectedGender = widget.initialUser.gender;
 
     // Setup animations
     _slideController = AnimationController(
@@ -58,10 +60,10 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
       vsync: this,
     );
 
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-        );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+    );
 
     _fadeAnimation = Tween<double>(
       begin: 0.0,
@@ -202,6 +204,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
         fullName: name,
         handle: username,
         bio: bio.isEmpty ? 'Hey there! I\'m using Boofer 👋' : bio,
+        gender: _selectedGender,
         virtualNumber: virtualNumber,
         updatedAt: DateTime.now(),
       );
@@ -322,8 +325,8 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return WillPopScope(
-      onWillPop: () async => false, // Prevent dismissal
+    return PopScope(
+      canPop: false, // Prevent dismissal
       child: Material(
         color: Colors.transparent,
         child: Stack(
@@ -334,10 +337,10 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
               child: Container(
                 width: double.infinity,
                 height: double.infinity,
-                color: Colors.black.withOpacity(0.7),
+                color: Colors.black.withValues(alpha: 0.7),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(color: Colors.black.withOpacity(0.2)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.2)),
                 ),
               ),
             ),
@@ -354,7 +357,7 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -423,47 +426,43 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                             children: [
                               CircleAvatar(
                                 radius: 50,
-                                backgroundColor: AppColors.trustBlue
-                                    .withOpacity(0.1),
+                                backgroundColor:
+                                    AppColors.trustBlue.withValues(alpha: 0.1),
                                 backgroundImage:
                                     widget.initialUser.profilePicture != null &&
-                                        widget.initialUser.profilePicture!
-                                            .startsWith('http')
-                                    ? NetworkImage(
-                                        widget.initialUser.profilePicture!,
-                                      )
-                                    : null,
-                                child:
-                                    widget.initialUser.avatar != null &&
+                                            widget.initialUser.profilePicture!
+                                                .startsWith('http')
+                                        ? NetworkImage(
+                                            widget.initialUser.profilePicture!,
+                                          )
+                                        : null,
+                                child: widget.initialUser.avatar != null &&
                                         widget.initialUser.avatar!.isNotEmpty
                                     ? Text(
                                         widget.initialUser.avatar!,
                                         style: const TextStyle(fontSize: 40),
                                       )
                                     : (widget.initialUser.profilePicture ==
-                                                  null ||
-                                              !widget
-                                                  .initialUser
-                                                  .profilePicture!
-                                                  .startsWith('http')
-                                          ? Text(
-                                              widget.initialUser.fullName
-                                                  .split(' ')
-                                                  .map(
-                                                    (e) => e.isNotEmpty
-                                                        ? e[0]
-                                                        : '',
-                                                  )
-                                                  .take(2)
-                                                  .join()
-                                                  .toUpperCase(),
-                                              style: const TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.trustBlue,
-                                              ),
-                                            )
-                                          : null),
+                                                null ||
+                                            !widget.initialUser.profilePicture!
+                                                .startsWith('http')
+                                        ? Text(
+                                            widget.initialUser.fullName
+                                                .split(' ')
+                                                .map(
+                                                  (e) =>
+                                                      e.isNotEmpty ? e[0] : '',
+                                                )
+                                                .take(2)
+                                                .join()
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.trustBlue,
+                                            ),
+                                          )
+                                        : null),
                               ),
                               Positioned(
                                 bottom: 0,
@@ -523,13 +522,40 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                   ),
                                 )
                               : _usernameError == null &&
-                                    _usernameController.text.isNotEmpty
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.trustBlue,
-                                  size: 20,
-                                )
-                              : null,
+                                      _usernameController.text.isNotEmpty
+                                  ? const Icon(
+                                      Icons.check_circle,
+                                      color: AppColors.trustBlue,
+                                      size: 20,
+                                    )
+                                  : null,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Gender selection
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Gender',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryText(isDark),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _buildGenderOption('Male', 'male', '♂️'),
+                                const SizedBox(width: 12),
+                                _buildGenderOption('Female', 'female', '♀️'),
+                                const SizedBox(width: 12),
+                                _buildGenderOption('Other', 'other', '⚧'),
+                              ],
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 16),
@@ -549,10 +575,10 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppColors.loveRose.withOpacity(0.1),
+                            color: AppColors.loveRose.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.loveRose.withOpacity(0.2),
+                              color: AppColors.loveRose.withValues(alpha: 0.2),
                             ),
                           ),
                           child: Column(
@@ -612,8 +638,8 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
                                         strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
+                                          Colors.white,
+                                        ),
                                       ),
                                     ),
                                     SizedBox(width: 12),
@@ -718,17 +744,17 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
             suffixIcon: suffix,
             errorText: errorText,
             filled: true,
-            fillColor: AppColors.trustBlue.withOpacity(0.05),
+            fillColor: AppColors.trustBlue.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: AppColors.trustBlue.withOpacity(0.2),
+                color: AppColors.trustBlue.withValues(alpha: 0.2),
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: AppColors.trustBlue.withOpacity(0.2),
+                color: AppColors.trustBlue.withValues(alpha: 0.2),
               ),
             ),
             focusedBorder: OutlineInputBorder(
@@ -750,6 +776,52 @@ class _ProfileCompletionModalState extends State<ProfileCompletionModal>
           style: TextStyle(color: AppColors.primaryText(isDark)),
         ),
       ],
+    );
+  }
+
+  Widget _buildGenderOption(String label, String value, String emoji) {
+    final isSelected = _selectedGender == value;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedGender = value;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.trustBlue.withValues(alpha: 0.1)
+                : AppColors.trustBlue.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.trustBlue
+                  : AppColors.trustBlue.withValues(alpha: 0.2),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected
+                      ? AppColors.trustBlue
+                      : AppColors.primaryText(isDark).withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

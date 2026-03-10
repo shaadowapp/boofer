@@ -116,8 +116,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Future<void> _init() async {
-    final accounts =
-        widget.initialAccounts ??
+    final accounts = widget.initialAccounts ??
         await MultiAccountStorageService.getSavedAccounts();
     if (!mounted) return;
 
@@ -128,9 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
     _entranceCtrl.forward();
 
-    if (accounts.isEmpty) {
-      _startTimer();
-    }
+    if (accounts.isEmpty) _startTimer();
   }
 
   void _startTimer() {
@@ -337,9 +334,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 // Sync the virtual page tracker with real manual swipes
                 _virtualPage = i;
                 final realIndex = i % _slides.length;
-                if (_currentSlide != realIndex) {
+                if (_currentSlide != realIndex)
                   setState(() => _currentSlide = realIndex);
-                }
               },
               // Infinite scrolling enabled
               itemBuilder: (_, i) => _SlideWidget(
@@ -439,33 +435,59 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
 
-        // Error
         if (_loginError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.red,
-                    size: 16,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: Colors.red.withValues(alpha: 0.3)),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _loginError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _loginError!,
+                          style:
+                              const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: OutlinedButton.icon(
+                    onPressed: _goToSignup,
+                    icon: const Icon(Icons.person_add,
+                        color: Color(0xFF845EF7), size: 18),
+                    label: const Text('Sign Up New Account',
+                        style: TextStyle(
+                            color: Color(0xFF845EF7),
+                            fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                          color:
+                              const Color(0xFF845EF7).withValues(alpha: 0.5)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
@@ -552,15 +574,15 @@ class _LegalFooterState extends State<_LegalFooter> {
     super.initState();
     _termsRec = TapGestureRecognizer()
       ..onTap = () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
-      );
+            context,
+            MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+          );
 
     _privacyRec = TapGestureRecognizer()
       ..onTap = () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
-      );
+            context,
+            MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+          );
   }
 
   @override
@@ -627,9 +649,8 @@ class _AccountCard extends StatelessWidget {
     final fullName = (account['fullName'] as String?) ?? 'Boofer User';
     final handle = (account['handle'] as String?) ?? '';
     final avatar = account['avatar'] as String?;
-    final initial = fullName.isNotEmpty
-        ? fullName.substring(0, 1).toUpperCase()
-        : '?';
+    final initial =
+        fullName.isNotEmpty ? fullName.substring(0, 1).toUpperCase() : '?';
 
     return GestureDetector(
       onTap: () {
@@ -1014,7 +1035,7 @@ class _SwipeBarState extends State<_SwipeBar>
                     // Label
                     Positioned.fill(
                       child: Padding(
-                        padding: EdgeInsets.only(
+                        padding: const EdgeInsets.only(
                           left: _knobSize + _pad * 2 + 8,
                           right: 16,
                         ),

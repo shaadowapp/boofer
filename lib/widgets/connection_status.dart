@@ -21,10 +21,10 @@ class ConnectionStatusIndicator extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _getStatusColor(context).withOpacity(0.1),
+          color: _getStatusColor(context).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _getStatusColor(context).withOpacity(0.3),
+            color: _getStatusColor(context).withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -51,7 +51,7 @@ class ConnectionStatusIndicator extends StatelessWidget {
                     _getDetailText(),
                     style: TextStyle(
                       fontSize: 10,
-                      color: _getStatusColor(context).withOpacity(0.8),
+                      color: _getStatusColor(context).withValues(alpha: 0.8),
                     ),
                   ),
                 ],
@@ -67,17 +67,13 @@ class ConnectionStatusIndicator extends StatelessWidget {
   IconData _getStatusIcon() {
     if (networkState.isOnlineMode) {
       return networkState.hasInternetConnection ? Icons.wifi : Icons.wifi_off;
-    } else if (networkState.isOfflineMode) {
-      return networkState.connectedPeers > 0
+    } else if (networkState.isOfflineMode) return networkState.connectedPeers > 0
           ? Icons.device_hub
-          : Icons.wifi_off;
-    } else {
+          : Icons.wifi_off; else {
       // Auto mode
       if (networkState.hasInternetConnection) {
         return Icons.wifi;
-      } else if (networkState.connectedPeers > 0) {
-        return Icons.device_hub;
-      } else {
+      } else if (networkState.connectedPeers > 0) return Icons.device_hub; else {
         return Icons.autorenew;
       }
     }
@@ -87,15 +83,11 @@ class ConnectionStatusIndicator extends StatelessWidget {
   Color _getStatusColor(BuildContext context) {
     if (networkState.isOnlineMode) {
       return networkState.hasInternetConnection ? Colors.green : Colors.red;
-    } else if (networkState.isOfflineMode) {
-      return networkState.connectedPeers > 0 ? Colors.blue : Colors.orange;
-    } else {
+    } else if (networkState.isOfflineMode) return networkState.connectedPeers > 0 ? Colors.blue : Colors.orange; else {
       // Auto mode
       if (networkState.hasInternetConnection) {
         return Colors.green;
-      } else if (networkState.connectedPeers > 0) {
-        return Colors.blue;
-      } else {
+      } else if (networkState.connectedPeers > 0) return Colors.blue; else {
         return Colors.purple;
       }
     }
@@ -113,9 +105,7 @@ class ConnectionStatusIndicator extends StatelessWidget {
       case NetworkMode.auto:
         if (networkState.hasInternetConnection) {
           return 'Auto (Online)';
-        } else if (networkState.connectedPeers > 0) {
-          return 'Auto (Offline)';
-        } else {
+        } else if (networkState.connectedPeers > 0) return 'Auto (Offline)'; else {
           return 'Auto (Searching...)';
         }
     }
@@ -198,7 +188,7 @@ class ConnectionStatusBanner extends StatelessWidget {
           color: _getBannerColor(context),
           border: Border(
             bottom: BorderSide(
-              color: _getBannerColor(context).withOpacity(0.3),
+              color: _getBannerColor(context).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -223,15 +213,14 @@ class ConnectionStatusBanner extends StatelessWidget {
                   Text(
                     _getBannerMessage(),
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-            if (onTap != null)
-              TextButton(
+            if (onTap != null) TextButton(
                 onPressed: onTap,
                 child: const Text(
                   'Settings',
@@ -341,9 +330,9 @@ class CompactConnectionStatus extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: _getStatusColor().withOpacity(0.1),
+          color: _getStatusColor().withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _getStatusColor().withOpacity(0.3)),
+          border: Border.all(color: _getStatusColor().withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -368,11 +357,9 @@ class CompactConnectionStatus extends StatelessWidget {
   IconData _getStatusIcon() {
     if (networkState.isOnlineMode) {
       return networkState.hasInternetConnection ? Icons.wifi : Icons.wifi_off;
-    } else if (networkState.isOfflineMode) {
-      return networkState.connectedPeers > 0
+    } else if (networkState.isOfflineMode) return networkState.connectedPeers > 0
           ? Icons.device_hub
-          : Icons.wifi_off;
-    } else {
+          : Icons.wifi_off; else {
       return Icons.autorenew;
     }
   }
@@ -381,15 +368,11 @@ class CompactConnectionStatus extends StatelessWidget {
   Color _getStatusColor() {
     if (networkState.isOnlineMode) {
       return networkState.hasInternetConnection ? Colors.green : Colors.red;
-    } else if (networkState.isOfflineMode) {
-      return networkState.connectedPeers > 0 ? Colors.blue : Colors.orange;
-    } else {
+    } else if (networkState.isOfflineMode) return networkState.connectedPeers > 0 ? Colors.blue : Colors.orange; else {
       // Auto mode
       if (networkState.hasInternetConnection) {
         return Colors.green;
-      } else if (networkState.connectedPeers > 0) {
-        return Colors.blue;
-      } else {
+      } else if (networkState.connectedPeers > 0) return Colors.blue; else {
         return Colors.purple;
       }
     }
@@ -457,7 +440,7 @@ class ConnectionStatus extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(

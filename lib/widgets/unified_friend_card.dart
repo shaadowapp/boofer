@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import '../screens/friend_chat_screen.dart';
@@ -68,7 +67,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
           color: theme.colorScheme.surface,
           border: Border(
             bottom: BorderSide(
-              color: theme.dividerColor.withOpacity(0.1),
+              color: theme.dividerColor.withValues(alpha: 0.1),
               width: 0.5,
             ),
           ),
@@ -117,7 +116,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             backgroundImage:
                 widget.user.profilePicture != null &&
                     widget.user.profilePicture!.startsWith('http')
@@ -190,7 +189,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF845EF7).withOpacity(0.4),
+                      color: const Color(0xFF845EF7).withValues(alpha: 0.4),
                       blurRadius: 4,
                       offset: const Offset(0, 1),
                     ),
@@ -247,7 +246,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
               Text(
                 widget.user.formattedHandle,
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 14,
                 ),
               ),
@@ -260,7 +259,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
           Text(
             widget.user.bio,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
               fontSize: 13,
             ),
             maxLines: 1,
@@ -277,7 +276,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
               Text(
                 widget.user.formattedVirtualNumber,
                 style: TextStyle(
-                  color: theme.colorScheme.primary.withOpacity(0.8),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.8),
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -288,7 +287,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
                 Text(
                   '• ${widget.user.followerCount} followers',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     fontSize: 11,
                   ),
                 ),

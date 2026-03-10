@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/follow_provider.dart';
 import '../models/user_model.dart';
-import '../widgets/follow_button.dart';
 
 /// Screen showing following list
 class FollowingScreen extends StatefulWidget {
@@ -64,8 +63,8 @@ class _FollowingScreenState extends State<FollowingScreen> {
                   Text(
                     error,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -106,8 +105,8 @@ class _FollowingScreenState extends State<FollowingScreen> {
                         ? 'Discover and follow people to see their posts in your feed'
                         : 'When this user follows people, they\'ll appear here',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   if (widget.userId == followProvider.currentUserId) ...[
@@ -148,10 +147,6 @@ class _FollowingScreenState extends State<FollowingScreen> {
     User user,
     FollowProvider followProvider,
   ) {
-    final currentUserId = followProvider.currentUserId;
-    final isCurrentUser = user.id == currentUserId;
-    final canUnfollow = widget.userId == currentUserId;
-
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -161,23 +156,22 @@ class _FollowingScreenState extends State<FollowingScreen> {
             // User avatar
             CircleAvatar(
               radius: 24,
-              backgroundImage:
-                  user.profilePicture != null &&
+              backgroundImage: user.profilePicture != null &&
                       user.profilePicture!.startsWith('http')
                   ? NetworkImage(user.profilePicture!)
                   : null,
               child: user.avatar != null && user.avatar!.isNotEmpty
                   ? Text(user.avatar!)
                   : (user.profilePicture == null ||
-                            !user.profilePicture!.startsWith('http')
-                        ? Text(
-                            user.initials,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null),
+                          !user.profilePicture!.startsWith('http')
+                      ? Text(
+                          user.initials,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null),
             ),
             const SizedBox(width: 12),
 
@@ -189,14 +183,14 @@ class _FollowingScreenState extends State<FollowingScreen> {
                   Text(
                     user.displayName,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                   Text(
                     user.formattedHandle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                   if (user.bio.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -211,21 +205,60 @@ class _FollowingScreenState extends State<FollowingScreen> {
               ),
             ),
 
-            // Unfollow button
-            if (!isCurrentUser && canUnfollow) ...[
-              const SizedBox(width: 12),
-              FollowButton(
-                user: user,
-                compact: true,
-                onStatusChanged: () {
-                  // Refresh the list after unfollowing
-                  followProvider.loadFollowing(widget.userId, refresh: true);
-                },
+            const SizedBox(width: 12),
+            if (widget.userId == followProvider.currentUserId)
+              TextButton(
+                onPressed: () =>
+                    _confirmUnfollow(context, user, followProvider),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  side: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Text('Following'),
               ),
-            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmUnfollow(
+    BuildContext context,
+    User user,
+    FollowProvider followProvider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Unfollow ${user.fullName}?'),
+        content: const Text('Their posts will no longer show up in your feed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Unfollow'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      final success = await followProvider.unfollowUser(user.id);
+      if (success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unfollowed ${user.fullName}')),
+        );
+      }
+    }
   }
 }

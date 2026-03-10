@@ -1,12 +1,9 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import '../utils/svg_icons.dart';
 import '../providers/theme_provider.dart';
 import '../providers/appearance_provider.dart';
-import '../services/code_push_service.dart';
-import 'software_update_screen.dart';
 
 class CustomizationSettingsScreen extends StatefulWidget {
   const CustomizationSettingsScreen({super.key});
@@ -128,8 +125,8 @@ class _CustomizationSettingsScreenState
                       runSpacing: 16,
                       alignment: WrapAlignment.center,
                       children: _brandColors.map((color) {
-                        final isSelected =
-                            !appearanceProvider.useGradientAccent &&
+                        final isSelected = !appearanceProvider
+                                .useGradientAccent &&
                             appearanceProvider.accentColor.value == color.value;
                         return GestureDetector(
                           onTap: () => appearanceProvider.setAccentColor(color),
@@ -147,7 +144,7 @@ class _CustomizationSettingsScreenState
                         final colors = gradient['colors'] as List<Color>;
                         final isSelected =
                             appearanceProvider.useGradientAccent &&
-                            appearanceProvider.selectedGradientId == id;
+                                appearanceProvider.selectedGradientId == id;
                         return GestureDetector(
                           onTap: () => appearanceProvider.setAccentGradient(id),
                           child: _buildGradientOption(
@@ -217,8 +214,7 @@ class _CustomizationSettingsScreenState
                           context,
                           title: 'Classic', // Simple
                           style: NavBarStyle.simple,
-                          isSelected:
-                              appearanceProvider.navBarStyle ==
+                          isSelected: appearanceProvider.navBarStyle ==
                               NavBarStyle.simple,
                           onTap: () => appearanceProvider.setNavBarStyle(
                             NavBarStyle.simple,
@@ -228,8 +224,7 @@ class _CustomizationSettingsScreenState
                           context,
                           title: 'Modern',
                           style: NavBarStyle.modern,
-                          isSelected:
-                              appearanceProvider.navBarStyle ==
+                          isSelected: appearanceProvider.navBarStyle ==
                               NavBarStyle.modern,
                           onTap: () => appearanceProvider.setNavBarStyle(
                             NavBarStyle.modern,
@@ -249,8 +244,7 @@ class _CustomizationSettingsScreenState
                           context,
                           title: 'Playful',
                           style: NavBarStyle.bubble,
-                          isSelected:
-                              appearanceProvider.navBarStyle ==
+                          isSelected: appearanceProvider.navBarStyle ==
                               NavBarStyle.bubble,
                           onTap: () => appearanceProvider.setNavBarStyle(
                             NavBarStyle.bubble,
@@ -260,8 +254,7 @@ class _CustomizationSettingsScreenState
                           context,
                           title: 'Liquid',
                           style: NavBarStyle.liquid,
-                          isSelected:
-                              appearanceProvider.navBarStyle ==
+                          isSelected: appearanceProvider.navBarStyle ==
                               NavBarStyle.liquid,
                           onTap: () => appearanceProvider.setNavBarStyle(
                             NavBarStyle.liquid,
@@ -271,8 +264,7 @@ class _CustomizationSettingsScreenState
                           context,
                           title: 'GenZ',
                           style: NavBarStyle.genz,
-                          isSelected:
-                              appearanceProvider.navBarStyle ==
+                          isSelected: appearanceProvider.navBarStyle ==
                               NavBarStyle.genz,
                           onTap: () => appearanceProvider.setNavBarStyle(
                             NavBarStyle.genz,
@@ -328,8 +320,7 @@ class _CustomizationSettingsScreenState
                                     trackHeight: 6.0,
                                     activeTrackColor: theme.colorScheme.primary,
                                     inactiveTrackColor: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
+                                        .colorScheme.surfaceContainerHighest,
                                     thumbShape: const RoundSliderThumbShape(
                                       enabledThumbRadius: 10.0,
                                     ),
@@ -370,7 +361,7 @@ class _CustomizationSettingsScreenState
                             ),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surfaceContainerHighest
-                                  .withOpacity(0.3),
+                                  .withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -398,10 +389,9 @@ class _CustomizationSettingsScreenState
                                         style: TextStyle(
                                           fontSize:
                                               appearanceProvider.appFontSize -
-                                              2, // Slightly smaller
+                                                  2, // Slightly smaller
                                           color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
+                                              .colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                     ],
@@ -763,9 +753,9 @@ class _CustomizationSettingsScreenState
     return Container(
       margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.6),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 0.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -814,7 +804,7 @@ class _CustomizationSettingsScreenState
     return LayoutBuilder(
       builder: (context, constraints) {
         final itemWidth = constraints.maxWidth / 3;
-        return Container(
+        return SizedBox(
           height: 80,
           child: Stack(
             children: [
@@ -826,7 +816,7 @@ class _CustomizationSettingsScreenState
                 height: 56,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
@@ -863,8 +853,8 @@ class _CustomizationSettingsScreenState
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primary.withOpacity(0.1),
-            theme.colorScheme.secondary.withOpacity(0.1),
+            theme.colorScheme.primary.withValues(alpha: 0.1),
+            theme.colorScheme.secondary.withValues(alpha: 0.1),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -896,8 +886,8 @@ class _CustomizationSettingsScreenState
         context: context,
         color:
             isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
-            ? color
-            : theme.colorScheme.onSurfaceVariant,
+                ? color
+                : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
         icon = SvgIcons.chat(
@@ -905,21 +895,19 @@ class _CustomizationSettingsScreenState
           context: context,
           color: Colors.white,
         );
-      } else if (style == NavBarStyle.genz && isSelected) {
-        icon = SvgIcons.chat(
+      } else if (style == NavBarStyle.genz && isSelected) icon = SvgIcons.chat(
           filled: true,
           context: context,
           color: Colors.white,
         );
-      }
     } else if (label == 'Calls') {
       icon = SvgIcons.call(
         filled: isSelected,
         context: context,
         color:
             isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
-            ? color
-            : theme.colorScheme.onSurfaceVariant,
+                ? color
+                : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
         icon = SvgIcons.call(
@@ -927,27 +915,23 @@ class _CustomizationSettingsScreenState
           context: context,
           color: Colors.white,
         );
-      } else if (style == NavBarStyle.genz && isSelected) {
-        icon = SvgIcons.call(
+      } else if (style == NavBarStyle.genz && isSelected) icon = SvgIcons.call(
           filled: true,
           context: context,
           color: Colors.white,
         );
-      }
     } else {
       // 'You'
       icon = Icon(
         isSelected ? Icons.person : Icons.person_outline,
         color:
             isSelected && style != NavBarStyle.ios && style != NavBarStyle.genz
-            ? color
-            : theme.colorScheme.onSurfaceVariant,
+                ? color
+                : theme.colorScheme.onSurfaceVariant,
       );
       if (style == NavBarStyle.ios && isSelected) {
-        icon = Icon(Icons.person, color: Colors.white);
-      } else if (style == NavBarStyle.genz && isSelected) {
-        icon = Icon(Icons.person, color: Colors.white);
-      }
+        icon = const Icon(Icons.person, color: Colors.white);
+      } else if (style == NavBarStyle.genz && isSelected) icon = const Icon(Icons.person, color: Colors.white);
     }
 
     if (style == NavBarStyle.modern) {
@@ -991,7 +975,7 @@ class _CustomizationSettingsScreenState
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: theme.colorScheme.primary.withOpacity(0.4),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -1083,7 +1067,7 @@ class _CustomizationSettingsScreenState
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -1112,13 +1096,12 @@ class _CustomizationSettingsScreenState
             : null,
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.4),
+            color: color.withValues(alpha: 0.4),
             blurRadius: isSelected ? 12 : 6,
             offset: isSelected ? const Offset(0, 6) : const Offset(0, 3),
           ),
-          if (isSelected)
-            BoxShadow(
-              color: theme.colorScheme.onSurface.withOpacity(0.2),
+          if (isSelected) BoxShadow(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
               blurRadius: 2,
               spreadRadius: 1,
             ),
@@ -1153,13 +1136,12 @@ class _CustomizationSettingsScreenState
             : null,
         boxShadow: [
           BoxShadow(
-            color: colors[0].withOpacity(0.4),
+            color: colors[0].withValues(alpha: 0.4),
             blurRadius: isSelected ? 12 : 6,
             offset: isSelected ? const Offset(0, 6) : const Offset(0, 3),
           ),
-          if (isSelected)
-            BoxShadow(
-              color: theme.colorScheme.onSurface.withOpacity(0.2),
+          if (isSelected) BoxShadow(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
               blurRadius: 2,
               spreadRadius: 1,
             ),

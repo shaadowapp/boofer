@@ -37,9 +37,7 @@ class ErrorHandler {
     BugReportService.instance.reportError(error);
 
     // In production, send to crash reporting service
-    if (kReleaseMode && error.severity == ErrorSeverity.critical) {
-      _reportToCrashlytics(error);
-    }
+    if (kReleaseMode && error.severity == ErrorSeverity.critical) _reportToCrashlytics(error);
   }
 
   /// Handle exceptions and convert to AppError

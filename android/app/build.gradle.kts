@@ -27,7 +27,7 @@ android {
 
     namespace = "com.shaadow.boofer.android"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -41,7 +41,7 @@ android {
         applicationId = "com.shaadow.boofer.android"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion  // Firebase Messaging requires minSdk 23 (Android 6.0+)
+        minSdk = flutter.minSdkVersion  // Android 6.0+, covers >97% of users and ensures modern E2EE performance.
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

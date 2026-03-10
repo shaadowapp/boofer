@@ -65,25 +65,25 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
   String get _sharableText {
     if (widget.sharedText != null) return widget.sharedText!;
     if (widget.profileToShare != null) {
-      return "Check out ${widget.profileToShare!.fullName} (@${widget.profileToShare!.handle}) on Boofer!\n"
-          "Virtual Number: ${widget.profileToShare!.virtualNumber}\n\n"
-          "Join the secure & private messaging revolution on Boofer!";
+      return 'Check out ${widget.profileToShare!.fullName} (@${widget.profileToShare!.handle}) on Boofer!\n'
+          'Virtual Number: ${widget.profileToShare!.virtualNumber}\n\n'
+          'Join the secure & private messaging revolution on Boofer!';
     }
-    return "Check out Boofer! The secure & private messaging app.";
+    return 'Check out Boofer! The secure & private messaging app.';
   }
 
   void _shareToApp(String app) {
     final text = _sharableText;
     final encodedText = Uri.encodeComponent(text);
-    const baseUrl = "https://boofer.chat";
+    const baseUrl = 'https://boofer.chat';
 
     String url = '';
     switch (app) {
       case 'whatsapp':
-        url = "whatsapp://send?text=$encodedText";
+        url = 'whatsapp://send?text=$encodedText';
         break;
       case 'telegram':
-        url = "tg://msg?text=$encodedText";
+        url = 'tg://msg?text=$encodedText';
         break;
       case 'facebook':
         // Native app sharer with fallback to web
@@ -92,16 +92,14 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
         break;
       case 'instagram':
         // Instagram direct sharing is limited; opening app is the best "direct" option
-        url = "instagram://app";
+        url = 'instagram://app';
         break;
       case 'x':
-        url = "twitter://post?message=$encodedText";
+        url = 'twitter://post?message=$encodedText';
         break;
     }
 
-    if (url.isNotEmpty) {
-      _launchUriWithFallback(url, text);
-    }
+    if (url.isNotEmpty) _launchUriWithFallback(url, text);
   }
 
   Future<void> _launchUriWithFallback(
@@ -123,24 +121,24 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
         if (urlString.startsWith('fb://')) {
           await launchUrl(
             Uri.parse(
-              "https://www.facebook.com/sharer/sharer.php?u=https://boofer.chat&quote=${Uri.encodeComponent(fallbackText)}",
+              'https://www.facebook.com/sharer/sharer.php?u=https://boofer.chat&quote=${Uri.encodeComponent(fallbackText)}',
             ),
             mode: LaunchMode.externalApplication,
           );
         } else if (urlString.startsWith('twitter://')) {
           await launchUrl(
             Uri.parse(
-              "https://twitter.com/intent/tweet?text=${Uri.encodeComponent(fallbackText)}",
+              'https://twitter.com/intent/tweet?text=${Uri.encodeComponent(fallbackText)}',
             ),
             mode: LaunchMode.externalApplication,
           );
         } else {
-          await Share.share(fallbackText);
+          await SharePlus.instance.share(ShareParams(text: fallbackText));
         }
       }
     } catch (e) {
       debugPrint('Error launching URI: $e');
-      await Share.share(fallbackText);
+      await SharePlus.instance.share(ShareParams(text: fallbackText));
     }
   }
 
@@ -184,7 +182,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
             height: 4,
             margin: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.outline.withOpacity(0.2),
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -225,7 +223,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 prefixIcon: const Icon(Icons.search, size: 20),
                 filled: true,
                 fillColor: theme.colorScheme.surfaceContainerHighest
-                    .withOpacity(0.4),
+                    .withValues(alpha: 0.4),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -281,8 +279,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                               radius: 28,
                               isCompany: friend.isCompany,
                             ),
-                            if (isSelected)
-                              Positioned(
+                            if (isSelected) Positioned(
                                 right: 0,
                                 bottom: 0,
                                 child: Container(
@@ -312,9 +309,8 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontSize: 10,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             color: isSelected
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurface,
@@ -339,7 +335,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
           if (!widget.isExternalFlow)
             Divider(
               height: 1,
-              color: theme.colorScheme.outline.withOpacity(0.1),
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
             ),
 
           // SHARING OPTIONS SECTION
@@ -356,7 +352,8 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                       style: theme.textTheme.labelSmall?.copyWith(
                         letterSpacing: 1.5,
                         fontWeight: FontWeight.w900,
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -422,9 +419,11 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                           label: 'Share',
                           color: theme.colorScheme.primary,
                           onTap: () {
-                            Share.share(
-                              _sharableText,
-                              subject: 'Boofer Content',
+                            SharePlus.instance.share(
+                              ShareParams(
+                                text: _sharableText,
+                                subject: 'Boofer Content',
+                              ),
                             );
                           },
                         ),
@@ -505,9 +504,9 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
               height: 56,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: color.withOpacity(0.2)),
+                border: Border.all(color: color.withValues(alpha: 0.2)),
               ),
               child: svgUrl != null
                   ? SvgPicture.network(
@@ -545,10 +544,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
       child: Column(
@@ -590,8 +589,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final path = widget.sharedFiles![index];
-                  final isImage =
-                      path.toLowerCase().endsWith('.jpg') ||
+                  final isImage = path.toLowerCase().endsWith('.jpg') ||
                       path.toLowerCase().endsWith('.jpeg') ||
                       path.toLowerCase().endsWith('.png');
 
@@ -653,19 +651,18 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
         final content = widget.profileToShare != null
             ? '👤 SHARED PROFILE\nName: ${widget.profileToShare!.fullName}\nHandle: @${widget.profileToShare!.handle}\nNumber: ${widget.profileToShare!.virtualNumber ?? "N/A"}'
             : (widget.sharedText ??
-                  (widget.sharedFiles != null
-                      ? 'Shared ${widget.sharedFiles!.length} files'
-                      : 'Check this out!'));
+                (widget.sharedFiles != null
+                    ? 'Shared ${widget.sharedFiles!.length} files'
+                    : 'Check this out!'));
 
-        final type = widget.sharedFiles != null
-            ? MessageType.image
-            : MessageType.text;
+        final type =
+            widget.sharedFiles != null ? MessageType.image : MessageType.text;
 
         final metadata = widget.sharedFiles != null
             ? {'local_paths': widget.sharedFiles}
             : (widget.profileToShare != null
-                  ? {'profile_id': widget.profileToShare!.id}
-                  : null);
+                ? {'profile_id': widget.profileToShare!.id}
+                : null);
 
         await chatProvider.sendMessage(
           conversationId: conversationId,

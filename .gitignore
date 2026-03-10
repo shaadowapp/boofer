@@ -142,6 +142,7 @@ onesignal_auth_key.*
 onesignal_rest_api_key.*
 onesignal_config.*
 push_notification_keys.*
+android/fastlane/*.json
 
 # Configuration files with credentials
 config.json

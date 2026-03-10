@@ -31,7 +31,7 @@ class UserProfileCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -44,7 +44,7 @@ class UserProfileCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: isCompact ? 20 : 24,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child: Text(
                     user.initials,
                     style: TextStyle(
@@ -54,8 +54,7 @@ class UserProfileCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (showOnlineStatus && user.status == UserStatus.online)
-                  Positioned(
+                if (showOnlineStatus && user.status == UserStatus.online) Positioned(
                     bottom: 0,
                     right: 0,
                     child: Container(
@@ -110,7 +109,7 @@ class UserProfileCard extends StatelessWidget {
                   Text(
                     user.virtualNumber ?? '',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontSize: isCompact ? 11 : 12,
                     ),
                   ),
@@ -158,7 +157,7 @@ class HeroUserProfileCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: theme.colorScheme.primary.withOpacity(0.3),
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -173,13 +172,13 @@ class HeroUserProfileCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       width: 3,
                     ),
                   ),
                   child: CircleAvatar(
                     radius: 40,
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                     child: Text(
                       user.initials,
                       style: const TextStyle(
@@ -190,8 +189,7 @@ class HeroUserProfileCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (user.status == UserStatus.online)
-                  Positioned(
+                if (user.status == UserStatus.online) Positioned(
                     bottom: 5,
                     right: 5,
                     child: Container(
@@ -231,7 +229,7 @@ class HeroUserProfileCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -251,7 +249,7 @@ class HeroUserProfileCard extends StatelessWidget {
               user.virtualNumber ?? '',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -316,7 +314,7 @@ class FriendProfileCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -329,7 +327,7 @@ class FriendProfileCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: isCompact ? 20 : 24,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child: Text(
                     initials,
                     style: TextStyle(
@@ -339,8 +337,7 @@ class FriendProfileCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isOnline)
-                  Positioned(
+                if (isOnline) Positioned(
                     bottom: 0,
                     right: 0,
                     child: Container(
@@ -395,7 +392,7 @@ class FriendProfileCard extends StatelessWidget {
                   Text(
                     virtualNumber,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontSize: isCompact ? 11 : 12,
                     ),
                   ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../models/system_status_model.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:version/version.dart';
+import '../screens/force_update_screen.dart';
 
 /// A smart wrapper that shows a maintenance message for specific features
 class SmartMaintenance extends StatelessWidget {
@@ -23,21 +26,52 @@ class SmartMaintenance extends StatelessWidget {
       builder: (context, snapshot) {
         final status = snapshot.data ?? SystemStatus.initial();
 
-        // 1. Global Maintenance (The Nuclear Option)
-        if (status.isGlobalMaintenance) {
-          return _buildMaintenanceOverlay(context, status.maintenanceMessage,
-              isGlobal: true);
+        // 1. Force Update (The Critical Requirement)
+        if (status.forceUpdate) {
+          return FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, packageSnapshot) {
+              if (packageSnapshot.hasData) {
+                try {
+                  final packageInfo = packageSnapshot.data!;
+                  final currentVersion = Version.parse(packageInfo.version);
+                  final minVersion = Version.parse(status.minAppVersion);
+
+                  if (currentVersion < minVersion) {
+                    return ForceUpdateScreen(
+                      updateUrl: status.updateUrl,
+                      currentVersion: packageInfo.version,
+                      minVersion: status.minAppVersion,
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('⚠️ [UPDATE] Version parsing error: $e');
+                }
+              }
+              return _buildOverlayCheck(context, status, check);
+            },
+          );
         }
 
-        // 2. Feature-specific check
-        if (!check(status)) {
-          return _buildMaintenanceOverlay(context, status.maintenanceMessage,
-              isGlobal: false);
-        }
-
-        return child;
+        return _buildOverlayCheck(context, status, check);
       },
     );
+  }
+
+  Widget _buildOverlayCheck(BuildContext context, SystemStatus status, bool Function(SystemStatus status) check) {
+    // 2. Global Maintenance (The Nuclear Option)
+    if (status.isGlobalMaintenance) {
+      return _buildMaintenanceOverlay(context, status.maintenanceMessage,
+          isGlobal: true);
+    }
+
+    // 3. Feature-specific check
+    if (!check(status)) {
+      return _buildMaintenanceOverlay(context, status.maintenanceMessage,
+          isGlobal: false);
+    }
+
+    return child;
   }
 
   Widget _buildMaintenanceOverlay(BuildContext context, String message,
@@ -55,7 +89,7 @@ class SmartMaintenance extends StatelessWidget {
               Icon(
                 isGlobal ? Icons.construction : Icons.auto_fix_high,
                 size: 64,
-                color: theme.colorScheme.primary.withOpacity(0.7),
+                color: theme.colorScheme.primary.withValues(alpha: 0.7),
               ),
               const SizedBox(height: 24),
               Text(
@@ -71,7 +105,7 @@ class SmartMaintenance extends StatelessWidget {
               Text(
                 message,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                 ),
                 textAlign: TextAlign.center,
               ),

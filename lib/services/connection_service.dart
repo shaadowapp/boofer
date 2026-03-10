@@ -284,9 +284,7 @@ class ConnectionService {
       [requestId],
     );
     
-    if (results.isNotEmpty) {
-      return ConnectionRequest.fromJson(results.first);
-    }
+    if (results.isNotEmpty) return ConnectionRequest.fromJson(results.first);
     return null;
   }
 
@@ -322,9 +320,7 @@ class ConnectionService {
         [userId],
       );
       
-      if (results.isNotEmpty) {
-        return User.fromJson(results.first);
-      }
+      if (results.isNotEmpty) return User.fromJson(results.first);
       return null;
     } catch (e, stackTrace) {
       _errorHandler.handleError(AppError.service(

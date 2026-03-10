@@ -23,12 +23,8 @@ class AppLogger {
   static void error(String message, [dynamic error, StackTrace? stackTrace]) {
     if (kDebugMode) {
       debugPrint('[ERROR] $message');
-      if (error != null) {
-        debugPrint('[ERROR] Error: $error');
-      }
-      if (stackTrace != null) {
-        debugPrint('[ERROR] Stack trace:\n$stackTrace');
-      }
+      if (error != null) debugPrint('[ERROR] Error: $error');
+      if (stackTrace != null) debugPrint('[ERROR] Stack trace:\n$stackTrace');
     }
   }
 

@@ -69,9 +69,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       final authProvider = context.read<AuthStateProvider>();
       // Use prefetched location if available
       String? location;
-      if (_locationFuture != null) {
-        location = await _locationFuture;
-      }
+      if (_locationFuture != null) location = await _locationFuture;
 
       await authProvider.createAnonymousUser(
         fullName: _localData['fullName'],
@@ -92,9 +90,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       if (authProvider.isAuthenticated) {
         // Accept terms
         final user = await UserService.getCurrentUser();
-        if (user != null) {
+        if (user != null)
           await LocalStorageService.setTermsAccepted(user.id, true);
-        }
 
         // Final transition to app
         Navigator.pushAndRemoveUntil(
@@ -206,7 +203,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -216,7 +214,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.white30, size: 20),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: Colors.white.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -238,13 +236,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             top: -100,
             right: -100,
             child: _GlowCircle(
-              color: const Color(0xFF845EF7).withOpacity(0.15),
+              color: const Color(0xFF845EF7).withValues(alpha: 0.15),
             ),
           ),
           Positioned(
             bottom: -50,
             left: -50,
-            child: _GlowCircle(color: const Color(0xFFFF6B6B).withOpacity(0.1)),
+            child: _GlowCircle(
+                color: const Color(0xFFFF6B6B).withValues(alpha: 0.1)),
           ),
 
           SafeArea(
@@ -278,7 +277,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         Text(
                           'This is how others will see you in the world.',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 14,
                           ),
                         ),
@@ -296,7 +295,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       child: BooferIdentityCard(
                         user: User(
                           id: 'draft',
-                          email: '',
                           handle: _localData['handle'],
                           fullName: _localData['fullName'],
                           bio: _localData['bio'] ?? '',
@@ -400,7 +398,7 @@ class _GateButton extends StatelessWidget {
           boxShadow: isPrimary && onTap != null
               ? [
                   BoxShadow(
-                    color: const Color(0xFF845EF7).withOpacity(0.3),
+                    color: const Color(0xFF845EF7).withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

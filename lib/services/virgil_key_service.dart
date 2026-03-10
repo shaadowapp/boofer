@@ -18,14 +18,12 @@ class VirgilKeyService {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    if (!VirgilE2EEService.instance.isInitialized) {
-      await VirgilE2EEService.instance.initialize(user.id);
-    }
+    if (!VirgilE2EEService.instance.isInitialized) await VirgilE2EEService.instance.initialize(user.id);
 
-    final encryptionPublicKey = await VirgilE2EEService.instance
-        .getEncryptionPublicKey();
-    final signaturePublicKey = await VirgilE2EEService.instance
-        .getSignaturePublicKey();
+    final encryptionPublicKey =
+        await VirgilE2EEService.instance.getEncryptionPublicKey();
+    final signaturePublicKey =
+        await VirgilE2EEService.instance.getSignaturePublicKey();
 
     final keyBundle = {
       'encryptionPublicKey': base64Encode(encryptionPublicKey),
@@ -62,12 +60,45 @@ class VirgilKeyService {
 
     try {
       final keys = await request;
-      if (keys != null) {
-        _keyCache[recipientId] = keys;
-      }
+      if (keys != null) _keyCache[recipientId] = keys;
       return keys;
     } finally {
       _pendingRequests.remove(recipientId);
+    }
+  }
+
+  /// Batch fetch public keys for multiple users to reduce network roundtrips.
+  /// This is used by the Lobby to pre-initialize keys for all conversation partners.
+  Future<void> prefetchAllKeys(List<String> userIds) async {
+    final uniqueIds = userIds.toSet().toList();
+    final missingIds =
+        uniqueIds.where((id) => !_keyCache.containsKey(id)).toList();
+    if (missingIds.isEmpty) return;
+
+    try {
+      debugPrint(
+        '📥 [VirgilKeys] Batch fetching keys for ${missingIds.length} users...',
+      );
+      final response = await _supabase
+          .from('user_public_keys')
+          .select('user_id, key_bundle')
+          .inFilter('user_id', missingIds);
+
+      final List data = response as List;
+      for (final row in data) {
+        final userId = row['user_id'] as String;
+        final bundle = row['key_bundle'] as Map<String, dynamic>;
+        if (bundle['v'] == 'virgil_v1') {
+          _keyCache[userId] = {
+            'encryptionPublicKey': base64Decode(bundle['encryptionPublicKey']),
+            'signaturePublicKey': base64Decode(bundle['signaturePublicKey']),
+          };
+        }
+      }
+      debugPrint(
+          '✅ [VirgilKeys] Batch fetch completed: ${data.length} keys cached');
+    } catch (e) {
+      debugPrint('❌ [VirgilKeys] Batch fetch failed: $e');
     }
   }
 

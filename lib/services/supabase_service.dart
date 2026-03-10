@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+import 'package:uuid/uuid.dart';
+import 'package:cryptography/cryptography.dart';
 
 import '../models/user_model.dart' as app_user;
 import '../models/message_model.dart';
@@ -13,6 +15,8 @@ import 'virgil_e2ee_service.dart';
 import 'virgil_key_service.dart';
 import '../models/privacy_settings_model.dart';
 import '../models/system_status_model.dart';
+import 'local_storage_service.dart';
+import 'media_service.dart';
 
 /// Supabase service for real-time messaging and user management
 class SupabaseService {
@@ -55,11 +59,21 @@ class SupabaseService {
 
       // Initialize E2EE if session exists
       final user = _supabase.auth.currentUser;
-      if (user != null) {
-        await initializeE2EE(user.id);
+      if (user != null) await initializeE2EE(user.id);
+
+      // 🛡️ Fetch initial System Status before proceeding
+      try {
+        final statusData = await _supabase.from('system_status').select().limit(1).maybeSingle();
+        if (statusData != null) {
+          _currentStatus = SystemStatus.fromJson(statusData);
+          _systemStatusController.add(_currentStatus);
+          debugPrint('🔔 [SYSTEM] Initial Status Fetched: Global=${_currentStatus.isGlobalMaintenance}');
+        }
+      } catch (e) {
+        debugPrint('⚠️ [SYSTEM] Failed to fetch initial status: $e');
       }
 
-      // Initialize System Status listener
+      // Initialize System Status listener (for real-time updates)
       _initSystemStatusListener();
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -79,8 +93,28 @@ class SupabaseService {
           VirgilE2EEService.instance.userId != userId) {
         await VirgilE2EEService.instance.initialize(userId);
       }
-      await VirgilKeyService().uploadPublicKeys();
-      debugPrint('✅ Virgil E2EE initialized and keys uploaded for $userId');
+
+      // 🛡️ Performance: Check if we've already uploaded keys recently (last 24h)
+      final lastUploadStr =
+          await LocalStorageService.getString('last_virgil_key_upload_$userId');
+      bool shouldUpload = true;
+      if (lastUploadStr != null) {
+        final lastUpload = DateTime.tryParse(lastUploadStr);
+        if (lastUpload != null &&
+            DateTime.now().difference(lastUpload).inHours < 24) {
+          shouldUpload = false;
+        }
+      }
+
+      if (shouldUpload) {
+        await VirgilKeyService().uploadPublicKeys();
+        await LocalStorageService.setString(
+            'last_virgil_key_upload_$userId', DateTime.now().toIso8601String());
+        debugPrint('✅ Virgil E2EE initialized and keys uploaded for $userId');
+      } else {
+        debugPrint(
+            '🎯 Virgil E2EE initialized (keys recent, skipping upload) for $userId');
+      }
     } catch (e) {
       debugPrint('❌ Failed to initialize Virgil E2EE: $e');
     }
@@ -133,6 +167,7 @@ class SupabaseService {
     String? bio,
     String? avatar,
     String? profilePicture,
+    String? gender,
     List<String>? interests,
     List<String>? hobbies,
     int? age,
@@ -146,6 +181,7 @@ class SupabaseService {
       if (bio != null) updates['bio'] = bio;
       if (avatar != null) updates['avatar'] = avatar;
       if (profilePicture != null) updates['profile_picture'] = profilePicture;
+      if (gender != null) updates['gender'] = gender;
       if (interests != null) updates['interests'] = interests;
       if (hobbies != null) updates['hobbies'] = hobbies;
       if (age != null) updates['age'] = age;
@@ -208,6 +244,8 @@ class SupabaseService {
   /// Get user profile by ID
   Future<app_user.User?> getUserProfile(String userId) async {
     try {
+      if (!StringUtils.isUuid(userId)) return null;
+
       final response = await _supabase
           .from('profiles')
           .select()
@@ -451,17 +489,7 @@ class SupabaseService {
       final Map<String, dynamic>? senderOwnKeys =
           results[2] as Map<String, dynamic>?;
 
-      // ... rest of the logic ...
-      DateTime? expiresAt;
-      int minutes = 0;
-      if (timerString == 'after_seen') {
-        minutes = 24 * 60;
-      } else {
-        final parts = timerString.split('_');
-        final hours = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 12) : 12;
-        minutes = hours * 60;
-      }
-      expiresAt = DateTime.now().add(Duration(minutes: minutes));
+      final expiresAt = _calculateExpirationDate(timerString);
 
       final dbData = {
         'id': messageData['id'],
@@ -555,6 +583,295 @@ class SupabaseService {
     }
   }
 
+  /// Send media message (image/video) with encryption and Supabase storage
+  Future<Message?> sendMediaMessage({
+    required String conversationId,
+    required String senderId,
+    required String receiverId,
+    required String mediaLocalPath,
+    required MessageType type,
+    required Uint8List compressedMediaBytes,
+    required Map<String, dynamic> recipientKeys,
+    required Map<String, dynamic>? senderKeys,
+    required int originalSize,
+    required int compressedSize,
+    required String mimeType,
+    int? imageWidth,
+    int? imageHeight,
+    String? knownTimer,
+  }) async {
+    try {
+      debugPrint('📤 Sending media message (type: ${type.name})...');
+
+      // Generate message ID upfront for storage path
+      final messageId = const Uuid().v4();
+      final timestamp = DateTime.now();
+
+      // Encrypt media bytes
+      final encryptedMedia = await MediaService.instance.encryptMedia(
+        compressedMediaBytes,
+        recipientKeys,
+        senderKeys,
+      );
+
+      // Upload encrypted media to Supabase Storage
+      final storagePath = await MediaService.instance.uploadEncryptedMedia(
+        conversationId,
+        messageId,
+        encryptedMedia['encryptedBytes'],
+      );
+
+      // Prepare metadata with encrypted keys
+      final metadata = {
+        'media': {
+          'storage_path': storagePath,
+          'original_size': originalSize,
+          'compressed_size': compressedSize,
+          'mime_type': mimeType,
+          'is_video': type == MessageType.video,
+          'width': imageWidth,
+          'height': imageHeight,
+          'media_viewed': false,
+        },
+        'media_encryption': {
+          'recipient_key': encryptedMedia['encryptedKeyRecipient'],
+          'sender_key': encryptedMedia['encryptedKeySender'],
+          'nonce': base64Encode(encryptedMedia['nonce']),
+          'mac': base64Encode(encryptedMedia['mac']),
+        },
+      };
+
+      // Calculate expiration
+      final timerString = knownTimer ?? await getConversationTimer(receiverId);
+      final expiresAt = _calculateExpirationDate(timerString);
+
+      // Create message text placeholder
+      final text = type == MessageType.video ? '[Video]' : '[Image]';
+
+      // Prepare database data
+      final dbData = {
+        'id': messageId,
+        'text': text,
+        'sender_id': senderId,
+        'receiver_id': receiverId,
+        'conversation_id': conversationId,
+        'timestamp': timestamp.toIso8601String(),
+        'status': MessageStatus.sent.name,
+        'type': type.name,
+        'is_encrypted': true,
+        'message_hash':
+            '${senderId}_${receiverId}_${timestamp.millisecondsSinceEpoch}',
+        'metadata': metadata,
+        'expires_at': expiresAt.toIso8601String(),
+      };
+
+      debugPrint('📤 Inserting media message into DB...');
+      final response =
+          await _supabase.from('messages').insert(dbData).select().single();
+
+      debugPrint('✅ Media message sent successfully, ID: $messageId');
+
+      // Track network usage for media
+      await UnifiedStorageService.incrementNetworkUsage(
+        'media',
+        compressedSize,
+        isSent: true,
+      );
+
+      // Return message object
+      final dbMessage = Message.fromJson(response);
+      return dbMessage;
+    } catch (e, stackTrace) {
+      debugPrint('❌ SupabaseService.sendMediaMessage CRITICAL FAILURE: $e');
+
+      _errorHandler.handleError(
+        AppError.service(
+          message: 'Failed to send media message: $e',
+          stackTrace: stackTrace,
+          originalException: e is Exception ? e : Exception(e.toString()),
+        ),
+      );
+
+      rethrow;
+    }
+  }
+
+  /// Delete media from storage when message is marked as read (ephemeral)
+  Future<void> deleteMediaFromStorage(String storagePath) async {
+    try {
+      if (storagePath.isEmpty) return;
+
+      debugPrint('🗑️ Deleting ephemeral media from storage: $storagePath');
+      await MediaService.instance.deleteMedia(storagePath);
+    } catch (e) {
+      debugPrint('❌ Error deleting media: $e');
+    }
+  }
+
+  /// Internal helper to calculate message expiration date based on timer string
+  DateTime _calculateExpirationDate(String timerString) {
+    int minutes = 0;
+    if (timerString == 'after_seen') {
+      minutes = 24 * 60; // 24 hours after seen (placeholder)
+    } else {
+      final parts = timerString.split('_');
+      final hours = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 12) : 12;
+      minutes = hours * 60;
+    }
+    return DateTime.now().add(Duration(minutes: minutes));
+  }
+
+  /// Decrypt media message and save to local cache
+  /// Returns the local file path of the decrypted media
+  Future<String?> decryptMediaMessage(
+    Message message,
+    String currentUserId,
+  ) async {
+    try {
+      // Check if already cached
+      final cachedFile = await MediaService.instance.getCachedMediaFile(
+        message.id,
+      );
+      if (cachedFile != null) {
+        debugPrint('💾 Media already cached: ${cachedFile.path}');
+        return cachedFile.path;
+      }
+
+      // Extract media metadata
+      final mediaData = message.metadata?['media'] as Map<String, dynamic>?;
+      final encryptionData =
+          message.metadata?['media_encryption'] as Map<String, dynamic>?;
+
+      if (mediaData == null || encryptionData == null) {
+        debugPrint('⚠️ Media metadata missing for message: ${message.id}');
+        return null;
+      }
+
+      final storagePath = mediaData['storage_path'] as String?;
+      if (storagePath == null || storagePath.isEmpty) {
+        debugPrint('⚠️ Storage path missing for message: ${message.id}');
+        return null;
+      }
+
+      // Determine which ECIES cryptogram to use (no signature key needed —
+      // we use decryptMediaKey which skips sig verification for robustness)
+      Map<String, dynamic>? encryptedKeyCryptogram;
+
+      if (message.senderId == currentUserId) {
+        // Sender viewing own message → use sender_key
+        final raw = encryptionData['sender_key'];
+        encryptedKeyCryptogram =
+            raw is Map ? Map<String, dynamic>.from(raw) : null;
+      } else {
+        // Recipient viewing received message → use recipient_key
+        final raw = encryptionData['recipient_key'];
+        encryptedKeyCryptogram =
+            raw is Map ? Map<String, dynamic>.from(raw) : null;
+      }
+
+      if (encryptedKeyCryptogram == null) {
+        debugPrint('⚠️ Encrypted media key missing for: ${message.id}');
+        return null;
+      }
+
+      debugPrint('🔑 Cryptogram keys: ${encryptedKeyCryptogram.keys.toList()}');
+
+      // ── Step 1: Download encrypted media bytes from Supabase Storage ──
+      final encryptedBytes =
+          await MediaService.instance.downloadEncryptedMedia(storagePath);
+      debugPrint('⬇️ Downloaded ${encryptedBytes.length} encrypted bytes');
+
+      // ── Step 2: Decrypt the AES media key using ECIES (no sig verify for media) ──
+      // We intentionally skip signature verification here because:
+      // 1. AES-GCM MAC on the inner ciphertext already guarantees integrity
+      // 2. Sender key rotation invalidates old signatures unnecessarily
+      final virgilService = VirgilE2EEService.instance;
+      debugPrint('🔐 Running decryptMediaKey (no sig verify)...');
+      final mediaKeyBase64 = await virgilService.decryptMediaKey(
+        encryptedKeyCryptogram,
+      );
+      debugPrint(
+          '✅ decryptMediaKey success, key length=${mediaKeyBase64.length}');
+      final mediaKeyBytes = base64Decode(mediaKeyBase64);
+
+      // ── Step 3: Decrypt media bytes with the recovered AES-256-GCM key ─
+      // Defensive: nonce and mac stored as base64 strings in metadata
+      final nonceRaw = encryptionData['nonce'];
+      final macRaw = encryptionData['mac'];
+      debugPrint(
+          '🔎 nonce type=${nonceRaw.runtimeType}, mac type=${macRaw.runtimeType}');
+
+      final Uint8List nonceBytes;
+      if (nonceRaw is String) {
+        nonceBytes = base64Decode(nonceRaw);
+      } else if (nonceRaw is List) {
+        nonceBytes = Uint8List.fromList(nonceRaw.cast<int>());
+      } else {
+        throw Exception('Unexpected nonce type: ${nonceRaw.runtimeType}');
+      }
+
+      final Uint8List macBytes;
+      if (macRaw is String) {
+        macBytes = base64Decode(macRaw);
+      } else if (macRaw is List) {
+        macBytes = Uint8List.fromList(macRaw.cast<int>());
+      } else {
+        throw Exception('Unexpected mac type: ${macRaw.runtimeType}');
+      }
+
+      final aesGcm = AesGcm.with256bits();
+      final mediaKey = await aesGcm.newSecretKeyFromBytes(mediaKeyBytes);
+      final secretBox = SecretBox(
+        encryptedBytes,
+        nonce: nonceBytes,
+        mac: Mac(macBytes),
+      );
+      debugPrint('🔓 Decrypting ${encryptedBytes.length} bytes...');
+      final decryptedBytes =
+          await aesGcm.decrypt(secretBox, secretKey: mediaKey);
+      debugPrint('✅ Decrypted ${decryptedBytes.length} bytes');
+
+      // ── Step 4: Save to local cache ───────────────────────────────────
+      final mimeType = mediaData['mime_type'] as String? ?? 'image/webp';
+      final localPath = await MediaService.instance.saveMediaToLocalCache(
+        Uint8List.fromList(decryptedBytes),
+        message.id,
+        mimeType,
+      );
+
+      debugPrint('✅ Media decrypted and cached: $localPath');
+
+      return localPath;
+    } catch (e) {
+      debugPrint('❌ Error decrypting media message: $e');
+      return null;
+    }
+  }
+
+  /// Mark media as viewed and trigger deletion (ephemeral)
+  Future<void> markMediaAsViewed(String messageId, String storagePath) async {
+    try {
+      // Update metadata to mark as viewed
+      final updateData = {
+        'metadata': {
+          'media': {'media_viewed': true},
+        },
+      };
+
+      await _supabase.from('messages').update(updateData).eq('id', messageId);
+
+      debugPrint('✅ Media marked as viewed: $messageId');
+
+      // Delete from storage (ephemeral behavior)
+      await deleteMediaFromStorage(storagePath);
+
+      // Clear local cache
+      await MediaService.instance.clearCachedMedia(messageId);
+    } catch (e) {
+      debugPrint('❌ Error marking media as viewed: $e');
+    }
+  }
+
   /// Listen to messages in real-time (Optimized)
   RealtimeChannel listenToMessages(
     String conversationId,
@@ -589,9 +906,8 @@ class SupabaseService {
                   m.senderId,
                 );
                 if (senderKeys != null) {
-                  if (!VirgilE2EEService.instance.isInitialized) {
+                  if (!VirgilE2EEService.instance.isInitialized)
                     await initializeE2EE(currentUserId!);
-                  }
                   final decryptedText =
                       await VirgilE2EEService.instance.decryptThenVerify(
                     m.encryptedContent!,
@@ -826,14 +1142,27 @@ class SupabaseService {
         '✅ [LOBBY_FLOW] v_chat_lobby returned ${conversations.length} records',
       );
 
-      // Pre-initialize E2EE once if there are any encrypted messages
-      if (conversations.any((c) => c['last_message_is_encrypted'] == true)) {
+      // Pre-initialize E2EE and BATCH FETCH keys if there are any encrypted messages
+      final encryptedConvs =
+          conversations.where((c) => c['last_message_is_encrypted'] == true);
+      if (encryptedConvs.isNotEmpty) {
         debugPrint(
-          '🔐 [LOBBY_FLOW] Encrypted messages detected, ensuring E2EE initialized',
+          '🔐 [LOBBY_FLOW] Encrypted messages detected, optimizing key fetch',
         );
-        if (!VirgilE2EEService.instance.isInitialized) {
+        if (!VirgilE2EEService.instance.isInitialized)
           await initializeE2EE(userId);
-        }
+
+        // BATCH FETCH ALL RELEVANT KEYS (Biggest performance win)
+        final senderIds = encryptedConvs
+            .map((c) => c['last_message_sender_id'] as String?)
+            .whereType<String>()
+            .toSet()
+            .toList();
+
+        // Add current user ID manually to ensure self-keys are also cached
+        senderIds.add(userId);
+
+        await VirgilKeyService().prefetchAllKeys(senderIds);
       }
 
       final results = await Future.wait(
@@ -1015,9 +1344,8 @@ class SupabaseService {
       // Aggregate counts in Dart
       for (final msg in response) {
         final convId = msg['conversation_id'] as String?;
-        if (convId != null) {
+        if (convId != null)
           unreadCounts[convId] = (unreadCounts[convId] ?? 0) + 1;
-        }
       }
 
       return unreadCounts;

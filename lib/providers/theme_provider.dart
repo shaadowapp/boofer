@@ -90,17 +90,15 @@ class ThemeProvider extends ChangeNotifier {
     // Listen for system theme changes
     WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
         () {
-          final newBrightness =
-              WidgetsBinding.instance.platformDispatcher.platformBrightness;
-          final newIsSystemDarkMode = newBrightness == Brightness.dark;
+      final newBrightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      final newIsSystemDarkMode = newBrightness == Brightness.dark;
 
-          if (_isSystemDarkMode != newIsSystemDarkMode) {
-            _isSystemDarkMode = newIsSystemDarkMode;
-            if (_themeMode == AppThemeMode.system) {
-              notifyListeners();
-            }
-          }
-        };
+      if (_isSystemDarkMode != newIsSystemDarkMode) {
+        _isSystemDarkMode = newIsSystemDarkMode;
+        if (_themeMode == AppThemeMode.system) notifyListeners();
+      }
+    };
   }
 
   Future<void> toggleTheme() async {
@@ -142,13 +140,11 @@ class ThemeProvider extends ChangeNotifier {
         seedColor: _accentColor,
         brightness: Brightness.light,
         primary: _accentColor,
-        secondary: _accentColor.withOpacity(0.8),
+        secondary: _accentColor.withValues(alpha: 0.8),
         surface: AppColors.lightSurface,
-        background: AppColors.lightBackground,
         onPrimary: Colors.white,
         onSecondary: AppColors.lightPrimaryText,
         onSurface: AppColors.lightPrimaryText,
-        onBackground: AppColors.lightPrimaryText,
         outline: AppColors.lightSecondaryText,
         error: AppColors.danger,
       ),
@@ -248,9 +244,9 @@ class ThemeProvider extends ChangeNotifier {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return _accentColor.withOpacity(0.3);
+            return _accentColor.withValues(alpha: 0.3);
           }
-          return AppColors.lightSecondaryText.withOpacity(0.3);
+          return AppColors.lightSecondaryText.withValues(alpha: 0.3);
         }),
       ),
     );
@@ -267,13 +263,11 @@ class ThemeProvider extends ChangeNotifier {
         seedColor: _accentColor,
         brightness: Brightness.dark,
         primary: _accentColor,
-        secondary: _accentColor.withOpacity(0.8),
+        secondary: _accentColor.withValues(alpha: 0.8),
         surface: AppColors.darkSurface,
-        background: AppColors.darkBackground,
         onPrimary: Colors.white,
         onSecondary: AppColors.darkPrimaryText,
         onSurface: AppColors.darkPrimaryText,
-        onBackground: AppColors.darkPrimaryText,
         outline: AppColors.darkSecondaryText,
         error: AppColors.danger,
       ),
@@ -371,9 +365,9 @@ class ThemeProvider extends ChangeNotifier {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return _accentColor.withOpacity(0.3);
+            return _accentColor.withValues(alpha: 0.3);
           }
-          return AppColors.darkSecondaryText.withOpacity(0.3);
+          return AppColors.darkSecondaryText.withValues(alpha: 0.3);
         }),
       ),
     );

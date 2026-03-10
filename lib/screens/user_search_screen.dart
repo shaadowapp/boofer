@@ -7,6 +7,7 @@ import '../widgets/unified_friend_card.dart';
 import '../providers/follow_provider.dart';
 import 'manage_friends_screen.dart';
 import 'package:provider/provider.dart';
+import '../widgets/custom_search_bar.dart';
 
 class UserSearchScreen extends StatefulWidget {
   const UserSearchScreen({super.key});
@@ -73,16 +74,13 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         for (var data in rawResults) {
           final userId = data['id'];
           final isFollowing = data['isFollowing'] == true;
-          if (userId != null) {
-            followProvider.setLocalFollowingStatus(userId, isFollowing);
-          }
+          if (userId != null) followProvider.setLocalFollowingStatus(userId, isFollowing);
         }
       }
 
       // 3. Convert to User objects and filter
-      final discoverableUsers = rawResults
-          .map((e) => User.fromJson(e))
-          .toList();
+      final discoverableUsers =
+          rawResults.map((e) => User.fromJson(e)).toList();
 
       final filteredUsers = discoverableUsers.where((user) {
         final isDifferentId = user.id != _currentUserId;
@@ -119,12 +117,12 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 400), () {
       final query = _searchController.text.trim();
-      
+
       // Industry Best Practices for Bandwidth Saving:
       // 1. Minimum query length (2 characters) for better responsiveness
       // 2. Local duplicate check (don't search if query hasn't changed)
       // 3. Debounce (400ms) to balance UX and bandwidth
-      
+
       if (query.length >= 2 && query != _lastSearchQuery) {
         _lastSearchQuery = query;
         _performSearch(query);
@@ -156,9 +154,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         for (var data in rawResults) {
           final userId = data['id'];
           final isFollowing = data['isFollowing'] == true;
-          if (userId != null) {
-            followProvider.setLocalFollowingStatus(userId, isFollowing);
-          }
+          if (userId != null) followProvider.setLocalFollowingStatus(userId, isFollowing);
         }
       }
 
@@ -211,92 +207,31 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             icon: const Icon(Icons.people_outline_rounded, size: 18),
             label: const Text('Manage'),
             style: TextButton.styleFrom(
-              foregroundColor:
-                  theme.appBarTheme.foregroundColor ??
+              foregroundColor: theme.appBarTheme.foregroundColor ??
                   theme.colorScheme.primary,
             ),
           ),
           const SizedBox(width: 4),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
+          preferredSize: const Size.fromHeight(66),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: SizedBox(
-              height: 38,
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  // Immediate UI update for the clear icon
-                  setState(() {});
-                  _onSearchChanged();
-                },
-                autofocus: false,
-                textAlignVertical: TextAlignVertical.center,
-                decoration: InputDecoration(
-                  hintText: 'Search people...',
-                  hintStyle: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.50),
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.50),
-                    size: 20,
-                  ),
-                  prefixIconConstraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 38,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchResults = [];
-                              _hasSearched = false;
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: theme.colorScheme.onSurface.withValues(
-                                alpha: 0.55,
-                              ),
-                              size: 18,
-                            ),
-                          ),
-                        )
-                      : null,
-                  suffixIconConstraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                  filled: true,
-                  fillColor: theme.brightness == Brightness.dark
-                      ? Colors.white.withValues(alpha: 0.09)
-                      : Colors.black.withValues(alpha: 0.07),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(9),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(9),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(9),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                  isDense: true,
-                ),
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface,
-                  fontSize: 14,
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: CustomSearchBar(
+              controller: _searchController,
+              hintText: 'Search people...',
+              onChanged: (value) {
+                setState(() {});
+                _onSearchChanged();
+              },
+              onClear: () {
+                _searchController.clear();
+                setState(() {
+                  _searchResults = [];
+                  _hasSearched = false;
+                  _lastSearchQuery = '';
+                });
+              },
             ),
           ),
         ),
@@ -306,17 +241,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   }
 
   Widget _buildContent() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_loading) return const Center(child: CircularProgressIndicator());
 
-    if (_hasSearched && _searchResults.isEmpty) {
-      return _buildEmptySearchResults();
-    }
+    if (_hasSearched && _searchResults.isEmpty) return _buildEmptySearchResults();
 
-    if (_hasSearched && _searchResults.isNotEmpty) {
-      return _buildSearchResults();
-    }
+    if (_hasSearched && _searchResults.isNotEmpty) return _buildSearchResults();
 
     return _buildAllUsersContent();
   }
@@ -341,7 +270,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                     size: 64,
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.5),
+                    ).colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -352,10 +281,10 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                   Text(
                     'Check back later for new users',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
-                    ),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
                   ),
                 ],
               ),
@@ -391,7 +320,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           Icon(
             Icons.search_off,
             size: 64,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
@@ -402,8 +331,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           Text(
             'Try searching with a different term',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-            ),
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
           ),
         ],
       ),

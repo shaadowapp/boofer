@@ -53,7 +53,6 @@ class AppConstants {
 
   static const List<String> avatarOptions = [
     // Faces & People
-    '👤',
     '😎',
     '🧙‍♂️',
     '🧛‍♀️',

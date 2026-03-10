@@ -243,7 +243,7 @@ class _NotificationSettingsScreenState
       ),
       trailing: Switch(
         value: isEnabled,
-        activeColor: color,
+        activeThumbColor: color,
         onChanged: (value) {
           setState(() => _channelEnabled[channelId] = value);
           HapticFeedback.lightImpact();
@@ -452,7 +452,7 @@ class _ChannelSettingsBottomSheetState
                       const SizedBox(width: 12),
                       Switch(
                         value: _localEnabled,
-                        activeColor: widget.color,
+                        activeThumbColor: widget.color,
                         onChanged: (value) {
                           setState(() => _localEnabled = value);
                           widget.onToggle(value);
@@ -605,7 +605,7 @@ class _ChannelSettingsBottomSheetState
         trailing: Switch(
           value: value,
           onChanged: enabled ? onChanged : null,
-          activeColor: widget.color,
+          activeThumbColor: widget.color,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
       ),

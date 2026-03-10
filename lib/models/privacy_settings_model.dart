@@ -56,7 +56,7 @@ class UserPrivacySettings {
     String? defaultMessageTimer,
   }) {
     return UserPrivacySettings(
-      userId: this.userId,
+      userId: userId,
       lastSeen: lastSeen ?? this.lastSeen,
       onlineStatus: onlineStatus ?? this.onlineStatus,
       profilePhoto: profilePhoto ?? this.profilePhoto,

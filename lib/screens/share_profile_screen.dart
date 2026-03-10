@@ -56,9 +56,12 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
         final file = File(path);
         await file.writeAsBytes(image);
 
-        await Share.shareXFiles([
-          XFile(path),
-        ], text: 'Join me on Boofer! My handle is @${widget.user.handle}');
+        await SharePlus.instance.share(
+          ShareParams(
+            text: 'Join me on Boofer! My handle is @${widget.user.handle}',
+            files: [XFile(path)],
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -153,7 +156,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withOpacity(0.05),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -187,7 +190,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
               Screenshot(
                 controller: _screenshotController,
                 child: SizedBox(
-                  height: 480,
+                  height: 480, // Fixed height for PageView inside a scrollable
                   child: PageView(
                     controller: _pageController,
                     onPageChanged: (index) {
@@ -196,11 +199,17 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                     },
                     children: [
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 10,
+                        ),
                         child: Center(child: _buildBooferCard(theme, isDark)),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 10,
+                        ),
                         child: Center(child: _buildQrCard(theme, isDark)),
                       ),
                     ],
@@ -254,7 +263,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -267,7 +276,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
             style: TextStyle(
               color: isSelected
                   ? theme.colorScheme.onSurface
-                  : theme.colorScheme.onSurface.withOpacity(0.4),
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.4),
               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
               fontSize: 14,
             ),
@@ -282,6 +291,8 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
       user: widget.user,
       onCopyNumber: _copyHandle,
       showQrInsteadOfCopy: true,
+      showFollowStats: false,
+      showInterests: true, // Show interests for sharing
     );
   }
 
@@ -289,17 +300,16 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
     return Container(
       key: const ValueKey('qr_card'),
       width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 320, minHeight: 420),
-
+      constraints: const BoxConstraints(maxWidth: 280),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E30) : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(32),
         border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.08),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
             blurRadius: 30,
             offset: const Offset(0, 15),
           ),
@@ -307,112 +317,91 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(32),
-        child: IntrinsicHeight(
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Container(
-                height: 10,
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 10,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Compact QR Code Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
+                ],
+              ),
+              child: QrImageView(
+                data: 'boofer://profile/@${widget.user.handle}',
+                version: QrVersions.auto,
+                size: 180.0,
+                gapless: true,
+                padding: const EdgeInsets.all(0),
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.circle,
+                  color: Colors.black,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.circle,
+                  color: Colors.black,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 260,
-                      width: 260,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        child: QrImageView(
-                          data: 'boofer://profile/@${widget.user.handle}',
-                          version: QrVersions.auto,
-                          size: 260.0,
-                          gapless: true,
-                          padding: const EdgeInsets.all(0),
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.circle,
-                            color: Colors.black,
-                          ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.circle,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '@${widget.user.handle.toUpperCase()}',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'SCAN TO CONNECT',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.3),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                  ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'SCAN TO CONNECT',
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(32),
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.05),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(32),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.policy_rounded,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                    size: 13,
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.policy_rounded,
-                      color: theme.colorScheme.primary.withOpacity(0.5),
-                      size: 14,
+                  const SizedBox(width: 8),
+                  Text(
+                    'GOVERNMENT OF BOOFER',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'GOVERNMENT OF BOOFER',
-                      style: TextStyle(
-                        color: theme.colorScheme.primary.withOpacity(0.7),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -432,10 +421,10 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.05),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
               shape: BoxShape.circle,
               border: Border.all(
-                color: theme.colorScheme.onSurface.withOpacity(0.1),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
               ),
             ),
             child: Icon(icon, color: theme.colorScheme.onSurface, size: 24),
@@ -445,7 +434,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
         Text(
           label,
           style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),

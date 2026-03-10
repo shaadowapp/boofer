@@ -12,11 +12,13 @@ import '../models/message_model.dart';
 import '../models/friend_model.dart';
 // Removed unused import
 import '../services/supabase_service.dart';
+import '../services/follow_service.dart';
+import '../models/user_model.dart' as app_user;
 import '../services/notification_service.dart';
 import '../core/constants.dart';
 import '../services/chat_cache_service.dart';
 import '../utils/screenshot_mode.dart';
-// Removed unused import
+import '../services/widget_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ChatService _chatService;
@@ -80,8 +82,9 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> loadMessages(String conversationId) async {
-    if (_currentConversationId == conversationId && _messages.isNotEmpty)
+    if (_currentConversationId == conversationId && _messages.isNotEmpty) {
       return;
+    }
 
     _currentConversationId = conversationId;
     _isLoading = true;
@@ -91,9 +94,7 @@ class ChatProvider with ChangeNotifier {
     try {
       // Get current user ID for validation
       final currentUser = await UserService.getCurrentUser();
-      if (currentUser == null) {
-        throw Exception('No current user found');
-      }
+      if (currentUser == null) throw Exception('No current user found');
 
       await _chatService.loadMessages(conversationId, currentUser.id);
       updatePresenceWithConversationId(conversationId);
@@ -147,12 +148,12 @@ class ChatProvider with ChangeNotifier {
             lastMessageStatus: initialStatus,
             unreadCount: 0, // Reset unread since we're sending
           );
-          
+
           // Move to top of list
           _friends.removeAt(friendIndex);
           _friends.insert(0, updatedFriend);
           notifyListeners();
-          
+
           // Update cache
           ChatCacheService.instance.updateCachedFriend(senderId, updatedFriend);
         }
@@ -168,9 +169,7 @@ class ChatProvider with ChangeNotifier {
     final state = _presenceChannel!.presenceState();
     for (final presence in state) {
       for (final p in presence.presences) {
-        if (p.payload['user_id'] == userId) {
-          return p.payload;
-        }
+        if (p.payload['user_id'] == userId) return p.payload;
       }
     }
     return null;
@@ -228,6 +227,13 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    // Update Android Widgets
+    WidgetService.updateUnreadList(_friends);
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
@@ -281,22 +287,21 @@ class ChatProvider with ChangeNotifier {
       }
 
       // 1. Initial Cache Load (Offline-first)
-      if (!_friendsLoaded || forceRefresh) {
-        final cachedFriends =
-            await ChatCacheService.instance.getCachedFriends(currentUser.id);
-        if (cachedFriends.isNotEmpty) {
-          debugPrint(
-              '🎯 [LOBBY] Loaded ${cachedFriends.length} friends from cache');
-          // Replace current user's name with "You" in cached friends
-          _friends = cachedFriends.map((friend) {
-            if (friend.id == currentUser.id) {
-              return friend.copyWith(name: 'You');
-            }
-            return friend;
-          }).toList();
-          _friendsLoaded = true;
-          notifyListeners();
-        }
+      // We load from cache every time to ensure the UI is responsive while network is fetching
+      final cachedFriends =
+          await ChatCacheService.instance.getCachedFriends(currentUser.id);
+      if (cachedFriends.isNotEmpty) {
+        debugPrint(
+            '🎯 [LOBBY] Loaded ${cachedFriends.length} friends from cache');
+        _friends = cachedFriends.map((friend) {
+          if (friend.id == currentUser.id) return friend.copyWith(name: 'You');
+          return friend;
+        }).toList();
+        _friendsLoaded = true;
+        notifyListeners();
+      } else if (!_friendsLoaded) {
+        // If no cache and not loaded yet, ensure we at least notify that we're starting
+        notifyListeners();
       }
 
       debugPrint(
@@ -306,48 +311,45 @@ class ChatProvider with ChangeNotifier {
         debugPrint('⚠️ [LOBBY] AUTH MISMATCH! RLS will block network results.');
       }
 
-      // Initialize global listeners
-      if (_globalMessagesSubscription == null) {
-        _globalMessagesSubscription = SupabaseService.instance
-            .listenToAllUserMessages(currentUser.id, (payload) {
-          _handleRealtimeMessageEvent(payload, currentUser.id);
-        });
-      }
-      if (_followSubscription == null) {
-        _followSubscription = SupabaseService.instance.listenToUserFollows(
-            currentUser.id, (data) => _handleOtherFollowEvent(data));
-      }
-      if (_myFollowSubscription == null) {
-        _myFollowSubscription = SupabaseService.instance.listenToMyFollows(
-            currentUser.id, (data) => _handleMyFollowEvent(data));
-      }
-      if (_profilesSubscription == null) {
-        _setupProfilesListener();
-      }
-      if (_presenceChannel == null) {
-        _setupPresence(currentUser.id);
-      }
+      // Initialize global listeners (idempotent checks already inside)
+      _globalMessagesSubscription ??= SupabaseService.instance
+          .listenToAllUserMessages(currentUser.id, (payload) {
+        _handleRealtimeMessageEvent(payload, currentUser.id);
+      });
+      _followSubscription ??= SupabaseService.instance.listenToUserFollows(
+        currentUser.id,
+        (data) => _handleOtherFollowEvent(data),
+      );
+      _myFollowSubscription ??= SupabaseService.instance.listenToMyFollows(
+        currentUser.id,
+        (data) => _handleMyFollowEvent(data),
+      );
+      if (_profilesSubscription == null) _setupProfilesListener();
+      if (_presenceChannel == null) _setupPresence(currentUser.id);
 
+      // 2. Network Fetch (Single source of truth: the v_chat_lobby view)
       _isLoadingFromNetwork = true;
-      notifyListeners();
+      // We only notify if we don't have friends yet, to avoid double-flicker
+      if (_friends.isEmpty) notifyListeners();
 
       final supabaseService = SupabaseService.instance;
 
-      // 2. Network Fetch (Single source of truth: the v_chat_lobby view)
       final results = await Future.wait([
         supabaseService.getUserConversations(currentUser.id),
         supabaseService.getBlockedUserIds(),
+        FollowService.instance.getFollowing(userId: currentUser.id),
       ]).timeout(
         const Duration(seconds: 15),
         onTimeout: () {
           debugPrint('⚠️ [LOBBY] Fetch TIMEOUT after 15s');
-          return [[], []];
+          return [[], [], []];
         },
       );
 
       final List<Map<String, dynamic>> conversationData =
           (results[0] as List).cast<Map<String, dynamic>>();
       final List<String> blockedUserIds = (results[1] as List).cast<String>();
+      final List followingUsers = results.length > 2 ? results[2] as List : [];
 
       debugPrint(
           '📥 [LOBBY] Network fetch returned ${conversationData.length} conversations');
@@ -356,9 +358,6 @@ class ChatProvider with ChangeNotifier {
       _blockedUsers.addAll(blockedUserIds);
 
       final List<Friend> friendsList = [];
-
-      // If we got ZERO conversations from network, this is suspicious if user has started chats.
-      // We don't overwrite _friends yet, we prepare friendsList first.
 
       // Map conversations directly from view
       for (final conv in conversationData) {
@@ -374,6 +373,28 @@ class ChatProvider with ChangeNotifier {
           }
         } catch (e) {
           debugPrint('⚠️ [LOBBY] Error parsing conversation: $e');
+        }
+      }
+
+      // Add any followings that haven't been messaged yet
+      for (final dynamic u in followingUsers) {
+        final app_user.User user = u as app_user.User;
+        if (!blockedUserIds.contains(user.id) &&
+            !friendsList.any((f) => f.id == user.id)) {
+          friendsList.add(
+            Friend(
+              id: user.id,
+              name: user.fullName,
+              handle: user.handle,
+              virtualNumber: user.virtualNumber ?? '',
+              avatar: user.profilePicture ?? '👤',
+              lastMessage: 'Start a conversation',
+              lastMessageTime: DateTime.now().subtract(const Duration(minutes: 1)),
+              unreadCount: 0,
+              isOnline: true,
+              isArchived: false,
+            ),
+          );
         }
       }
 
@@ -395,15 +416,12 @@ class ChatProvider with ChangeNotifier {
         );
       }
 
-      // 4. Ensure Boofer tile existence REMOVED - transitioned to dedicated Support Hub
-      // Boofer is no longer a standard profile in the chat list.
-
       _friends = friendsList;
 
       // Sort: Most recent message first
       _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
-      // 5. Update Cache with fresh data
+      // 4. Update Cache with fresh data
       await ChatCacheService.instance.cacheFriends(currentUser.id, _friends);
 
       _isLoadingFromNetwork = false;
@@ -411,7 +429,7 @@ class ChatProvider with ChangeNotifier {
       notifyListeners();
     } catch (e, stack) {
       debugPrint('❌ [LOBBY] CRITICAL Load Error: $e');
-      debugPrint('❌ [LOBBY] STACK: $stack');
+      debugPrint('STACK: $stack');
       _isLoadingFromNetwork = false;
       _friendsLoaded = true;
       notifyListeners();
@@ -586,7 +604,7 @@ class ChatProvider with ChangeNotifier {
       _blockedUsers.remove(userId);
       notifyListeners();
       debugPrint('❌ Failed to block user: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -600,7 +618,7 @@ class ChatProvider with ChangeNotifier {
       _blockedUsers.add(userId);
       notifyListeners();
       debugPrint('❌ Failed to unblock user: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -639,9 +657,7 @@ class ChatProvider with ChangeNotifier {
         _friends.addAll(deletedFriends);
         _friends.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
       }
-      if (deletedArchived.isNotEmpty) {
-        _archivedFriends.addAll(deletedArchived);
-      }
+      if (deletedArchived.isNotEmpty) _archivedFriends.addAll(deletedArchived);
       notifyListeners();
       debugPrint('❌ Failed to delete chat: $e');
       rethrow;
@@ -765,9 +781,7 @@ class ChatProvider with ChangeNotifier {
       }
     }
 
-    if (changed) {
-      notifyListeners();
-    }
+    if (changed) notifyListeners();
   }
 
   void _setupProfilesListener() {
@@ -850,7 +864,7 @@ class ChatProvider with ChangeNotifier {
           : (isEncrypted ? '[Encrypted]' : '');
 
       if (index != -1) {
-        var friend = _friends[index];
+        final friend = _friends[index];
         int newUnread = friend.unreadCount;
 
         // ONLY increment unread if WE received it (not sent by us),
@@ -1006,9 +1020,7 @@ class ChatProvider with ChangeNotifier {
           }
         }
 
-        if (changed) {
-          notifyListeners();
-        }
+        if (changed) notifyListeners();
       }
     }
   }
@@ -1081,9 +1093,7 @@ class ChatProvider with ChangeNotifier {
         changed = true;
       }
     }
-    if (changed) {
-      notifyListeners();
-    }
+    if (changed) notifyListeners();
   }
 
   @override

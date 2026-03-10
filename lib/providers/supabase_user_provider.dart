@@ -9,7 +9,7 @@ class SupabaseUserProvider with ChangeNotifier {
   final SupabaseService _supabaseService = SupabaseService.instance;
 
   User? _currentUser;
-  List<User> _allUsers = [];
+  final List<User> _allUsers = [];
   bool _isLoading = false;
   String? _error;
 

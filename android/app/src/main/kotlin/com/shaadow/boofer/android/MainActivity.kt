@@ -11,6 +11,9 @@ import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.shaadow.boofer/settings"
@@ -23,14 +26,59 @@ class MainActivity : FlutterActivity() {
             createNotificationChannels()
         }
 
-        // Set up method channel for opening settings
+        // Set up method channel for opening settings and shortcuts
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "openNotificationSettings" -> {
                     openNotificationSettings()
                     result.success(true)
                 }
+                "pinChatShortcut" -> {
+                    val id = call.argument<String>("id")
+                    val name = call.argument<String>("name")
+                    val handle = call.argument<String>("handle")
+                    if (id != null && name != null && handle != null) {
+                        pinChatShortcut(id, name, handle)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARGUMENTS", "Missing id, name or handle", null)
+                    }
+                }
+                "isPinShortcutSupported" -> {
+                    result.success(isPinShortcutSupported())
+                }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun isPinShortcutSupported(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val shortcutManager = getSystemService(ShortcutManager::class.java)
+            return shortcutManager?.isRequestPinShortcutSupported ?: false
+        }
+        return false
+    }
+
+    private fun pinChatShortcut(id: String, name: String, handle: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val shortcutManager = getSystemService(ShortcutManager::class.java) ?: return
+            
+            if (shortcutManager.isRequestPinShortcutSupported) {
+                // Create the intent that will be launched when the shortcut is tapped
+                // We point to the website URL format so our DeepLinkService handles it automatically!
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://booferapp.github.io/c/$handle"))
+                intent.setPackage(packageName) // Ensure it opens in OUR app
+                intent.putExtra("shortcut_id", id)
+
+                val shortcut = ShortcutInfo.Builder(context, "chat_$id")
+                    .setShortLabel(name)
+                    .setLongLabel("Chat with $name")
+                    .setIcon(android.graphics.drawable.Icon.createWithResource(context, R.mipmap.ic_launcher))
+                    .setIntent(intent)
+                    .build()
+
+                shortcutManager.requestPinShortcut(shortcut, null)
             }
         }
     }

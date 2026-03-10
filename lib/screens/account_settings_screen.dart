@@ -61,8 +61,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             backgroundColor: theme.colorScheme.surface,
             scrolledUnderElevation: 0,
           ),
-          if (_isLoading)
-            const SliverFillRemaining(
+          if (_isLoading) const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
             )
           else
@@ -183,7 +182,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: theme.colorScheme.primary,
                   side: BorderSide(
-                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -198,7 +197,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Text(
                 'Profile limit reached (Max 3)',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
               ),
           ],
@@ -208,7 +207,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -225,7 +224,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF845EF7).withOpacity(0.1),
+                color: const Color(0xFF845EF7).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
@@ -314,8 +313,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_isPrimary == true && !isPrimary && !isCurrent)
-                            IconButton(
+                          if (_isPrimary == true && !isPrimary && !isCurrent) IconButton(
                               icon: Icon(
                                 Icons.delete_outline_rounded,
                                 color: theme.colorScheme.error,
@@ -627,9 +625,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           );
         }
       } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }

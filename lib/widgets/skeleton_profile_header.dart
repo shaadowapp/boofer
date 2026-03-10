@@ -7,7 +7,11 @@ class SkeletonProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ShimmerEffect(
+      baseColor: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0),
+      highlightColor: isDark ? const Color(0xFF404040) : const Color(0xFFF5F5F5),
       child: Column(
         children: [
           const SizedBox(height: 24),

@@ -40,9 +40,7 @@ class _FollowButtonState extends State<FollowButton> {
               .shrink(); // Don't show button for self or Boofer support
         }
 
-        if (widget.compact) {
-          return _buildCompactButton(context, isFollowing, isLoading, provider);
-        }
+        if (widget.compact) return _buildCompactButton(context, isFollowing, isLoading, provider);
 
         return _buildFullButton(context, isFollowing, isLoading, provider);
       },
@@ -251,9 +249,7 @@ class _FollowButtonState extends State<FollowButton> {
       ),
     );
 
-    if (result == true) {
-      return await provider.unfollowUser(widget.user.id);
-    }
+    if (result == true) return await provider.unfollowUser(widget.user.id);
     return false;
   }
 }

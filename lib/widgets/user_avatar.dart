@@ -23,7 +23,7 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bg = backgroundColor ?? theme.colorScheme.primary.withOpacity(0.1);
+    final bg = backgroundColor ?? theme.colorScheme.primary.withValues(alpha: 0.1);
 
     // 1. Profile Picture (URL)
     if (profilePicture != null &&
@@ -96,14 +96,10 @@ class UserAvatar extends StatelessWidget {
 
     if (parts.isEmpty) return '?';
 
-    if (parts.length >= 2) {
-      return (parts.first[0] + parts.last[0]).toUpperCase();
-    }
+    if (parts.length >= 2) return (parts.first[0] + parts.last[0]).toUpperCase();
 
     // For single word names, take up to 2 letters (common for company abbreviations)
-    if (text.length >= 2) {
-      return text.substring(0, 2).toUpperCase();
-    }
+    if (text.length >= 2) return text.substring(0, 2).toUpperCase();
 
     return text[0].toUpperCase();
   }

@@ -49,7 +49,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                         Icon(
                           Icons.archive_outlined,
                           size: 64,
-                          color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 
                             0.5,
                           ),
                         ),
@@ -58,7 +58,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                           l10n.noArchivedChats,
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant
-                                .withOpacity(0.5),
+                                .withValues(alpha: 0.5),
                           ),
                         ),
                       ],
@@ -104,7 +104,7 @@ class ArchivedChatsScreen extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: theme.dividerColor.withOpacity(0.1),
+              color: theme.dividerColor.withValues(alpha: 0.1),
               width: 0.5,
             ),
           ),
@@ -116,7 +116,7 @@ class ArchivedChatsScreen extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child:
                       friend.avatar != null && friend.avatar!.startsWith('http')
                       ? ClipOval(
@@ -152,8 +152,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (friend.isOnline)
-                  Positioned(
+                if (friend.isOnline) Positioned(
                     top: 2,
                     right: 2,
                     child: Container(
@@ -213,7 +212,7 @@ class ArchivedChatsScreen extends StatelessWidget {
                       Icon(
                         Icons.archive_outlined,
                         size: 16,
-                        color: theme.colorScheme.onSurfaceVariant.withOpacity(
+                        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 
                           0.5,
                         ),
                       ),

@@ -29,6 +29,7 @@ import 'updates_screen.dart';
 import 'changelogs_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../widgets/custom_search_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -68,9 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveSetting(String key, dynamic value) async {
     if (value is bool) {
       await UnifiedStorageService.setBool(key, value);
-    } else if (value is String) {
-      await UnifiedStorageService.setString(key, value);
-    }
+    } else if (value is String) await UnifiedStorageService.setString(key, value);
   }
 
   @override
@@ -90,79 +89,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: SizedBox(
-                height: 38,
-                child: TextField(
-                  controller: _searchController,
-                  textAlignVertical: TextAlignVertical.center,
-                  decoration: InputDecoration(
-                    hintText: 'Search settings...',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.50,
-                      ),
-                      fontSize: 14,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.50,
-                      ),
-                      size: 20,
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 38,
-                    ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? GestureDetector(
-                            onTap: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.55,
-                                ),
-                                size: 18,
-                              ),
-                            ),
-                          )
-                        : null,
-                    suffixIconConstraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.09)
-                        : Colors.black.withValues(alpha: 0.07),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(9),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(9),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(9),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                    isDense: true,
-                  ),
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontSize: 14,
-                  ),
-                  onChanged: (value) =>
-                      setState(() => _searchQuery = value.toLowerCase()),
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: CustomSearchBar(
+                controller: _searchController,
+                hintText: 'Search settings...',
+                onChanged: (value) =>
+                    setState(() => _searchQuery = value.toLowerCase()),
               ),
             ),
           ),
@@ -628,8 +560,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (title.isNotEmpty)
-          Padding(
+        if (title.isNotEmpty) Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
             child: Text(
               title,

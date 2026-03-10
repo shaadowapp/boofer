@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Custom shimmer effect for skeleton loading
+/// The child should use opaque Colors.white boxes for ShaderMask to work correctly.
 class ShimmerEffect extends StatefulWidget {
   final Widget child;
   final Color? baseColor;
@@ -20,14 +21,18 @@ class ShimmerEffect extends StatefulWidget {
 class _ShimmerEffectState extends State<ShimmerEffect>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
     )..repeat();
+    _animation = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
   }
 
   @override
@@ -42,29 +47,22 @@ class _ShimmerEffectState extends State<ShimmerEffect>
     final isDark = theme.brightness == Brightness.dark;
 
     final baseColor = widget.baseColor ??
-        (isDark ? Colors.grey[800]! : Colors.grey[300]!);
+        (isDark ? const Color(0xFF262626) : const Color(0xFFE0E0E0));
     final highlightColor = widget.highlightColor ??
-        (isDark ? Colors.grey[700]! : Colors.grey[100]!);
+        (isDark ? const Color(0xFF333333) : const Color(0xFFF0F0F0));
 
     return AnimatedBuilder(
-      animation: _controller,
+      animation: _animation,
       builder: (context, child) {
         return ShaderMask(
           blendMode: BlendMode.srcATop,
           shaderCallback: (bounds) {
             return LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                baseColor,
-                highlightColor,
-                baseColor,
-              ],
-              stops: [
-                _controller.value - 0.3,
-                _controller.value,
-                _controller.value + 0.3,
-              ].map((e) => e.clamp(0.0, 1.0)).toList(),
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [baseColor, highlightColor, baseColor],
+              stops: const [0.0, 0.5, 1.0],
+              transform: _SlidingGradientTransform(translateX: _animation.value),
             ).createShader(bounds);
           },
           child: child,
@@ -75,7 +73,18 @@ class _ShimmerEffectState extends State<ShimmerEffect>
   }
 }
 
-/// Skeleton box for loading placeholders
+/// Slides the gradient horizontally for a sweeping shimmer effect
+class _SlidingGradientTransform extends GradientTransform {
+  final double translateX;
+  const _SlidingGradientTransform({required this.translateX});
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * translateX, 0.0, 0.0);
+  }
+}
+
+/// Skeleton box for loading placeholders — MUST be opaque white for ShaderMask
 class SkeletonBox extends StatelessWidget {
   final double? width;
   final double? height;
@@ -90,14 +99,12 @@ class SkeletonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[300],
+        // Must be white — ShaderMask colors these via BlendMode.srcATop
+        color: Colors.white,
         borderRadius: borderRadius ?? BorderRadius.circular(4),
       ),
     );

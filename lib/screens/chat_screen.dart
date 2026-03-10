@@ -100,9 +100,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return StreamBuilder<NetworkState>(
       stream: _chatService.networkState,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox(width: 24, height: 24);
-        }
+        if (!snapshot.hasData) return const SizedBox(width: 24, height: 24);
 
         final networkState = snapshot.data!;
         final isOnline =
@@ -133,9 +131,9 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
+              color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
+              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -240,9 +238,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return StreamBuilder<List<Message>>(
       stream: _chatService.messagesStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
         if (snapshot.hasError) {
           return Center(
@@ -273,9 +269,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
         final messages = snapshot.data ?? [];
 
-        if (messages.isEmpty) {
-          return _buildEmptyState(context);
-        }
+        if (messages.isEmpty) return _buildEmptyState(context);
 
         // Auto-scroll to bottom when new messages arrive
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -393,7 +387,7 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [

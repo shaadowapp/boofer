@@ -99,10 +99,8 @@ class MultiAccountStorageService {
   static Future<void> deleteAccountCompletely(String id) async {
     try {
       // 1. Delete from Supabase first
-      final SupabaseService? supabase = SupabaseService.instance;
-      if (supabase != null) {
-        await supabase.deleteOtherUserAccount(id);
-      }
+      final SupabaseService supabase = SupabaseService.instance;
+      await supabase.deleteOtherUserAccount(id);
 
       // 2. Remove from Local Storage
       await removeAccount(id);

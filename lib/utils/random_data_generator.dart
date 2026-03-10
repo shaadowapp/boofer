@@ -122,10 +122,10 @@ class RandomDataGenerator {
 
   /// Generates a random 10-digit numeric virtual number (e.g., 5551423620)
   static String generateVirtualNumber() {
-    final areaCode = 555;
+    const areaCode = 555;
     final part1 = (100 + _random.nextInt(900)).toString();
     final part2 = (1000 + _random.nextInt(9000)).toString();
-    return "$areaCode$part1$part2";
+    return '$areaCode$part1$part2';
   }
 
   static final List<String> _avatars = [

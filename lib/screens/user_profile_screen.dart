@@ -54,7 +54,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         handle: widget.userHandle ?? '...',
         avatar: widget.userAvatar ?? '👤',
         bio: '',
-        email: '',
         isDiscoverable: true,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -281,14 +280,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             top: -100,
             right: -100,
             child: _GlowCircle(
-              color: theme.colorScheme.primary.withOpacity(isDark ? 0.1 : 0.05),
+              color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.1 : 0.05),
             ),
           ),
           Positioned(
             bottom: 100,
             left: -50,
             child: _GlowCircle(
-              color: const Color(0xFFFF6B6B).withOpacity(isDark ? 0.05 : 0.02),
+              color: const Color(0xFFFF6B6B).withValues(alpha: isDark ? 0.05 : 0.02),
             ),
           ),
 
@@ -377,7 +376,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Icon(
             Icons.person_off_rounded,
             size: 64,
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -410,7 +409,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Text(
       title.toUpperCase(),
       style: TextStyle(
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
         fontSize: 12,
         fontWeight: FontWeight.w900,
         letterSpacing: 2,
@@ -426,14 +425,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.2)),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
           ),
           child: Text(
             item,
             style: TextStyle(
-              color: color.withOpacity(0.9),
+              color: color.withValues(alpha: 0.9),
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -457,7 +456,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF845EF7).withOpacity(0.3),
+                color: const Color(0xFF845EF7).withValues(alpha: 0.3),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -503,10 +502,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: theme.colorScheme.onSurface.withOpacity(0.1),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
                         ),
                       ),
                       child: Center(
@@ -595,7 +594,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               boxShadow: [
                 if (!isDark)
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
                   ),
@@ -629,7 +628,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       Text(
                         'System generated data like Virtual Number cannot be changed.',
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.4),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                           fontSize: 13,
                         ),
                       ),
@@ -654,13 +653,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 width: 100,
                                 height: 100,
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withOpacity(
+                                  color: theme.colorScheme.primary.withValues(alpha: 
                                     0.1,
                                   ),
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: theme.colorScheme.primary
-                                        .withOpacity(0.2),
+                                        .withValues(alpha: 0.2),
                                     width: 2,
                                   ),
                                 ),
@@ -734,10 +733,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       Container(
                         height: 150,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.05),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: theme.colorScheme.onSurface.withOpacity(0.1),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
                           ),
                         ),
                         child: ListWheelScrollView.useDelegate(
@@ -812,7 +811,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         : theme.scaffoldBackgroundColor,
                     border: Border(
                       top: BorderSide(
-                        color: theme.colorScheme.onSurface.withOpacity(0.05),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                       ),
                     ),
                   ),
@@ -960,10 +959,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     child: Container(
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Theme.of(ctx).colorScheme.primary.withOpacity(0.1)
+                            ? Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.1)
                             : Theme.of(
                                 ctx,
-                              ).colorScheme.onSurface.withOpacity(0.05),
+                              ).colorScheme.onSurface.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
@@ -1050,7 +1049,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         Text(
           label,
           style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),
@@ -1067,13 +1066,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
               size: 20,
             ),
             filled: true,
             fillColor: Theme.of(
               context,
-            ).colorScheme.onSurface.withOpacity(0.05),
+            ).colorScheme.onSurface.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -1120,13 +1119,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected
-                  ? color.withOpacity(0.2)
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                  ? color.withValues(alpha: 0.2)
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
-                    ? color.withOpacity(0.5)
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+                    ? color.withValues(alpha: 0.5)
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               ),
             ),
             child: Text(
@@ -1134,7 +1133,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               style: TextStyle(
                 color: isSelected
                     ? color
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -1220,11 +1219,11 @@ class _ProfileHeroCard extends StatelessWidget {
         color: isDark ? const Color(0xFF1E1E30) : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.08),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
             blurRadius: 30,
             offset: const Offset(0, 15),
           ),
@@ -1255,13 +1254,13 @@ class _ProfileHeroCard extends StatelessWidget {
                           height: 105,
                           decoration: BoxDecoration(
                             color: user.isCompany
-                                ? const Color(0xFFFFD700).withOpacity(0.08)
-                                : theme.colorScheme.onSurface.withOpacity(0.05),
+                                ? const Color(0xFFFFD700).withValues(alpha: 0.08)
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: user.isCompany
-                                  ? const Color(0xFFFFD700).withOpacity(0.35)
-                                  : theme.colorScheme.onSurface.withOpacity(
+                                  ? const Color(0xFFFFD700).withValues(alpha: 0.35)
+                                  : theme.colorScheme.onSurface.withValues(alpha: 
                                       0.1,
                                     ),
                             ),
@@ -1293,7 +1292,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                   BoxShadow(
                                     color: const Color(
                                       0xFF845EF7,
-                                    ).withOpacity(0.5),
+                                    ).withValues(alpha: 0.5),
                                     blurRadius: 6,
                                     spreadRadius: 1,
                                   ),
@@ -1344,7 +1343,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                 '@${user.handle}',
                                 style: TextStyle(
                                   color: theme.colorScheme.onSurface
-                                      .withOpacity(0.4),
+                                      .withValues(alpha: 0.4),
                                   fontSize: 13,
                                 ),
                               ),
@@ -1357,7 +1356,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                   height: 4,
                                   decoration: BoxDecoration(
                                     color: theme.colorScheme.onSurface
-                                        .withOpacity(0.2),
+                                        .withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -1365,7 +1364,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                   '${user.age} yrs',
                                   style: TextStyle(
                                     color: theme.colorScheme.onSurface
-                                        .withOpacity(0.4),
+                                        .withValues(alpha: 0.4),
                                     fontSize: 13,
                                   ),
                                 ),
@@ -1378,7 +1377,7 @@ class _ProfileHeroCard extends StatelessWidget {
                                 ? user.bio
                                 : 'No bio identity established yet.',
                             style: TextStyle(
-                              color: theme.colorScheme.onSurface.withOpacity(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 
                                 0.6,
                               ),
                               fontSize: 12,
@@ -1395,7 +1394,7 @@ class _ProfileHeroCard extends StatelessWidget {
                 const SizedBox(height: 24),
                 Container(
                   height: 1,
-                  color: theme.colorScheme.onSurface.withOpacity(0.05),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.05),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -1407,7 +1406,7 @@ class _ProfileHeroCard extends StatelessWidget {
                         Text(
                           'VIRTUAL NUMBER',
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.3),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                             fontSize: 9,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.5,
@@ -1430,7 +1429,7 @@ class _ProfileHeroCard extends StatelessWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF845EF7).withOpacity(0.1),
+                          color: const Color(0xFF845EF7).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(
@@ -1449,7 +1448,7 @@ class _ProfileHeroCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 12),
             width: double.infinity,
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.05),
+              color: theme.colorScheme.primary.withValues(alpha: 0.05),
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(24),
               ),
@@ -1459,14 +1458,14 @@ class _ProfileHeroCard extends StatelessWidget {
               children: [
                 Icon(
                   Icons.policy_rounded,
-                  color: theme.colorScheme.primary.withOpacity(0.5),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
                   size: 14,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'GOVERNMENT OF BOOFER',
                   style: TextStyle(
-                    color: theme.colorScheme.primary.withOpacity(0.7),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 3,
@@ -1498,10 +1497,10 @@ class _StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.onSurface.withOpacity(0.03),
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.06),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
         ),
       ),
       child: Column(
@@ -1509,7 +1508,7 @@ class _StatBox extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: theme.colorScheme.onSurface.withOpacity(0.2),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
             size: 20,
           ),
           const SizedBox(height: 12),
@@ -1524,7 +1523,7 @@ class _StatBox extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),

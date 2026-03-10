@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -16,6 +15,7 @@ import 'providers/follow_provider.dart';
 import 'providers/appearance_provider.dart';
 import 'services/chat_service.dart';
 import 'services/supabase_service.dart';
+import 'services/user_service.dart';
 import 'services/profile_picture_service.dart';
 import 'services/notification_service.dart';
 import 'services/local_storage_service.dart';
@@ -125,6 +125,14 @@ Future<Map<String, dynamic>> _initializeApp() async {
             );
           }
           await MultiAccountStorageService.setLastActiveAccountId(userId);
+          
+          // Sync to SQLite so foreign keys for messages/conversations work!
+          try {
+            await UserService.setCurrentUser(User.fromJson(userMap));
+            debugPrint('✅ [BOOT] Current user synced to SQLite');
+          } catch (e) {
+            debugPrint('⚠️ [BOOT] SQLite user sync failed: $e');
+          }
         }
       } else {
         debugPrint('🚀 [BOOT] No current_user in local storage');

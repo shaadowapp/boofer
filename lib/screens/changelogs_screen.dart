@@ -85,10 +85,10 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-            color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,8 +103,8 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: isPatch
-                        ? Colors.orange.withOpacity(0.1)
-                        : Colors.blue.withOpacity(0.1),
+                        ? Colors.orange.withValues(alpha: 0.1)
+                        : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -129,7 +129,7 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
                       Text(
                         formattedDate,
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           fontSize: 12,
                         ),
                       ),
@@ -168,7 +168,7 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
                               h,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurface
-                                    .withOpacity(0.8),
+                                    .withValues(alpha: 0.8),
                                 height: 1.4,
                               ),
                             ),
@@ -185,7 +185,7 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
                     log['full_details'],
                     style: TextStyle(
                       fontSize: 13,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -205,7 +205,7 @@ class _ChangelogsScreenState extends State<ChangelogsScreen> {
         children: [
           Icon(Icons.history_rounded,
               size: 64,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.3)),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
           const SizedBox(height: 16),
           const Text('No changelogs yet',
               style: TextStyle(fontWeight: FontWeight.bold)),

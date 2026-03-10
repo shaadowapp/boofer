@@ -43,9 +43,7 @@ class _QrScannerScreenState extends State<QrScannerScreen>
 
     switch (state) {
       case AppLifecycleState.resumed:
-        if (_cameraPermissionStatus == PermissionStatus.granted) {
-          controller.start();
-        }
+        if (_cameraPermissionStatus == PermissionStatus.granted) controller.start();
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
@@ -260,7 +258,7 @@ class _QrScannerScreenState extends State<QrScannerScreen>
           // Dimming Overlay with cutout
           ClipPath(
             clipper: _ScannerHoleClipper(),
-            child: Container(color: Colors.black.withOpacity(0.5)),
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
           ),
           // Scanner UI Box/Purple Border
           Center(
@@ -288,30 +286,30 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.qr_code_scanner_rounded,
                         color: Color(0xFF845EF7),
                         size: 20,
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
+                      SizedBox(width: 12),
+                      Text(
                         'Align QR code within the frame',
                         style: TextStyle(
                           color: Colors.white,
@@ -326,9 +324,8 @@ class _QrScannerScreenState extends State<QrScannerScreen>
               ),
             ),
           ),
-          if (_isProcessing)
-            Container(
-              color: Colors.black.withOpacity(0.6),
+          if (_isProcessing) Container(
+              color: Colors.black.withValues(alpha: 0.6),
               child: const Center(
                 child: CircularProgressIndicator(color: Color(0xFF845EF7)),
               ),
@@ -377,7 +374,7 @@ class __ScannerLineState extends State<_ScannerLine>
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF845EF7).withOpacity(0.8),
+                  color: const Color(0xFF845EF7).withValues(alpha: 0.8),
                   blurRadius: 10,
                   spreadRadius: 2,
                 ),

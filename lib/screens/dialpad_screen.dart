@@ -107,7 +107,7 @@ class _DialpadScreenState extends State<DialpadScreen> {
                       fontSize: _phoneNumber.isEmpty ? 18 : 24,
                       fontWeight: FontWeight.w500,
                       color: _phoneNumber.isEmpty 
-                          ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                          ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
@@ -167,7 +167,7 @@ class _DialpadScreenState extends State<DialpadScreen> {
                     28,
                     color: _phoneNumber.isNotEmpty 
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                   ),
                 ),
                 
@@ -179,7 +179,7 @@ class _DialpadScreenState extends State<DialpadScreen> {
                     28,
                     color: _phoneNumber.isNotEmpty 
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                   ),
                 ),
               ],
@@ -230,7 +230,7 @@ class _DialpadScreenState extends State<DialpadScreen> {
             shape: BoxShape.circle,
             color: Theme.of(context).colorScheme.surface,
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
               width: 1,
             ),
           ),
@@ -245,13 +245,12 @@ class _DialpadScreenState extends State<DialpadScreen> {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              if (letters.isNotEmpty)
-                Text(
+              if (letters.isNotEmpty) Text(
                   letters,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     letterSpacing: 1,
                   ),
                 ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
 import 'user_avatar.dart';
 import '../screens/user_profile_screen.dart';
 import '../models/message_model.dart';
@@ -55,13 +56,11 @@ class MessageBubble extends StatelessWidget {
       // "Single emoji size will be big, multiple emoji... shown with bubble"
       if (text.isNotEmpty && text.characters.length == 1) {
         final hasLettersOrNumbers = RegExp(r'[a-zA-Z0-9]').hasMatch(text);
-        if (!hasLettersOrNumbers) {
-          isEmojiOnly = true;
-        }
+        if (!hasLettersOrNumbers) isEmojiOnly = true;
       }
     }
 
-    BoxDecoration decoration = isEmojiOnly
+    final BoxDecoration decoration = isEmojiOnly
         ? const BoxDecoration() // No background for emoji-only
         : BoxDecoration(
             color: isOwnMessage
@@ -102,8 +101,7 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (message.metadata != null &&
-                message.metadata!['reply_to'] != null)
-              _buildReplyBubble(
+                message.metadata!['reply_to'] != null) _buildReplyBubble(
                 context,
                 isOwnMessage,
                 theme,
@@ -116,6 +114,14 @@ class MessageBubble extends StatelessWidget {
                 isOwnMessage,
                 theme,
                 appearance.bubbleFontSize,
+              )
+            else if (message.type == MessageType.image ||
+                message.type == MessageType.video)
+              _buildMediaContent(
+                context,
+                isOwnMessage,
+                theme,
+                _getBorderRadius(isOwnMessage, appearance.chatBubbleShape),
               )
             else
               _buildMessageText(
@@ -137,8 +143,7 @@ class MessageBubble extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         bubbleInternal,
-        if (hasReactions)
-          Positioned(
+        if (hasReactions) Positioned(
             bottom: -10,
             left: isOwnMessage ? null : 12,
             right: isOwnMessage ? 12 : null,
@@ -155,9 +160,7 @@ class MessageBubble extends StatelessWidget {
           isOwnMessage: isOwnMessage,
           onReply: () {
             HapticFeedback.lightImpact();
-            if (onReply != null) {
-              onReply!(message);
-            }
+            if (onReply != null) onReply!(message);
           },
           child: Row(
             mainAxisAlignment:
@@ -205,9 +208,7 @@ class MessageBubble extends StatelessWidget {
     bool isOwnMessage,
     ThemeData theme,
   ) {
-    if (message.metadata == null || message.metadata!['reactions'] == null) {
-      return const SizedBox.shrink();
-    }
+    if (message.metadata == null || message.metadata!['reactions'] == null) return const SizedBox.shrink();
 
     final reactions = Map<String, dynamic>.from(
       message.metadata!['reactions'] as Map,
@@ -253,13 +254,13 @@ class MessageBubble extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),
           ],
           border: Border.all(
-            color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
             width: 0.5,
           ),
         ),
@@ -460,8 +461,8 @@ class MessageBubble extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 120),
       decoration: BoxDecoration(
         color: isOwnMessage
-            ? Colors.black.withOpacity(0.1)
-            : theme.colorScheme.surface.withOpacity(0.4),
+            ? Colors.black.withValues(alpha: 0.1)
+            : theme.colorScheme.surface.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(radius),
       ),
       child: ClipRRect(
@@ -503,8 +504,9 @@ class MessageBubble extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           color: isOwnMessage
-                              ? Colors.white.withOpacity(0.8)
-                              : theme.colorScheme.onSurface.withOpacity(0.7),
+                              ? Colors.white.withValues(alpha: 0.8)
+                              : theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.7),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -551,9 +553,7 @@ class MessageBubble extends StatelessWidget {
     ThemeData theme,
     AppearanceProvider appearance,
   ) {
-    if (message.metadata == null || message.metadata!['options'] == null) {
-      return const SizedBox.shrink();
-    }
+    if (message.metadata == null || message.metadata!['options'] == null) return const SizedBox.shrink();
 
     final options = message.metadata!['options'] as List;
     final isDark = theme.brightness == Brightness.dark;
@@ -571,9 +571,7 @@ class MessageBubble extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: InkWell(
               onTap: () {
-                if (onAction != null) {
-                  onAction!(option);
-                }
+                if (onAction != null) onAction!(option);
               },
               borderRadius: BorderRadius.circular(16),
               child: Container(
@@ -585,7 +583,7 @@ class MessageBubble extends StatelessWidget {
                       ? theme.colorScheme.primary.withValues(alpha: 0.1)
                       : theme.colorScheme.primary.withValues(alpha: 0.05),
                   border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Row(
@@ -602,7 +600,8 @@ class MessageBubble extends StatelessWidget {
                     ),
                     Icon(Icons.chevron_right_rounded,
                         size: 20,
-                        color: theme.colorScheme.primary.withOpacity(0.5)),
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.5)),
                   ],
                 ),
               ),
@@ -611,6 +610,237 @@ class MessageBubble extends StatelessWidget {
         }).toList(),
       ),
     );
+  }
+
+  Widget _buildMediaContent(
+    BuildContext context,
+    bool isOwnMessage,
+    ThemeData theme,
+    BorderRadius borderRadius,
+  ) {
+    final mediaData = message.metadata?['media'] as Map<String, dynamic>?;
+    final isVideo =
+        mediaData?['is_video'] == true || message.type == MessageType.video;
+    final originalSize = mediaData?['original_size'] as int? ?? 0;
+    final isMediaViewed = message.metadata?['media_viewed'] == true;
+
+    // Check if we have locally cached decrypted file path
+    final localMediaPath = mediaData?['local_media_path'] as String?;
+    final hasLocalBytes = localMediaPath != null;
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.65,
+          maxHeight: 320,
+          minWidth: 160,
+          minHeight: 120,
+        ),
+        decoration: BoxDecoration(
+          color: isOwnMessage
+              ? Colors.black.withValues(alpha: 0.15)
+              : theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+          borderRadius: borderRadius,
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Media preview (no longer blurred)
+            Positioned.fill(
+              child: hasLocalBytes
+                  ? (isVideo
+                      ? Container(
+                          color: Colors.black,
+                          child: const Center(
+                            child: Icon(Icons.videocam_rounded,
+                                color: Colors.white24, size: 48),
+                          ),
+                        )
+                      : Image.file(
+                          File(localMediaPath),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildMediaPlaceholder(
+                                  isOwnMessage, theme, isVideo, false),
+                        ))
+                  : _buildMediaPlaceholder(isOwnMessage, theme, isVideo, true),
+            ),
+
+            // Media icon overlay
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isVideo ? Icons.play_arrow_rounded : Icons.image_rounded,
+                  size: 32,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+
+            // Upload Progress Overlay
+            if (isOwnMessage &&
+                message.metadata?['upload_progress'] != null &&
+                (message.metadata!['upload_progress'] as num) < 1.0)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                            value: (message.metadata!['upload_progress'] as num)
+                                .toDouble(),
+                            strokeWidth: 3,
+                            backgroundColor: Colors.white24,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          message.metadata!['upload_stage']?.toString() ??
+                              'Sending...',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${((message.metadata!['upload_progress'] as num) * 100).toInt()}%',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Loading indicator/Spinner when media is not yet available locally (Receiver side mainly)
+            if (!hasLocalBytes) if (!(isOwnMessage &&
+                  message.metadata?['upload_progress'] != null))
+                const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                    ),
+                  ),
+                ),
+
+            // File size and type info at the bottom
+            if (originalSize > 0)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.4),
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isVideo ? 'VIDEO' : 'IMAGE',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      Text(
+                        _formatFileSize(originalSize),
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Ephemeral indicator
+            if (isMediaViewed)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Viewed',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build media placeholder widget
+  Widget _buildMediaPlaceholder(
+      bool isOwnMessage, ThemeData theme, bool isVideo, bool isLoading) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isOwnMessage
+            ? theme.colorScheme.primary.withValues(alpha: 0.15)
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+      ),
+      child: Center(
+        child: Icon(
+          isVideo ? Icons.videocam_rounded : Icons.image_rounded,
+          size: 48,
+          color: (isOwnMessage ? Colors.white : theme.colorScheme.primary)
+              .withValues(alpha: 0.1),
+        ),
+      ),
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Widget _buildProfileCard(
@@ -633,8 +863,8 @@ class MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: isOwnMessage
-            ? Colors.black.withOpacity(0.1)
-            : theme.colorScheme.surface.withOpacity(0.4),
+            ? Colors.black.withValues(alpha: 0.1)
+            : theme.colorScheme.surface.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -831,9 +1061,7 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
   void _expandText() {
     setState(() {
       int newLength = _visibleLength + _chunkSize;
-      if (newLength > widget.text.length) {
-        newLength = widget.text.length;
-      }
+      if (newLength > widget.text.length) newLength = widget.text.length;
       _visibleLength = newLength;
     });
   }
@@ -853,9 +1081,7 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
     if (endIndex > widget.text.length) endIndex = widget.text.length;
 
     // If only a few characters remain after cut, just show them
-    if (widget.text.length - endIndex < 50) {
-      endIndex = widget.text.length;
-    }
+    if (widget.text.length - endIndex < 50) endIndex = widget.text.length;
 
     final isExpandedFull = endIndex >= widget.text.length;
 
@@ -927,7 +1153,7 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
               decoration: TextDecoration.underline,
               decorationColor: widget.isOwnMessage
                   ? Colors.white70
-                  : widget.theme.colorScheme.primary.withOpacity(0.5),
+                  : widget.theme.colorScheme.primary.withValues(alpha: 0.5),
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
@@ -973,7 +1199,7 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
     if (!isExpandedFull) {
       spans.add(
         TextSpan(
-          text: " ... See more",
+          text: ' ... See more',
           style: TextStyle(
             color: widget.isOwnMessage
                 ? Colors.white
@@ -1045,7 +1271,7 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
   void _handleDragUpdate(DragUpdateDetails details) {
     if (_controller.isAnimating) return;
 
-    double delta = details.primaryDelta!;
+    final double delta = details.primaryDelta!;
 
     // Only allow swipe inwards
     // Own message (Right side) -> Swipe Left (negative delta)
@@ -1062,7 +1288,7 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
         if (_dragOffset > 0) _dragOffset = 0;
         if (_dragOffset < -_maxDragDistance) {
           // Resistance effect
-          double over = -_dragOffset - _maxDragDistance;
+          final double over = -_dragOffset - _maxDragDistance;
           _dragOffset = -_maxDragDistance - (over * 0.1);
         }
       } else {
@@ -1070,7 +1296,7 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
         if (_dragOffset < 0) _dragOffset = 0;
         if (_dragOffset > _maxDragDistance) {
           // Resistance effect
-          double over = _dragOffset - _maxDragDistance;
+          final double over = _dragOffset - _maxDragDistance;
           _dragOffset = _maxDragDistance + (over * 0.1);
         }
       }
@@ -1086,9 +1312,7 @@ class _SwipeReplyWrapperState extends State<_SwipeReplyWrapper>
   }
 
   void _handleDragEnd(DragEndDetails details) {
-    if (_triggered) {
-      widget.onReply();
-    }
+    if (_triggered) widget.onReply();
 
     _triggered = false;
 
@@ -1311,7 +1535,7 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1387,7 +1611,7 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1404,9 +1628,7 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
             ), // Tighter constraints
             onPressed: () async {
               await _close();
-              if (widget.onReply != null) {
-                widget.onReply!(widget.message);
-              }
+              if (widget.onReply != null) widget.onReply!(widget.message);
             },
             icon: Icon(
               Icons.reply_rounded,
@@ -1487,13 +1709,11 @@ class _ReactionOverlayContentState extends State<_ReactionOverlayContent>
   }
 
   void _copyMessage(BuildContext context) async {
-    if (context.mounted) {
-      Clipboard.setData(ClipboardData(text: widget.message.text));
-    }
+    if (context.mounted) Clipboard.setData(ClipboardData(text: widget.message.text));
   }
 
   void _shareMessage() async {
-    Share.share(widget.message.text);
+    await SharePlus.instance.share(ShareParams(text: widget.message.text));
   }
 
   void _showMessageInfo(BuildContext context) async {
@@ -1736,11 +1956,11 @@ class _OverlayDialogState extends State<_OverlayDialog>
                     decoration: BoxDecoration(
                       color: Theme.of(context).dialogBackgroundColor,
                       borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(
                           color: Colors.black26,
                           blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          offset: Offset(0, 4),
                         ),
                       ],
                     ),

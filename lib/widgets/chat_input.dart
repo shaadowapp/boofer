@@ -48,7 +48,7 @@ class _ChatInputState extends State<ChatInput> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -74,10 +74,10 @@ class _ChatInputState extends State<ChatInput> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _getModeColor(context).withOpacity(0.1),
+        color: _getModeColor(context).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _getModeColor(context).withOpacity(0.3),
+          color: _getModeColor(context).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -133,7 +133,7 @@ class _ChatInputState extends State<ChatInput> {
               decoration: InputDecoration(
                 hintText: _getHintText(),
                 hintStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
@@ -164,7 +164,7 @@ class _ChatInputState extends State<ChatInput> {
       decoration: BoxDecoration(
         color: canSend 
             ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+            : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
         shape: BoxShape.circle,
       ),
       child: IconButton(
@@ -174,7 +174,7 @@ class _ChatInputState extends State<ChatInput> {
           24,
           color: canSend 
               ? Colors.white
-              : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
         ),
       ),
     );
@@ -205,9 +205,7 @@ class _ChatInputState extends State<ChatInput> {
 
   /// Get mode color
   Color _getModeColor(BuildContext context) {
-    if (!widget.isEnabled) {
-      return Theme.of(context).colorScheme.outline;
-    }
+    if (!widget.isEnabled) return Theme.of(context).colorScheme.outline;
     
     if (widget.isOnlineMode && widget.hasInternetConnection) {
       return Colors.green;
@@ -220,9 +218,7 @@ class _ChatInputState extends State<ChatInput> {
 
   /// Get mode text
   String _getModeText() {
-    if (!widget.isEnabled) {
-      return 'Connecting...';
-    }
+    if (!widget.isEnabled) return 'Connecting...';
     
     switch (widget.currentMode) {
       case NetworkMode.online:
@@ -246,9 +242,7 @@ class _ChatInputState extends State<ChatInput> {
 
   /// Get hint text for input field
   String _getHintText() {
-    if (!widget.isEnabled) {
-      return 'Connecting...';
-    }
+    if (!widget.isEnabled) return 'Connecting...';
     
     if (widget.isOnlineMode) {
       return widget.hasInternetConnection 
@@ -299,10 +293,10 @@ class ModeToggleButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: _getModeColor(context).withOpacity(0.1),
+            color: _getModeColor(context).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: _getModeColor(context).withOpacity(0.3),
+              color: _getModeColor(context).withValues(alpha: 0.3),
             ),
           ),
           child: Row(
@@ -341,9 +335,7 @@ class ModeToggleButton extends StatelessWidget {
   }
 
   Color _getModeColor(BuildContext context) {
-    if (!isEnabled) {
-      return Theme.of(context).colorScheme.outline;
-    }
+    if (!isEnabled) return Theme.of(context).colorScheme.outline;
     
     switch (currentMode) {
       case NetworkMode.online:

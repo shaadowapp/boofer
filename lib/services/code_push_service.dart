@@ -22,7 +22,7 @@ class CodePushService {
   final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
 
   /// Returns true if the app is running with Shorebird engine (Release mode)
-  Future<bool> get isShorebirdAvailable async => _updater.isAvailable;
+  Future<bool> get isShorebirdAvailable => Future.value(_updater.isAvailable);
 
   /// Refreshes the current patch number logic
   Future<void> syncPatchInfo() async {
@@ -48,20 +48,20 @@ class CodePushService {
       // 1. Sync current state
       await syncPatchInfo();
 
-      final available = await _updater.isAvailable;
+      final available = _updater.isAvailable;
       if (!available) {
         debugPrint(
           '⚠️ [CodePush] Shorebird engine not detected. (Check if running in RELEASE mode)',
         );
         updateStatus.value = UpdateStatus.unavailable;
         lastError.value =
-            "Shorebird engine not detected. Updates only work in RELEASE builds.";
+            'Shorebird engine not detected. Updates only work in RELEASE builds.';
         return;
       }
 
       // 2. Check Shorebird for new code
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentVer = "${packageInfo.version}+${packageInfo.buildNumber}";
+      final currentVer = '${packageInfo.version}+${packageInfo.buildNumber}';
       debugPrint('📡 [CodePush] App Version: $currentVer');
       debugPrint('📡 [CodePush] Querying Shorebird for updates...');
 
@@ -166,7 +166,7 @@ class CodePushService {
       }
     } catch (e) {
       debugPrint('❌ [CodePush] Update Check Failed: $e');
-      lastError.value = "Check failed: ${e.toString()}";
+      lastError.value = 'Check failed: ${e.toString()}';
     } finally {
       await NotificationService.instance.cancelNotification(_notificationId);
       _isChecking = false;
@@ -178,11 +178,11 @@ class CodePushService {
       context: context,
       barrierDismissible: false,
       barrierLabel: 'Update Required',
-      barrierColor: Colors.black.withOpacity(0.85),
+      barrierColor: Colors.black.withValues(alpha: 0.85),
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (context, anim1, anim2) {
-        return WillPopScope(
-          onWillPop: () async => false,
+        return PopScope(
+          canPop: false,
           child: Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.85,
@@ -195,12 +195,12 @@ class CodePushService {
                 ),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blueAccent.withOpacity(0.2),
+                    color: Colors.blueAccent.withValues(alpha: 0.2),
                     blurRadius: 30,
                     offset: const Offset(0, 10),
                   ),
@@ -214,7 +214,7 @@ class CodePushService {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.cyanAccent.withOpacity(0.1),
+                        color: Colors.cyanAccent.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -238,7 +238,7 @@ class CodePushService {
                     Text(
                       patchNotes,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 15,
                         height: 1.5,
                       ),
@@ -260,7 +260,7 @@ class CodePushService {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 8,
-                          shadowColor: Colors.cyanAccent.withOpacity(0.4),
+                          shadowColor: Colors.cyanAccent.withValues(alpha: 0.4),
                         ),
                         child: const Text(
                           'RESTART NOW',
@@ -276,7 +276,7 @@ class CodePushService {
                     Text(
                       'New code is ready. Instantly apply the fix.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
+                        color: Colors.white.withValues(alpha: 0.4),
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                       ),

@@ -34,8 +34,15 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   // Step 4 – Looking for (optional)
   String? _lookingFor;
 
-  bool _isCreating = false;
+  final bool _isCreating = false;
   String? _errorMsg;
+
+  // Pre-generated random data
+  late String _draftFullName;
+  late String _draftHandle;
+  late String _draftBio;
+  late String _draftVirtualNumber;
+  late String _draftAvatar;
 
   // Total steps (0–4): age/gender, interests, hobbies, lookingFor, terms
   static const int _totalSteps = 5;
@@ -52,6 +59,13 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
     );
     _updateSlideAnimation();
     _slideController.forward();
+
+    // Pre-generate identity
+    _draftFullName = RandomDataGenerator.generateFullName();
+    _draftHandle = RandomDataGenerator.generateHandle(_draftFullName);
+    _draftBio = RandomDataGenerator.generateBio();
+    _draftVirtualNumber = RandomDataGenerator.generateVirtualNumber();
+    _draftAvatar = RandomDataGenerator.generateAvatar();
   }
 
   @override
@@ -78,8 +92,37 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         setState(() => _errorMsg = 'Please select your gender');
         return;
       }
+    } else if (_step == 1) {
+      // Interests
+      if (_interests.length < 3) {
+        setState(() => _errorMsg =
+            'Please select at least 3 interests, or tap "Skip for now".');
+        return;
+      }
+    } else if (_step == 2) {
+      // Hobbies
+      if (_hobbies.length < 3) {
+        setState(() => _errorMsg =
+            'Please select at least 3 hobbies, or tap "Skip for now".');
+        return;
+      }
+    } else if (_step == 3) {
+      // Looking for
+      if (_lookingFor == null) {
+        setState(() => _errorMsg =
+            'Please select who you are looking for, or tap "Skip for now".');
+        return;
+      }
     }
 
+    _proceedToNext();
+  }
+
+  void _skipStep() {
+    _proceedToNext();
+  }
+
+  void _proceedToNext() {
     if (_step < _totalSteps - 1) {
       _slideController.reset();
       setState(() {
@@ -99,24 +142,17 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
   }
 
   Future<void> _finishAndCreate() async {
-    // Generate draft profile data for the Welcome Screen 'gate'
-    final fullName = RandomDataGenerator.generateFullName();
-    final handle = RandomDataGenerator.generateHandle(fullName);
-    final bio = RandomDataGenerator.generateBio();
-    final virtualNumber = RandomDataGenerator.generateVirtualNumber();
-    final avatar = RandomDataGenerator.generateAvatar();
-
     // Navigate to welcome screen as a gate
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (_) => WelcomeScreen(
           draftData: {
-            'fullName': fullName,
-            'handle': handle,
-            'bio': bio,
-            'virtualNumber': virtualNumber,
-            'avatar': avatar,
+            'fullName': _draftFullName,
+            'handle': _draftHandle,
+            'bio': _draftBio,
+            'virtualNumber': _draftVirtualNumber,
+            'avatar': _draftAvatar,
             'age': _age,
             'gender': _gender,
             'interests': _interests.toList(),
@@ -151,7 +187,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                       height: 3,
                       child: LinearProgressIndicator(
                         value: (_step + 1) / _totalSteps,
-                        backgroundColor: Colors.white.withOpacity(0.08),
+                        backgroundColor: Colors.white.withValues(alpha: 0.08),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF845EF7),
                         ),
@@ -212,9 +248,10 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.15),
+                        color: Colors.red.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withOpacity(0.4)),
+                        border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.4)),
                       ),
                       child: Row(
                         children: [
@@ -295,11 +332,11 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
           if (canSkip && !isTermsStep) ...[
             const SizedBox(height: 10),
             TextButton(
-              onPressed: _nextStep,
+              onPressed: _skipStep,
               child: Text(
                 'Skip for now',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white.withValues(alpha: 0.4),
                   fontSize: 13,
                 ),
               ),
@@ -337,7 +374,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Text(
           'This helps us show you the right people. Required for a safer community.',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 14,
             height: 1.5,
           ),
@@ -346,9 +383,9 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.cyanAccent.withOpacity(0.1),
+            color: Colors.cyanAccent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+            border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.2)),
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
@@ -369,18 +406,18 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         const SizedBox(height: 12),
 
         // Age slider
-        _SectionLabel(label: 'Your Age', emoji: '🎂'),
+        const _SectionLabel(label: 'Your Age', emoji: '🎂'),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white12),
           ),
           child: Column(
             children: [
-              Container(
+              SizedBox(
                 height: 150,
                 child: ListWheelScrollView.useDelegate(
                   itemExtent: 50,
@@ -424,21 +461,21 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                   Text(
                     '18',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 12,
                     ),
                   ),
                   Text(
                     '18',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 12,
                     ),
                   ),
                   Text(
                     '100',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 12,
                     ),
                   ),
@@ -451,7 +488,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         const SizedBox(height: 28),
 
         // Gender chips
-        _SectionLabel(label: 'Your Gender *', emoji: '✨'),
+        const _SectionLabel(label: 'Your Gender *', emoji: '✨'),
         const SizedBox(height: 14),
         Wrap(
           spacing: 10,
@@ -472,12 +509,12 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                           colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
                         )
                       : null,
-                  color: selected ? null : Colors.white.withOpacity(0.08),
+                  color: selected ? null : Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(50),
                   border: Border.all(
                     color: selected
                         ? Colors.transparent
-                        : Colors.white.withOpacity(0.15),
+                        : Colors.white.withValues(alpha: 0.15),
                   ),
                 ),
                 child: Row(
@@ -552,7 +589,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Text(
           subtitle,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 14,
             height: 1.5,
           ),
@@ -560,7 +597,8 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         const SizedBox(height: 8),
         Text(
           'Pick up to $maxSelect — tap to select (or skip)',
-          style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
         ),
         const SizedBox(height: 24),
         Wrap(
@@ -572,9 +610,9 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
               onTap: () => setState(() {
                 if (isSelected) {
                   selected.remove(item.$2);
-                } else if (selected.length < maxSelect) {
+                } else if (selected.length < maxSelect)
                   selected.add(item.$2);
-                } else {
+                else {
                   // Optional: Show a subtle feedback if limit reached
                   HapticFeedback.vibrate();
                 }
@@ -591,12 +629,13 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                           colors: [Color(0xFF845EF7), Color(0xFFFF6B6B)],
                         )
                       : null,
-                  color: isSelected ? null : Colors.white.withOpacity(0.07),
+                  color:
+                      isSelected ? null : Colors.white.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(50),
                   border: Border.all(
                     color: isSelected
                         ? Colors.transparent
-                        : Colors.white.withOpacity(0.12),
+                        : Colors.white.withValues(alpha: 0.12),
                   ),
                 ),
                 child: Text(
@@ -624,7 +663,6 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
       ('Looking for women', '♀️', 'female'),
       ('Open to everyone', '💫', 'everyone'),
       ('Just friends & chat', '🤝', 'friends'),
-      ('Skip for now', '🙊', null),
     ];
 
     return Column(
@@ -644,7 +682,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Text(
           'Totally optional — we\'ll suggest connections based on your answer.',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 14,
             height: 1.5,
           ),
@@ -666,12 +704,12 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
                         end: Alignment.centerRight,
                       )
                     : null,
-                color: isSelected ? null : Colors.white.withOpacity(0.06),
+                color: isSelected ? null : Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected
                       ? Colors.transparent
-                      : Colors.white.withOpacity(0.12),
+                      : Colors.white.withValues(alpha: 0.12),
                 ),
               ),
               child: Row(
@@ -725,7 +763,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Text(
           'A few important ground rules to keep Boofer safe for everyone.',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 14,
             height: 1.5,
           ),
@@ -735,35 +773,35 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
-          child: Column(
+          child: const Column(
             children: [
               _GuidelineCard(
                 icon: Icons.person_off_outlined,
-                iconColor: const Color(0xFF845EF7),
+                iconColor: Color(0xFF845EF7),
                 title: 'Your identity, protected',
                 desc:
                     'Your real identity is never exposed. You control what you share.',
               ),
               _GuidelineCard(
                 icon: Icons.lock_outline_rounded,
-                iconColor: const Color(0xFF20C997),
+                iconColor: Color(0xFF20C997),
                 title: 'End-to-end encrypted',
                 desc:
                     'All conversations are encrypted. Not even we can read them.',
               ),
               _GuidelineCard(
                 icon: Icons.volunteer_activism_outlined,
-                iconColor: const Color(0xFFFF922B),
+                iconColor: Color(0xFFFF922B),
                 title: 'Respect everyone',
                 desc: 'You are responsible for your interactions. Be kind.',
               ),
               _GuidelineCard(
                 icon: Icons.block_outlined,
-                iconColor: const Color(0xFFFF6B6B),
+                iconColor: Color(0xFFFF6B6B),
                 title: 'Zero tolerance',
                 desc:
                     'Harassment, illegal content, and hate speech result in permanent ban.',
@@ -796,7 +834,7 @@ class _SignupStepsScreenState extends State<SignupStepsScreen>
             Text(
               '&',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
               ),
             ),
@@ -868,16 +906,16 @@ class _GuidelineCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.15),
+              color: iconColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: iconColor, size: 22),
@@ -899,7 +937,7 @@ class _GuidelineCard extends StatelessWidget {
                 Text(
                   desc,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.45),
+                    color: Colors.white.withValues(alpha: 0.45),
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -941,7 +979,7 @@ class _PrimaryButton extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: const Color(0xFF845EF7).withOpacity(0.3),
+                    color: const Color(0xFF845EF7).withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),

@@ -19,9 +19,7 @@ class LocationService {
 
           if (city.isNotEmpty && region.isNotEmpty) {
             return '$city, $region';
-          } else if (city.isNotEmpty) {
-            return city;
-          } else {
+          } else if (city.isNotEmpty) return city; else {
             return country;
           }
         }

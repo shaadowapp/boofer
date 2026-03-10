@@ -125,60 +125,24 @@ class AuthStateProvider with ChangeNotifier {
         throw Exception('Failed to sign in anonymously via Supabase');
       }
 
-      // 2. Parallelize profile enrichment and setup
-      // We do virtual number assignment and profile creation in parallel
-      // and also start the 'follow' process.
+      // 2. Profile Record Setup (Serial to avoid data races)
+      // Ensure avatar is consistent
+      final finalAvatar = avatar ?? RandomDataGenerator.generateAvatar();
       String? virtualNumber;
 
-      debugPrint('🚀 [AUTH] Running setup tasks in parallel...');
-
-      await Future.wait([
-        // Task A: Virtual Number Assignment
-        VirtualNumberService()
-            .generateAndAssignVirtualNumber(authUser.id)
-            .then((val) => virtualNumber = val)
-            .catchError((e) {
-          debugPrint('⚠️ VirtualNumberService failed: $e');
-          return null;
-        }),
-
-        // Task B: Profile Record Creation on Supabase
-        Future(() async {
-          final tempUser = User(
-            id: authUser.id,
-            email: '${authUser.id}@anonymous.boofer.local',
-            fullName: finalFullName,
-            handle: finalHandle,
-            bio: finalBio,
-            isDiscoverable: true,
-            status: UserStatus.online,
-            virtualNumber:
-                demoVirtualNumber, // Temporary, will be updated locally later
-            age: age,
-            gender: gender,
-            lookingFor: lookingFor,
-            interests: interests ?? [],
-            hobbies: hobbies ?? [],
-            avatar: avatar ?? RandomDataGenerator.generateAvatar(),
-            location: location,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            guardianId: guardianId,
-          );
-
-          try {
-            await _supabaseService.createUserProfile(tempUser);
-          } catch (e) {
-            debugPrint('⚠️ Failed to create Supabase profile: $e');
-          }
-        }),
-      ]);
+      // Task A: Virtual Number Assignment
+      virtualNumber = await VirtualNumberService()
+          .generateAndAssignVirtualNumber(authUser.id)
+          .catchError((e) {
+        debugPrint('⚠️ VirtualNumberService failed: $e');
+        return null;
+      });
 
       virtualNumber ??= demoVirtualNumber;
 
+      // Task B: Profile Record Creation on Supabase
       newUser = User(
         id: authUser.id,
-        email: '${authUser.id}@anonymous.boofer.local',
         fullName: finalFullName,
         handle: finalHandle,
         bio: finalBio,
@@ -190,12 +154,18 @@ class AuthStateProvider with ChangeNotifier {
         lookingFor: lookingFor,
         interests: interests ?? [],
         hobbies: hobbies ?? [],
-        avatar: avatar ?? RandomDataGenerator.generateAvatar(),
+        avatar: finalAvatar,
         location: location,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         guardianId: guardianId,
       );
+
+      try {
+        await _supabaseService.createUserProfile(newUser);
+      } catch (e) {
+        debugPrint('⚠️ Failed to create Supabase profile: $e');
+      }
 
       // 3. Save and Finish
       await UserService.setCurrentUser(newUser);

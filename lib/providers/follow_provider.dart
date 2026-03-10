@@ -386,9 +386,7 @@ class FollowProvider extends ChangeNotifier {
 
       // Update local status for successful follows
       for (final entry in results.entries) {
-        if (entry.value) {
-          _followingStatus[entry.key] = true;
-        }
+        if (entry.value) _followingStatus[entry.key] = true;
       }
 
       // Refresh data

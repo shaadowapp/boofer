@@ -145,7 +145,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.08),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -180,7 +180,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF845EF7).withOpacity(0.4),
+                  color: const Color(0xFF845EF7).withValues(alpha: 0.4),
                   blurRadius: 24,
                   spreadRadius: 4,
                 ),
@@ -203,7 +203,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
           Text(
             'Your feedback means a lot to us.',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -241,7 +241,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
                 Text(
                   'Your feedback directly shapes Boofer.',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.45),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
                     fontSize: 14,
                   ),
                 ),
@@ -273,11 +273,11 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? color.withOpacity(0.15)
-                              : theme.colorScheme.onSurface.withOpacity(0.04),
+                              ? color.withValues(alpha: 0.15)
+                              : theme.colorScheme.onSurface.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isSelected ? color : color.withOpacity(0.0),
+                            color: isSelected ? color : color.withValues(alpha: 0.0),
                             width: 1.5,
                           ),
                         ),
@@ -288,7 +288,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
                               size: 18,
                               color: isSelected
                                   ? color
-                                  : theme.colorScheme.onSurface.withOpacity(
+                                  : theme.colorScheme.onSurface.withValues(alpha: 
                                       0.4,
                                     ),
                             ),
@@ -300,7 +300,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
                                 fontSize: 13,
                                 color: isSelected
                                     ? color
-                                    : theme.colorScheme.onSurface.withOpacity(
+                                    : theme.colorScheme.onSurface.withValues(alpha: 
                                         0.6,
                                       ),
                               ),
@@ -314,7 +314,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
                 const SizedBox(height: 28),
 
                 // Message
-                _buildLabel("Your message"),
+                _buildLabel('Your message'),
                 const SizedBox(height: 12),
                 _buildTextField(
                   controller: _messageController,
@@ -377,7 +377,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
         fontSize: 11,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.4,
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
       ),
     );
   }
@@ -407,14 +407,14 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
             ? Icon(
                 prefixIcon,
                 size: 18,
-                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
               )
             : null,
         hintStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.3),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
         filled: true,
-        fillColor: theme.colorScheme.onSurface.withOpacity(
+        fillColor: theme.colorScheme.onSurface.withValues(alpha: 
           isDark ? 0.06 : 0.04,
         ),
         border: OutlineInputBorder(
@@ -424,13 +424,13 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: theme.colorScheme.onSurface.withOpacity(0.07),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.07),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: theme.colorScheme.primary.withOpacity(0.6),
+            color: theme.colorScheme.primary.withValues(alpha: 0.6),
             width: 1.5,
           ),
         ),
@@ -443,7 +443,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
           vertical: 14,
         ),
         counterStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.3),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
           fontSize: 11,
         ),
       ),
@@ -469,7 +469,7 @@ class _SendFeedbackScreenState extends State<SendFeedbackScreen>
               ? []
               : [
                   BoxShadow(
-                    color: const Color(0xFF845EF7).withOpacity(0.35),
+                    color: const Color(0xFF845EF7).withValues(alpha: 0.35),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

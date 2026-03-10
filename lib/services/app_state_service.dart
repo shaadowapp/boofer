@@ -24,9 +24,7 @@ class AppStateService {
     try {
       final isOnboardingCompleted = await LocalStorageService.isOnboardingCompleted();
       
-      if (isOnboardingCompleted) {
-        _currentUser = await LocalStorageService.getOnboardingData();
-      }
+      if (isOnboardingCompleted) _currentUser = await LocalStorageService.getOnboardingData();
       
       _isInitialized = true;
       return isOnboardingCompleted;

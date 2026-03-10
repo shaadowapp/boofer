@@ -164,7 +164,6 @@ class Friend {
   User toUser() {
     return User(
       id: id,
-      email: '$handle@friend.local',
       virtualNumber: virtualNumber,
       handle: handle,
       fullName: name,
@@ -236,7 +235,7 @@ class Friend {
         isMuted: toBool(json['isMuted'] ?? json['is_muted']),
         isVerified:
             toBool(otherUser['is_verified'] ?? otherUser['isVerified']) ||
-            toBool(json['isVerified'] ?? json['is_verified']),
+                toBool(json['isVerified'] ?? json['is_verified']),
         isMutual: toBool(json['isMutual'] ?? json['is_mutual']),
         isPinned: toBool(json['isPinned'] ?? json['is_pinned']),
         ephemeralTimer: toString(json['ephemeralTimer'] ?? '24_hours'),
@@ -246,8 +245,7 @@ class Friend {
               json['is_last_message_encrypted'] ??
               json['is_encrypted'],
         ),
-        lastMessageEncryptedContent:
-            json['lastMessageEncryptedContent'] ??
+        lastMessageEncryptedContent: json['lastMessageEncryptedContent'] ??
             json['last_message_encrypted_content'] ??
             json['encrypted_content'],
         lastSenderId: toString(
@@ -289,8 +287,7 @@ class Friend {
             json['is_last_message_encrypted'] ??
             json['is_encrypted'],
       ),
-      lastMessageEncryptedContent:
-          json['lastMessageEncryptedContent'] ??
+      lastMessageEncryptedContent: json['lastMessageEncryptedContent'] ??
           json['last_message_encrypted_content'] ??
           json['encrypted_content'],
       lastSenderId: toString(

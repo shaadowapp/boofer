@@ -44,7 +44,6 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
         _allUsers = cachedData.map((json) {
           return User(
             id: json['profile_id'],
-            email: '',
             handle: json['handle'],
             fullName: json['name'],
             bio: json['bio'] ?? '',
@@ -98,8 +97,12 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
 
       // Combine into a unique list of users (friends = union of following + followers)
       final Map<String, User> uniqueUsers = {};
-      for (var user in following) uniqueUsers[user.id] = user;
-      for (var user in followers) uniqueUsers[user.id] = user;
+      for (var user in following) {
+        uniqueUsers[user.id] = user;
+      }
+      for (var user in followers) {
+        uniqueUsers[user.id] = user;
+      }
 
       _allUsers = uniqueUsers.values.toList();
 
@@ -187,7 +190,7 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
             ),
@@ -227,7 +230,6 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
     // Create a special self-user for "You"
     final youUser = User(
       id: _currentUser!.id,
-      email: _currentUser!.email,
       handle: _currentUser!.handle,
       fullName: 'You (${_currentUser!.fullName})',
       bio: 'Message yourself',

@@ -34,9 +34,7 @@ class BugReportService {
       _recentReports[errorKey] = now;
 
       // 4. Periodically cleanup old entries to prevent memory leaks
-      if (_recentReports.length > 50) {
-        _recentReports.removeWhere((key, date) => now.difference(date) > _throttleDuration);
-      }
+      if (_recentReports.length > 50) _recentReports.removeWhere((key, date) => now.difference(date) > _throttleDuration);
 
       final packageInfo = await PackageInfo.fromPlatform();
       final deviceInfo = kIsWeb

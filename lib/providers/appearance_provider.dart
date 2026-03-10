@@ -131,7 +131,7 @@ class AppearanceProvider extends ChangeNotifier {
     _useGradientAccent = false;
     _selectedGradientId = null;
 
-    await UnifiedStorageService.setInt('accent_color', color.value);
+    await UnifiedStorageService.setInt('accent_color', color.toARGB32());
     await UnifiedStorageService.setBool('use_gradient_accent', false);
 
     // Update theme provider to rebuild entire app theme
@@ -148,7 +148,8 @@ class AppearanceProvider extends ChangeNotifier {
     final gradientColors = getGradientAccentColors(gradientId);
     if (gradientColors.isNotEmpty) {
       _accentColor = gradientColors[0];
-      await UnifiedStorageService.setInt('accent_color', _accentColor.value);
+      await UnifiedStorageService.setInt(
+          'accent_color', _accentColor.toARGB32());
       _themeProvider?.updateAccentColor(_accentColor);
     }
 
@@ -291,9 +292,7 @@ class AppearanceProvider extends ChangeNotifier {
 
   // Get wallpaper widget (for doodle patterns that need CustomPaint)
   Widget? getWallpaperWidget({required Widget child}) {
-    if (_selectedWallpaper == 'none') {
-      return child;
-    }
+    if (_selectedWallpaper == 'none') return child;
 
     if (_selectedWallpaper.startsWith('doodle')) {
       return Container(
