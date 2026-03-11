@@ -18,6 +18,7 @@ import '../services/code_push_service.dart';
 import 'package:flutter/services.dart';
 import 'user_profile_screen.dart';
 import 'support_chat_screen.dart';
+import '../widgets/custom_search_bar.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -156,53 +157,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
           // LOCAL SEARCH BAR (Saves Bandwidth)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: SizedBox(
-              height: 42,
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.trim().toLowerCase();
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: 'Search chats...',
-                  hintStyle: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    size: 20,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                            });
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor:
-                      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
+            child: CustomSearchBar(
+              controller: _searchController,
+              hintText: 'Search chats...',
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.trim().toLowerCase();
+                });
+              },
             ),
           ),
 
@@ -387,7 +349,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     List<Friend> archivedChats,
     ArchiveSettingsProvider archiveSettings,
   ) {
-    int totalItems = activeChats.length + 1; // +1 for Support Hub
+    int totalItems = activeChats.length;
 
     // Add archive button if there are archived chats and it should be shown
     if (archivedChats.isNotEmpty) {
@@ -411,19 +373,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
     ChatProvider chatProvider,
     AppLocalizations l10n,
   ) {
-    // 1. Support Chat (at the very top)
-    if (index == 0) {
-      return _buildSupportTile(context, l10n);
-    }
-
-    // Adjust index for subsequent items
-    final int adjustedIndex = index - 1;
-
     // Show archive button at the top if configured
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.topOfChats &&
-        adjustedIndex == 0) {
+        index == 0) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
 
@@ -431,16 +385,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.bottomOfChats &&
-        adjustedIndex == activeChats.length) {
+        index == activeChats.length) {
       return _buildArchiveContactCard(context, archivedChats, l10n);
     }
 
     // Calculate the actual friend index
-    int friendIndex = adjustedIndex;
+    int friendIndex = index;
     if (archivedChats.isNotEmpty &&
         archiveSettings.archiveButtonPosition ==
             ArchiveButtonPosition.topOfChats) {
-      friendIndex = adjustedIndex - 1;
+      friendIndex = index - 1;
     }
 
     // Show friend tile
@@ -453,102 +407,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildSupportTile(BuildContext context, AppLocalizations l10n) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SupportChatScreen()),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.primary.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '🛣️',
-                        style: TextStyle(fontSize: 24),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 1,
-                    bottom: 1,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF25D366), // Online status
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.scaffoldBackgroundColor,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Boofer',
-                          style: textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.verified_rounded,
-                          size: 14,
-                          color: Colors.green,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Chat with us for help and updates!',
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontSize: 13.5,
-                        color: colorScheme.onSurface.withValues(alpha: 0.55),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildArchiveContactCard(
     BuildContext context,
@@ -638,6 +496,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 recipientProfilePicture: friend.profilePicture,
                 recipientHandle: friend.handle,
                 virtualNumber: friend.virtualNumber,
+                currentUserId: _currentUserId,
               ),
             ),
           ).then((_) {

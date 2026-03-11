@@ -124,8 +124,9 @@ class DeepLinkService {
     }
   }
 
-  void _pushChat(User user) {
+  void _pushChat(User user) async {
     // Capture data in local variables to avoid closure null-safety issues
+    final currentUser = await UserService.getCurrentUser();
     final String rId = user.id;
     final String rName = user.fullName;
     final String? rHandle = user.handle;
@@ -141,6 +142,7 @@ class DeepLinkService {
         recipientAvatar: rAvatar,
         recipientProfilePicture: rPic,
         virtualNumber: vNum,
+        currentUserId: currentUser?.id,
       ),
     ));
   }

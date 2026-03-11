@@ -291,7 +291,7 @@ class User {
 
 
     return User(
-      id: toString(json['id']),
+      id: toString(json['profile_id'] ?? json['id']),
       handle: toString(json['handle']),
       fullName: toString(json['fullName'] ?? json['full_name']),
       bio: toString(json['bio']),

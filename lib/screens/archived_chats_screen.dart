@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/friend_model.dart';
+import '../providers/supabase_user_provider.dart';
+import 'friend_chat_screen.dart';
 import 'archive_settings_screen.dart';
 
 class ArchivedChatsScreen extends StatelessWidget {
@@ -94,7 +96,20 @@ class ArchivedChatsScreen extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        Navigator.pushNamed(context, '/chat', arguments: friend);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FriendChatScreen(
+              recipientId: friend.id,
+              recipientName: friend.name,
+              recipientAvatar: friend.avatar,
+              recipientProfilePicture: friend.profilePicture,
+              recipientHandle: friend.handle,
+              virtualNumber: friend.virtualNumber,
+              currentUserId: context.read<SupabaseUserProvider>().currentUser?.id,
+            ),
+          ),
+        );
       },
       onLongPress: () {
         _showUnarchiveDialog(context, friend, chatProvider, l10n);

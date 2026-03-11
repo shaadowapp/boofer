@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/custom_markdown_text.dart';
 
 // ─────────────────────────────────────────────
 // DATA MODEL
@@ -28,12 +29,14 @@ class _ArticleSection {
   final String body;
   final String? tip;
   final List<_StepItem>? steps;
+  final List<List<String>>? tableData;
 
   const _ArticleSection({
     required this.heading,
     required this.body,
     this.tip,
     this.steps,
+    this.tableData,
   });
 }
 
@@ -121,6 +124,50 @@ const List<_WikiArticle> _wikiArticles = [
         body:
             'Long-press a chat to pin it to the top of your list or move it to the Archived section. You can access archived chats via Settings → Chat → Archived Chats or through the "..." menu in the Chats top bar.',
         tip: 'In Settings → Archive Settings you can control where the archive button appears.',
+      ),
+    ],
+  ),
+
+  // 3 ─ Text Styling & Markdown
+  _WikiArticle(
+    id: 'text-formatting',
+    emoji: '📝',
+    title: 'Text Formatting',
+    subtitle: 'Make your messages stand out',
+    color: const Color(0xFFEAB308),
+    sections: [
+      _ArticleSection(
+        heading: 'Inline Formatting',
+        body: 'You can style your messages using special characters around your text. These are applied instantly in the input box.',
+        tableData: const [
+          ['Format', 'Type...', 'Result'],
+          ['Bold', '*Hello*', '*Hello*'],
+          ['Italic', '_Hello_', '_Hello_'],
+          ['Strike', '--Hello--', '--Hello--'],
+          ['Code', '`Hello`', '`Hello`'],
+          ['Block', '``Hello``', '``Hello``'],
+          ['Heart', '<3', '<3'],
+        ],
+        tip: 'Select text while typing to use the quick format menu (Action Bar)!',
+      ),
+      _ArticleSection(
+        heading: 'Lists',
+        body: 'Create perfectly formatted lists. The next list item will auto-continue when you press enter.',
+        tableData: const [
+          ['Type', 'Syntax', 'Example'],
+          ['Bullets', '*, -, +, []', '* item'],
+          ['Numbered', '1. or 1)', '1. item'],
+          ['Roman', 'i. or i)', 'iv. item'],
+          ['Alpha', 'a. or a)', 'b) item'],
+        ],
+      ),
+      _ArticleSection(
+        heading: 'Blockquotes',
+        body: 'Highlight important sections of text with a tinted background and a side border.',
+        tableData: const [
+          ['Style', 'Syntax', 'Result'],
+          ['Quote', '!% Hello %', '!% Hello %'],
+        ],
       ),
     ],
   ),
@@ -1619,6 +1666,86 @@ class _SectionCardState extends State<_SectionCard>
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+
+          // Table
+          if (s.tableData != null && s.tableData!.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: widget.accentColor.withValues(alpha: 0.3)),
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Table(
+                columnWidths: const {
+                  0: FlexColumnWidth(1.1),
+                  1: FlexColumnWidth(1.2),
+                  2: FlexColumnWidth(1.2),
+                },
+                border: TableBorder(
+                  horizontalInside: BorderSide(
+                    color: cs.outlineVariant.withValues(alpha: 0.15),
+                    width: 1,
+                  ),
+                  verticalInside: BorderSide(
+                    color: cs.outlineVariant.withValues(alpha: 0.15),
+                    width: 1,
+                  ),
+                ),
+                children: [
+                  // Header Row
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: widget.accentColor.withValues(alpha: 0.12),
+                    ),
+                    children: s.tableData![0].map((cell) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      child: Text(
+                        cell,
+                        style: TextStyle(
+                          color: widget.accentColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                  // Data Rows
+                  ...s.tableData!.skip(1).map((row) => TableRow(
+                    children: [
+                      // Column 0 & 1: Standard text
+                      ...row.take(2).map((cell) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        child: Text(
+                          cell,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      )),
+                      // Column 2: Markdown preview (if it exists)
+                      if (row.length > 2)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          child: CustomMarkdownText(
+                            text: row[2],
+                            isOwnMessage: false,
+                            baseStyle: theme.textTheme.bodySmall!.copyWith(
+                              color: cs.onSurface.withValues(alpha: 0.9),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        )
+                      else if (row.length == 3) // Fallback for rows that might only have 2 cols
+                        const SizedBox.shrink(),
+                    ],
+                  )),
+                ],
               ),
             ),
           ],

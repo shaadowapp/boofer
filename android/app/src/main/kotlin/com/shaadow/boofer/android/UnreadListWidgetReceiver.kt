@@ -2,28 +2,23 @@ package com.shaadow.boofer.android
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetProvider
 
 private const val TAG = "BooferWidget"
 
-class UnreadListWidgetReceiver : HomeWidgetProvider() {
+class UnreadListWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-        widgetData: SharedPreferences
+        appWidgetIds: IntArray
     ) {
         Log.d(TAG, "onUpdate: ${appWidgetIds.size} widget(s)")
-        // Log what data is currently in SharedPrefs (from Flutter)
-        val json = widgetData.getString("unread_messages_json", "NOT SET")
-        Log.d(TAG, "onUpdate: SharedPrefs unread_messages_json = $json")
         updateAllWidgets(context, appWidgetManager, appWidgetIds)
     }
 
@@ -37,8 +32,8 @@ class UnreadListWidgetReceiver : HomeWidgetProvider() {
             val componentName = ComponentName(context, UnreadListWidgetReceiver::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
             Log.d(TAG, "onReceive: triggering full update for ${appWidgetIds.size} widget(s) in 200ms...")
-            
-            // DELAY: Fixes the 'showing previous/stale message' bug by giving OS 
+
+            // DELAY: Fixes the 'showing previous/stale message' bug by giving OS
             // a moment to flush the SharedPreferences written by Flutter.
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 updateAllWidgets(context, appWidgetManager, appWidgetIds)

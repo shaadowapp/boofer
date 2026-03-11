@@ -259,7 +259,7 @@ class Friend {
     }
 
     return Friend(
-      id: toString(json['id']),
+      id: toString(json['friend_id'] ?? json['id']),
       name: toString(json['name']),
       handle: toString(json['handle']),
       virtualNumber: toString(json['virtualNumber'] ?? json['virtual_number']),

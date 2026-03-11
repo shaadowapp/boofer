@@ -1,6 +1,7 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'markdown_text_editing_controller.dart';
 
 class ModernChatInput extends StatefulWidget {
   final Function(String) onSendMessage;
@@ -28,13 +29,14 @@ class ModernChatInput extends StatefulWidget {
 
 class _ModernChatInputState extends State<ModernChatInput>
     with SingleTickerProviderStateMixin {
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _textController = MarkdownTextEditingController();
   final FocusNode _focusNode = FocusNode();
 
   bool _isComposing = false;
   bool _showEmojiPicker = false;
   late AnimationController _emojiController;
   late Animation<double> _emojiAnimation;
+  String _previousText = '';
 
   @override
   void initState() {
@@ -52,6 +54,7 @@ class _ModernChatInputState extends State<ModernChatInput>
 
     if (widget.initialText != null && widget.initialText!.isNotEmpty) {
       _textController.text = widget.initialText!;
+      _previousText = widget.initialText!;
       _isComposing = true;
     }
   }
@@ -66,7 +69,10 @@ class _ModernChatInputState extends State<ModernChatInput>
   }
 
   void _handleTextChanged() {
-    final isComposing = _textController.text.trim().isNotEmpty;
+    final currentText = _textController.text;
+    if (currentText == _previousText) return;
+
+    final isComposing = currentText.trim().isNotEmpty;
     if (isComposing != _isComposing) {
       setState(() {
         _isComposing = isComposing;
@@ -77,6 +83,85 @@ class _ModernChatInputState extends State<ModernChatInput>
         widget.onTypingStopped?.call();
       }
     }
+
+    // Markdown list auto-continuation logic
+    if (currentText.length > _previousText.length) {
+      final cursor = _textController.selection.baseOffset;
+      if (cursor > 0 && cursor <= currentText.length) {
+        if (currentText[cursor - 1] == '\n' && _previousText.length < currentText.length) {
+          int prevLineStart = currentText.lastIndexOf('\n', cursor - 2) + 1;
+          if (prevLineStart == -1) prevLineStart = 0;
+          String prevLine = currentText.substring(prevLineStart, cursor - 1);
+
+          final bulletMatch = RegExp(r'^(\s*(?:\*|-|\+|\[\])\s+)(.*)$').firstMatch(prevLine);
+          final numberMatch = RegExp(r'^(\s*(\d+)([\.\)])\s+)(.*)$').firstMatch(prevLine);
+          final romanMatch = RegExp(r'^(\s*([ivxlcdmIVXLCDM]{2,}|[ivxIVX])([\.\)])\s+)(.*)$').firstMatch(prevLine);
+          final alphaMatch = RegExp(r'^(\s*([a-zA-Z])([\.\)])\s+)(.*)$').firstMatch(prevLine);
+
+          String prefixToAdd = '';
+          bool removeEmptyList = false;
+
+          if (bulletMatch != null) {
+            if (bulletMatch.group(2)!.isEmpty) {
+              removeEmptyList = true;
+            } else {
+              prefixToAdd = bulletMatch.group(1)!;
+            }
+          } else if (numberMatch != null) {
+            if (numberMatch.group(4)!.isEmpty) {
+              removeEmptyList = true;
+            } else {
+              String prefix = numberMatch.group(1)!;
+              int num = int.parse(numberMatch.group(2)!);
+              String sep = numberMatch.group(3)!;
+              prefixToAdd = prefix.replaceFirst('$num$sep', '${num + 1}$sep');
+            }
+          } else if (romanMatch != null) {
+            if (romanMatch.group(4)!.isEmpty) {
+              removeEmptyList = true;
+            } else {
+              String prefix = romanMatch.group(1)!;
+              String roman = romanMatch.group(2)!;
+              String sep = romanMatch.group(3)!;
+              String next = _incrementRoman(roman);
+              prefixToAdd = prefix.replaceFirst('$roman$sep', '$next$sep');
+            }
+          } else if (alphaMatch != null) {
+            if (alphaMatch.group(4)!.isEmpty) {
+              removeEmptyList = true;
+            } else {
+              String prefix = alphaMatch.group(1)!;
+              String alpha = alphaMatch.group(2)!;
+              String sep = alphaMatch.group(3)!;
+              String next = _incrementAlpha(alpha);
+              prefixToAdd = prefix.replaceFirst('$alpha$sep', '$next$sep');
+            }
+          }
+
+          if (removeEmptyList) {
+            String newText = currentText.substring(0, prevLineStart) + currentText.substring(cursor);
+            int newCursor = prevLineStart;
+            _previousText = newText;
+            _textController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newCursor),
+            );
+            return;
+          } else if (prefixToAdd.isNotEmpty) {
+            String newText = currentText.substring(0, cursor) + prefixToAdd + currentText.substring(cursor);
+            int newCursor = cursor + prefixToAdd.length;
+            _previousText = newText;
+            _textController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newCursor),
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    _previousText = currentText;
   }
 
   void _toggleEmojiPicker() {
@@ -109,6 +194,7 @@ class _ModernChatInputState extends State<ModernChatInput>
     HapticFeedback.lightImpact();
     widget.onSendMessage(_textController.text.trim());
     _textController.clear();
+    _previousText = '';
     setState(() {
       _isComposing = false;
     });
@@ -207,6 +293,64 @@ class _ModernChatInputState extends State<ModernChatInput>
                                 _emojiController.reverse();
                               });
                             }
+                          },
+                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
+                            final List<ContextMenuButtonItem> buttonItems = editableTextState.contextMenuButtonItems;
+
+                            void addFormatting(String prefix, String suffix) {
+                              final textEditingValue = editableTextState.textEditingValue;
+                              final selection = textEditingValue.selection;
+                              if (!selection.isValid || selection.isCollapsed) return;
+
+                              final text = textEditingValue.text;
+                              final selectedText = selection.textInside(text);
+                              final newText = text.replaceRange(selection.start, selection.end, '$prefix$selectedText$suffix');
+
+                              editableTextState.userUpdateTextEditingValue(
+                                TextEditingValue(
+                                  text: newText,
+                                  selection: TextSelection.collapsed(
+                                      offset: selection.start + prefix.length + selectedText.length + suffix.length),
+                                ),
+                                null,
+                              );
+                            }
+
+                            buttonItems.addAll([
+                              ContextMenuButtonItem(
+                                label: 'Bold',
+                                onPressed: () {
+                                  ContextMenuController.removeAny();
+                                  addFormatting('*', '*');
+                                },
+                              ),
+                              ContextMenuButtonItem(
+                                label: 'Italic',
+                                onPressed: () {
+                                  ContextMenuController.removeAny();
+                                  addFormatting('_', '_');
+                                },
+                              ),
+                              ContextMenuButtonItem(
+                                label: 'Strike',
+                                onPressed: () {
+                                  ContextMenuController.removeAny();
+                                  addFormatting('--', '--');
+                                },
+                              ),
+                              ContextMenuButtonItem(
+                                label: 'Mono',
+                                onPressed: () {
+                                  ContextMenuController.removeAny();
+                                  addFormatting('``', '``');
+                                },
+                              ),
+                            ]);
+
+                            return AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: editableTextState.contextMenuAnchors,
+                              buttonItems: buttonItems,
+                            );
                           },
                         ),
                       ),
@@ -348,5 +492,40 @@ class _ModernChatInputState extends State<ModernChatInput>
         ),
       ],
     );
+  }
+
+  String _incrementRoman(String s) {
+    final romanMap = {'i': 1, 'v': 5, 'x': 10, 'l': 50, 'c': 100, 'd': 500, 'm': 1000};
+    int total = 0, prev = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      int current = romanMap[s[i].toLowerCase()] ?? 0;
+      if (current >= prev) {
+        total += current;
+      } else {
+        total -= current;
+      }
+      prev = current;
+    }
+    
+    if (total == 0) return s;
+    
+    int num = total + 1;
+    final values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+    final symbols = ['m', 'cm', 'd', 'cd', 'c', 'xc', 'l', 'xl', 'x', 'ix', 'v', 'iv', 'i'];
+    String result = '';
+    for (int i = 0; i < values.length; i++) {
+      while (num >= values[i]) {
+        num -= values[i];
+        result += symbols[i];
+      }
+    }
+    return s.isNotEmpty && s[0] == s[0].toUpperCase() ? result.toUpperCase() : result;
+  }
+
+  String _incrementAlpha(String s) {
+    int code = s.codeUnitAt(0);
+    if (code == 122) return 'a'; // z -> a
+    if (code == 90) return 'A'; // Z -> A
+    return String.fromCharCode(code + 1);
   }
 }

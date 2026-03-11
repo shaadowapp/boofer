@@ -30,6 +30,7 @@ import '../services/virgil_e2ee_service.dart';
 import '../services/virgil_key_service.dart';
 import '../services/local_storage_service.dart';
 import '../widgets/smart_maintenance.dart';
+import '../widgets/skeleton_chat_loading.dart';
 import 'dart:io';
 
 /// Chat screen that enforces friend-only messaging
@@ -41,6 +42,7 @@ class FriendChatScreen extends StatefulWidget {
   final String? recipientProfilePicture;
   final String? virtualNumber;
   final String? initialText;
+  final String? currentUserId;
 
   const FriendChatScreen({
     super.key,
@@ -51,6 +53,7 @@ class FriendChatScreen extends StatefulWidget {
     this.recipientProfilePicture,
     this.virtualNumber,
     this.initialText,
+    this.currentUserId,
   });
 
   @override
@@ -86,21 +89,28 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   @override
   void dispose() {
-    // Clear presence for this conversation
-    if (mounted) {
-      context.read<ChatProvider>().updatePresenceWithConversationId(null);
-    }
     _scrollController.dispose();
     _realtimeChannel?.unsubscribe();
     _timerSubscription?.unsubscribe();
+    
+    // Safety: we cannot reliably use context.read here because the widget tree 
+    // might already be decoupled. We rely on the app-level presence cleanup
+    // or next conversation start to clear stale states.
     super.dispose();
   }
 
   Future<void> _initializeChat() async {
     try {
-      // Get current user
-      final currentUser = await UserService.getCurrentUser();
-      if (currentUser == null) {
+      // Get current user - Optimize: Use passed ID if available to avoid async block
+      String? senderId = widget.currentUserId;
+      User? currentUser;
+      
+      if (senderId == null) {
+        currentUser = await UserService.getCurrentUser();
+        senderId = currentUser?.id;
+      }
+
+      if (senderId == null) {
         throw Exception('No current user found');
       }
 
@@ -110,57 +120,122 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         errorHandler: ErrorHandler(),
       );
 
-      // Create conversation ID
+      // Create conversation ID synchronously
       final conversationId = _chatService.getConversationId(
-        currentUser.id,
+        senderId,
         widget.recipientId,
       );
 
       // CRITICAL: Set user ID BEFORE parallel calls so decryption works
-      _currentUserId = currentUser.id;
+      _currentUserId = senderId;
 
-      // Check cached relationship status first (to prevent flashing "Follow to Message" on network errors)
+      // --- FAST PATH: Load local messages to show UI instantly ---
+      try {
+        final localData = await DatabaseManager.instance.query(
+          'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp DESC LIMIT 50',
+          [conversationId],
+        );
+        if (localData.isNotEmpty) {
+          final localMessages = localData.map((data) => Message.fromJson(data)).where((m) {
+            final deletedFor = m.metadata?['deleted_for'] as List?;
+            return deletedFor == null || !deletedFor.contains(senderId);
+          }).toList();
+          
+        if (mounted) {
+          setState(() {
+            _messages = localMessages.reversed.toList();
+            _updateChatItems();
+            _loading = false;
+          });
+          _scrollToBottom();
+        }
+      } else {
+        // Even if local data is empty, stop showing the loader so the empty state appears instantly
+        if (mounted) {
+          setState(() {
+            _loading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading initial local messages: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+
+    // Initialize recipient profile with what we have from widget arguments
+    _recipientUser = User(
+      id: widget.recipientId,
+      virtualNumber: widget.virtualNumber ?? '...',
+      handle: widget.recipientHandle ?? '...',
+      fullName: widget.recipientName,
+      bio: '',
+      isDiscoverable: true,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      profilePicture: widget.recipientProfilePicture,
+      avatar: widget.recipientAvatar,
+    );
+
+    // --- SECOND PASS: Network operations concurrently ---
+    // ── LOCAL-ONLY FOR SELF-CHAT ─────────────────────
+    if (widget.recipientId == senderId) {
+      debugPrint('🏠 Self-chat detected: Skipping remote sync');
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
+    // ──────────────────────────────────────────────────
+
+    // Start listening for realtime events and load fresh messages early.
+    _setupRealtimeListener(conversationId);
+    _loadMessages(conversationId);
+    _markMessagesAsRead();
+
+    // Parallelize initialization calls for profiles and keys in the background
+    Future.wait([
+      _followService
+          .getFollowStatus(
+        currentUserId: senderId,
+        targetUserId: widget.recipientId,
+      )
+          .catchError((e) {
+        debugPrint('Error checking follow status: $e');
+        return 'none';
+      }),
+      (widget.recipientId != senderId)
+          ? SupabaseService.instance
+              .getUserProfile(widget.recipientId)
+              .catchError((e) {
+              debugPrint('Error fetching fresh profile: $e');
+              return null;
+            })
+          : (currentUser != null 
+              ? Future.value(currentUser) 
+              : UserService.getCurrentUser()),
+      SupabaseService.instance
+          .getConversationTimer(widget.recipientId)
+          .catchError((e) {
+        debugPrint('Error fetching timer: $e');
+        return 'off';
+      }),
+      VirgilKeyService().getRecipientKeys(senderId),
+      VirgilKeyService().getRecipientKeys(widget.recipientId),
+    ]).then((results) {
       if (!mounted) return;
-      final chatProvider = context.read<ChatProvider>();
-
-      // Parallelize initialization calls to reduce delay
-      final results = await Future.wait([
-        _followService
-            .getFollowStatus(
-          currentUserId: currentUser.id,
-          targetUserId: widget.recipientId,
-        )
-            .catchError((e) {
-          debugPrint('Error checking follow status: $e');
-          return 'none';
-        }),
-        (widget.recipientId != currentUser.id)
-            ? SupabaseService.instance
-                .getUserProfile(widget.recipientId)
-                .catchError((e) {
-                debugPrint('Error fetching fresh profile: $e');
-                return null;
-              })
-            : Future.value(currentUser),
-        SupabaseService.instance
-            .getConversationTimer(widget.recipientId)
-            .catchError((e) {
-          debugPrint('Error fetching timer: $e');
-          return 'off';
-        }),
-        VirgilKeyService().getRecipientKeys(currentUser.id),
-        VirgilKeyService().getRecipientKeys(widget.recipientId),
-        _loadMessages(conversationId),
-      ]);
-
+      
       final relationshipStatus = results[0] as String;
       final freshRecipient = results[1] as User?;
       final ephemeralTimer = results[2] as String;
       _myKeys = results[3] as Map<String, dynamic>?;
       _recipientKeys = results[4] as Map<String, dynamic>?;
-      // results[5] is the void result from _loadMessages
 
       // Fallback to cache if remote check failed (returned 'none') but we know they are a friend
+      final chatProvider = context.read<ChatProvider>();
       String finalStatus = relationshipStatus;
       if (finalStatus == 'none' && chatProvider.isMutualFriend(widget.recipientId)) {
         finalStatus = 'mutual';
@@ -169,79 +244,35 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
       final isBoofer = widget.recipientId == AppConstants.booferId;
       final isMutual = isBoofer || finalStatus == 'mutual';
       final isFollowing = isBoofer || finalStatus == 'following' || isMutual;
-      const canChat = true; // Messaging possible without following
-      const isBlocked = false;
 
-      // Create recipient user object with fallback to widget params
-      final recipientUser = freshRecipient ??
-          User(
-            id: widget.recipientId,
-            virtualNumber: 'VN${widget.recipientId.hashCode.abs() % 10000}',
-            handle: widget.recipientHandle ??
-                widget.recipientName.toLowerCase().replaceAll(' ', '_'),
-            fullName: widget.recipientName,
-            bio: 'User profile',
-            isDiscoverable: true,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            profilePicture: (widget.recipientAvatar != null &&
-                    widget.recipientAvatar!.startsWith('http')
-                ? widget.recipientAvatar
-                : null),
-            avatar: (widget.recipientAvatar != null &&
-                    !widget.recipientAvatar!.startsWith('http')
-                ? widget.recipientAvatar
-                : null),
+      setState(() {
+        _isMutual = isMutual;
+        _isFollowing = isFollowing || isMutual;
+        _recipientUser = freshRecipient ?? _recipientUser; // Merge fresh data
+        _ephemeralTimer = ephemeralTimer;
+      });
+
+      _setupTimerListener(conversationId);
+      _cleanupExpiredMessages();
+    });
+
+    // Update presence with this conversation ID (sync) - Check mounted after async path
+    if (mounted) {
+      context.read<ChatProvider>().updatePresenceWithConversationId(
+            conversationId,
           );
 
-      // Start listening for timer changes
-      _setupTimerListener(conversationId);
-
-      if (mounted) {
-        setState(() {
-          _currentUserId = currentUser.id;
-          _conversationId = conversationId;
-          _isMutual = isMutual;
-          _isBlocked = isBlocked;
-          _isFollowing = isFollowing || isMutual;
-          _recipientUser = recipientUser;
-          _ephemeralTimer = ephemeralTimer;
-        });
-
-        // Mark Boofer welcome as seen locally
-        if (widget.recipientId == AppConstants.booferId) {
-          LocalStorageService.setSeenBooferWelcome(currentUser.id);
-        }
-
-        // Initial cleanup
-        _cleanupExpiredMessages();
+      // Mark Boofer welcome as seen locally
+      if (widget.recipientId == AppConstants.booferId) {
+        LocalStorageService.setSeenBooferWelcome(senderId);
       }
-
-      if (canChat && mounted) {
-        // Update presence with this conversation ID
-        context.read<ChatProvider>().updatePresenceWithConversationId(
-              conversationId,
-            );
-
-        // Set up realtime listener BEFORE loading messages to avoid gaps
-        _setupRealtimeListener(conversationId);
-
-        if (!mounted) return;
-
-        // Mark messages as read
-        _markMessagesAsRead();
-      }
+    }
     } catch (e) {
+      debugPrint('Error during chat initialization: $e');
       if (mounted) {
         setState(() {
           _loading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to initialize chat: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     }
   }
@@ -265,13 +296,46 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         return deletedFor == null || !deletedFor.contains(_currentUserId);
       }).toList();
 
-      // Decrypt messages if they are encrypted
-      final messages = await Future.wait(
-        rawMessages.map((m) => _decryptMessage(m)),
+      // Bulk fetch locally cached plaintext to avoid decrypting over and over
+      final messageIds = rawMessages.map((m) => m.id).toList();
+      final localTextMap = <String, String>{};
+      
+      if (messageIds.isNotEmpty) {
+        try {
+          final placeholders = List.filled(messageIds.length, '?').join(',');
+          final localData = await DatabaseManager.instance.query(
+            'SELECT id, text FROM messages WHERE id IN ($placeholders)',
+            messageIds,
+          );
+          for (final row in localData) {
+            final text = row['text'] as String?;
+            if (text != null && text != '[Encrypted]' && text.isNotEmpty) {
+              localTextMap[row['id'] as String] = text;
+            }
+          }
+        } catch (e) {
+          debugPrint('Bulk fetch error: $e');
+        }
+      }
+
+      // Decrypt messages in PARALLEL to avoid sequential delay.
+      // We pass shouldCache: false to _decryptMessage because we'll batch the updates here
+      // to avoid multiple concurrent writes which lock the database.
+      final decryptedMessages = await Future.wait(
+        rawMessages.map((m) async {
+          if (localTextMap.containsKey(m.id)) {
+            return m.copyWith(text: localTextMap[m.id]);
+          } else {
+            return await _decryptMessage(m, localText: null, shouldCache: false);
+          }
+        }),
       );
 
+      // Batch update the local cache for any messages that were newly decrypted
+      _batchUpdateCache(decryptedMessages, localTextMap);
+
       // Reverse to chronological order (oldest first) for the list
-      final sortedMessages = messages.reversed.toList();
+      final sortedMessages = decryptedMessages.reversed.toList();
 
       if (mounted) {
         setState(() {
@@ -337,9 +401,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   if (mounted) {
                     setState(() {
                       _messages.add(newMessage);
-                      _messages.sort(
-                        (a, b) => a.timestamp.compareTo(b.timestamp),
-                      );
+                      _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
                       _updateChatItems();
                     });
                     _scrollToBottom();
@@ -378,10 +440,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
                   } else {
                     // Add it if it's missing (helps with race conditions)
                     _messages.add(updatedMessage);
-                    // Sort to maintain order
-                    _messages.sort(
-                      (a, b) => a.timestamp.compareTo(b.timestamp),
-                    );
+                    _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
                   }
                   _updateChatItems();
                 });
@@ -532,13 +591,34 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
     }
   }
 
-  Future<Message> _decryptMessage(Message message) async {
+  Future<Message> _decryptMessage(Message message, {String? localText, bool shouldCache = true}) async {
     // 1. If not encrypted, return as is
     if (!message.isEncrypted || message.encryptedContent == null) {
       return message;
     }
 
-    // Ensure E2EE is initialized before decryption
+    // Fast Path: Check if plaintext already provided (saves a DB query)
+    if (localText != null && localText != '[Encrypted]' && localText.isNotEmpty) {
+      return message.copyWith(text: localText);
+    }
+
+    // Secondary Path: Check local SQLite for cached plaintext if not provided
+    try {
+      final localResults = await DatabaseManager.instance.query(
+        'SELECT text FROM messages WHERE id = ?',
+        [message.id],
+      );
+      if (localResults.isNotEmpty) {
+        final cachedText = localResults.first['text'] as String;
+        if (cachedText != '[Encrypted]' && cachedText.isNotEmpty) {
+          return message.copyWith(text: cachedText);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching local plaintext: $e');
+    }
+
+    // Ensure E2EE is initialized before decryption (this check is very fast if already init)
     if (!VirgilE2EEService.instance.isInitialized && _currentUserId != null) {
       await SupabaseService.instance.initializeE2EE(_currentUserId!);
     }
@@ -562,22 +642,6 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         }
       }
 
-      // Fallback: check local SQLite (for messages sent before this fix)
-      try {
-        final localResults = await DatabaseManager.instance.query(
-          'SELECT text FROM messages WHERE id = ?',
-          [message.id],
-        );
-        if (localResults.isNotEmpty) {
-          final localText = localResults.first['text'] as String;
-          if (localText != '[Encrypted]' && localText.isNotEmpty) {
-            return message.copyWith(text: localText);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching local plaintext for sender: $e');
-      }
-
       return message; // Old message before fix — show [Encrypted] as last resort
     }
 
@@ -598,10 +662,53 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         message.encryptedContent!,
         senderKeys['signaturePublicKey'],
       );
+
+      // Cache the decrypted plaintext locally to prevent future UI freezing!
+      if (shouldCache) {
+        try {
+          await DatabaseManager.instance.update(
+            'messages',
+            {'text': decrypted},
+            where: 'id = ?',
+            whereArgs: [message.id],
+          );
+        } catch (e) {
+          debugPrint('⚠️ Failed to cache decrypted text: $e');
+        }
+      }
+
       return message.copyWith(text: decrypted);
     } catch (e) {
       debugPrint('⚠️ Message decryption failed: $e');
       return message.copyWith(status: MessageStatus.decryptionFailed);
+    }
+  }
+
+  Future<void> _batchUpdateCache(List<Message> messages, Map<String, String> existingCache) async {
+    final toUpdate = messages.where((m) => 
+      m.isEncrypted && 
+      m.text != '[Encrypted]' && 
+      m.text.isNotEmpty && 
+      !existingCache.containsKey(m.id)
+    ).toList();
+
+    if (toUpdate.isEmpty) return;
+
+    try {
+      final db = await DatabaseManager.instance.database;
+      final batch = db.batch();
+      for (final m in toUpdate) {
+        batch.update(
+          'messages',
+          {'text': m.text},
+          where: 'id = ?',
+          whereArgs: [m.id],
+        );
+      }
+      await batch.commit(noResult: true);
+      debugPrint('✅ Batched ${toUpdate.length} message decryptions to local cache');
+    } catch (e) {
+      debugPrint('⚠️ Failed to batch update cache: $e');
     }
   }
 
@@ -892,7 +999,7 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
 
   Widget _buildMessagesList() {
     if (_loading && _messages.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonChatLoading();
     }
 
     if (_messages.isEmpty && widget.recipientId != AppConstants.booferId) {
@@ -1294,6 +1401,22 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         debugPrint('⚠️ Failed to save plaintext locally: $e');
       }
 
+      // ── LOCAL-ONLY FOR SELF-CHAT ─────────────────────
+      if (widget.recipientId == _currentUserId) {
+        debugPrint('🏠 Self-chat detected: Keeping message local only');
+        if (mounted) {
+          setState(() {
+            final index = _messages.indexWhere((m) => m.id == message.id);
+            if (index != -1) {
+              _messages[index] = message.copyWith(status: MessageStatus.read);
+              _updateChatItems();
+            }
+          });
+        }
+        return;
+      }
+      // ──────────────────────────────────────────────────
+
       final result = await SupabaseService.instance.sendMessage(
         conversationId: _conversationId!,
         senderId: _currentUserId!,
@@ -1575,11 +1698,27 @@ class _FriendChatScreenState extends State<FriendChatScreen> {
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-    } catch (e) {
-      debugPrint('⚠️ Failed to save media message locally: $e');
-    }
+      } catch (e) {
+        debugPrint('⚠️ Failed to save media message locally: $e');
+      }
 
-    try {
+      // ── LOCAL-ONLY FOR SELF-CHAT ─────────────────────
+      if (widget.recipientId == _currentUserId) {
+        debugPrint('🏠 Self-chat detected: Keeping media local only');
+        if (mounted) {
+          setState(() {
+            final index = _messages.indexWhere((m) => m.id == messageId);
+            if (index != -1) {
+              _messages[index] = optimisticMessage.copyWith(status: MessageStatus.read);
+              _updateChatItems();
+            }
+          });
+        }
+        return;
+      }
+      // ──────────────────────────────────────────────────
+
+      try {
       Uint8List mediaBytes;
       int originalSize = await result.file.length();
       int compressedSize;

@@ -312,6 +312,7 @@ class _UnifiedFriendCardState extends State<UnifiedFriendCard> {
           recipientName: widget.user.displayName,
           recipientHandle: widget.user.handle,
           recipientAvatar: widget.user.profilePicture ?? '',
+          currentUserId: _currentUserId,
         ),
       ),
     );

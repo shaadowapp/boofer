@@ -40,10 +40,7 @@ class DatabaseManager {
         onConfigure: _onConfigure,
       );
 
-      // Run health check after database initialization
-      debugPrint('🏥 [DB] Running post-initialization health check...');
-      await _runPostInitHealthCheck(db);
-
+      // Clean initialization without blocking health checks
       return db;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -57,31 +54,30 @@ class DatabaseManager {
     }
   }
 
-  /// Run health check after database initialization or migration
-  Future<void> _runPostInitHealthCheck(Database db) async {
-    try {
-      // Quick integrity check only (don't run full health check to avoid blocking)
-      final result = await db.rawQuery('PRAGMA integrity_check');
-      if (result.isNotEmpty) {
-        final status = result.first['integrity_check'] as String?;
-        if (status == 'ok') {
-          debugPrint('✅ [DB] Post-init integrity check passed');
-        } else {
-          debugPrint('⚠️ [DB] Post-init integrity check failed: $status');
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ [DB] Post-init health check failed (non-critical): $e');
-    }
-  }
+
 
   /// Configure database settings
   Future<void> _onConfigure(Database db) async {
-    await db.execute('PRAGMA foreign_keys = ON');
-    // Use rawQuery for PRAGMAs that return results to avoid Android's execSQL restriction
-    await db.rawQuery('PRAGMA journal_mode = WAL');
-    await db.rawQuery('PRAGMA synchronous = NORMAL');
-    await db.rawQuery('PRAGMA cache_size = -2000'); // 2MB cache
+    try {
+      await db.execute('PRAGMA foreign_keys = ON');
+      
+      // Use rawQuery for PRAGMAs that return results to avoid Android's execSQL restriction.
+      // We wrap these in a try-catch because some devices throw an error even when the 
+      // command succeeds (SQLITE_OK).
+      await db.rawQuery('PRAGMA journal_mode = WAL');
+      await db.rawQuery('PRAGMA synchronous = NORMAL');
+      await db.rawQuery('PRAGMA cache_size = -2000'); // 2MB cache
+    } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('SQLITE_OK') || 
+          errorStr.contains('rawQuery methods only') ||
+          errorStr.contains('query or rawQuery methods only')) {
+        debugPrint('ℹ️ [DB] PRAGMA configured (ignoring misleading native error: $e)');
+      } else {
+        debugPrint('❌ [DB] Error during _onConfigure: $e');
+        rethrow;
+      }
+    }
   }
 
   /// Create database tables

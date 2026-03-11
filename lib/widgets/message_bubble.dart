@@ -14,6 +14,7 @@ import 'link_warning_bottom_sheet.dart';
 import '../services/supabase_service.dart';
 import '../core/constants.dart';
 import '../models/user_model.dart' as app_user;
+import 'custom_markdown_text.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -543,7 +544,9 @@ class MessageBubble extends StatelessWidget {
       isOwnMessage: isOwnMessage,
       theme: theme,
       fontSize: fontSize,
-      isEncrypted: message.isEncrypted,
+      isEncrypted: message.isEncrypted &&
+          (message.text == '[Encrypted]' ||
+              message.status == MessageStatus.decryptionFailed),
       onUserHandleTap: (handle) => _handleUserHandleTap(context, handle),
     );
   }
@@ -1068,9 +1071,9 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
 
   @override
   Widget build(BuildContext context) {
+    // ── Chunked expansion logic ────────────────────────────────────────────
     int endIndex = _visibleLength;
 
-    // Ensure we don't cut in the middle of a URL/Handle
     for (final match in _allMatches) {
       if (match.start < endIndex && match.end > endIndex) {
         endIndex = match.end;
@@ -1079,151 +1082,79 @@ class _ExpandableMessageTextState extends State<_ExpandableMessageText> {
     }
 
     if (endIndex > widget.text.length) endIndex = widget.text.length;
-
-    // If only a few characters remain after cut, just show them
     if (widget.text.length - endIndex < 50) endIndex = widget.text.length;
 
     final isExpandedFull = endIndex >= widget.text.length;
+    final visibleText = widget.text.substring(0, endIndex);
 
-    final List<InlineSpan> spans = [];
-    int currentIndex = 0;
+    // ── Base style ─────────────────────────────────────────────────────────
+    final baseStyle = TextStyle(
+      color: widget.isOwnMessage
+          ? Colors.white
+          : widget.theme.colorScheme.onSurface,
+      fontSize: widget.fontSize,
+      fontFamily: widget.theme.textTheme.bodyMedium?.fontFamily,
+      height: 1.4,
+    );
 
-    final visibleMatches = _allMatches.where((m) => m.end <= endIndex).toList();
-
-    for (final match in visibleMatches) {
-      if (match.start < currentIndex) continue;
-
-      if (match.start > currentIndex) {
-        spans.add(
-          TextSpan(
-            text: widget.text.substring(currentIndex, match.start),
-            style: TextStyle(
-              color: widget.isOwnMessage
-                  ? Colors.white
-                  : widget.theme.colorScheme.onSurface,
-              fontSize: widget.fontSize,
+    // ── Encrypted placeholder ─────────────────────────────────────────────
+    if (widget.isEncrypted) {
+      return RichText(
+        text: TextSpan(
+          style: baseStyle,
+          children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Icon(
+                Icons.lock_outline_rounded,
+                size: widget.fontSize * 0.9,
+                color: baseStyle.color?.withValues(alpha: 0.5),
+              ),
             ),
-          ),
-        );
-      }
-
-      String matchText = widget.text.substring(match.start, match.end);
-
-      if (matchText.startsWith('@')) {
-        spans.add(
-          TextSpan(
-            text: matchText,
-            style: TextStyle(
-              color: widget.isOwnMessage
-                  ? Colors.white
-                  : widget.theme.colorScheme.primary,
-              fontSize: widget.fontSize,
-              fontWeight: FontWeight.bold,
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => widget.onUserHandleTap(matchText),
-          ),
-        );
-        currentIndex = match.end;
-      } else {
-        // Trim logic
-        final punctuation = RegExp(r'[.,?!:;"]');
-        int trimCount = 0;
-        while (matchText.isNotEmpty &&
-            punctuation.hasMatch(matchText[matchText.length - 1])) {
-          matchText = matchText.substring(0, matchText.length - 1);
-          trimCount++;
-        }
-
-        if (matchText.isEmpty) {
-          matchText = widget.text.substring(match.start, match.end);
-          trimCount = 0;
-        }
-
-        final fullUrl =
-            matchText.startsWith('http') ? matchText : 'https://$matchText';
-        spans.add(
-          TextSpan(
-            text: matchText,
-            style: TextStyle(
-              color: widget.isOwnMessage
-                  ? Colors.white
-                  : widget.theme.colorScheme.primary,
-              fontSize: widget.fontSize,
-              decoration: TextDecoration.underline,
-              decorationColor: widget.isOwnMessage
-                  ? Colors.white70
-                  : widget.theme.colorScheme.primary.withValues(alpha: 0.5),
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () {
-                LinkWarningBottomSheet.show(context, fullUrl);
-              },
-          ),
-        );
-
-        if (trimCount > 0) {
-          spans.add(
             TextSpan(
-              text: widget.text.substring(match.end - trimCount, match.end),
+              text: '  ${widget.text}',
+              style: baseStyle.copyWith(
+                  color: baseStyle.color?.withValues(alpha: 0.5)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Main content via CustomMarkdownText ───────────────────────────────
+    final markdownWidget = CustomMarkdownText(
+      text: visibleText,
+      isOwnMessage: widget.isOwnMessage,
+      baseStyle: baseStyle,
+      onUrlTap: (url) => LinkWarningBottomSheet.show(context, url),
+      onHandleTap: widget.onUserHandleTap,
+    );
+
+    if (isExpandedFull) return markdownWidget;
+
+    // ── "See more" suffix ─────────────────────────────────────────────────
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        markdownWidget,
+        GestureDetector(
+          onTap: _expandText,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '... See more',
               style: TextStyle(
                 color: widget.isOwnMessage
                     ? Colors.white
-                    : widget.theme.colorScheme.onSurface,
+                    : widget.theme.colorScheme.primary,
+                fontWeight: FontWeight.w900,
                 fontSize: widget.fontSize,
               ),
             ),
-          );
-        }
-
-        currentIndex = match.end;
-      }
-    }
-
-    // Add remaining plain text
-    if (currentIndex < endIndex) {
-      spans.add(
-        TextSpan(
-          text: widget.text.substring(currentIndex, endIndex),
-          style: TextStyle(
-            color: widget.isOwnMessage
-                ? Colors.white
-                : widget.theme.colorScheme.onSurface,
-            fontSize: widget.fontSize,
           ),
         ),
-      );
-    }
-
-    // Append "See more" if needed
-    if (!isExpandedFull) {
-      spans.add(
-        TextSpan(
-          text: ' ... See more',
-          style: TextStyle(
-            color: widget.isOwnMessage
-                ? Colors.white
-                : widget.theme.colorScheme.primary,
-            fontWeight: FontWeight.w900,
-            fontSize: widget.fontSize,
-          ),
-          recognizer: TapGestureRecognizer()..onTap = _expandText,
-        ),
-      );
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          color: widget.isOwnMessage
-              ? Colors.white
-              : widget.theme.colorScheme.onSurface,
-          fontSize: widget.fontSize,
-          fontFamily: widget.theme.textTheme.bodyMedium?.fontFamily,
-          height: 1.4,
-        ),
-        children: spans,
-      ),
+      ],
     );
   }
 }

@@ -278,6 +278,7 @@ class _StartNewChatScreenState extends State<StartNewChatScreen> {
               : user.displayName,
           recipientHandle: user.handle,
           recipientAvatar: user.profilePicture ?? user.avatar ?? '',
+          currentUserId: _currentUser?.id,
         ),
       ),
     );

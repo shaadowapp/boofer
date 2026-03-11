@@ -229,7 +229,7 @@ Future<Map<String, dynamic>> _performInfrastructureSetup() async {
       anonKey: SupabaseConfig.anonKey,
     );
 
-    debugPrint('✅ [BOOT] Infrahstucture Ready');
+    debugPrint('✅ [BOOT] Infrastructure Ready');
     return await _initializeApp();
   } catch (e) {
     debugPrint('❌ [BOOT] Infrastructure failure: $e');
@@ -495,6 +495,7 @@ class _BooferAppState extends State<BooferApp> {
                       recipientAvatar: rAvatar,
                       recipientProfilePicture: rPic,
                       virtualNumber: vNum,
+                      currentUserId: context.read<SupabaseUserProvider>().currentUser?.id,
                     ),
                   );
                 }

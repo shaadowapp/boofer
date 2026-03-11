@@ -186,6 +186,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             recipientAvatar: _profileUser!.avatar,
             recipientProfilePicture: _profileUser!.profilePicture,
             virtualNumber: _profileUser!.virtualNumber,
+            currentUserId: currentUser.id,
           ),
         ),
       );

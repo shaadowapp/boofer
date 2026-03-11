@@ -449,7 +449,10 @@ class ChatProvider with ChangeNotifier {
   // Chat management methods
   List<Friend> get activeChats {
     if (ScreenshotMode.isEnabled) return ScreenshotMode.dummyActiveChats;
-    final active = _friends.where((friend) => !friend.isArchived).toList();
+    final active = _friends
+        .where((friend) =>
+            !friend.isArchived && friend.id != AppConstants.booferId)
+        .toList();
     active.sort((a, b) {
       // Sort pinned chats first
       if (a.isPinned && !b.isPinned) return -1;
